@@ -22,11 +22,10 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      # ── 3. Flutter stable ───────────────────────────────────
+      # ── 3. Flutter stable (dernière version) ────────────────
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.22.0'
           channel: 'stable'
           cache: true
 
@@ -36,7 +35,58 @@ jobs:
           rm -rf android/app/src/main/java/
           echo "Fichier v1 supprimé"
 
-      # ── 5. Créer google-services.json minimal (Firebase désactivé pour le build) ─
+      # ── 5a. Créer api_keys.dart (gitignored) ────────────────
+      - name: Create api_keys.dart
+        run: |
+          mkdir -p lib/config
+          cat > lib/config/api_keys.dart << 'EOF'
+          class ApiKeys {
+            ApiKeys._();
+            static const String ignApiKey = '';
+            static const String googlePlacesKey = '';
+            static const String tomTomKey = '';
+            static const String openMeteoBaseUrl = 'https://api.open-meteo.com/v1';
+            static const String openMeteoArchiveUrl = 'https://archive-api.open-meteo.com/v1';
+            static const String rainViewerApiUrl = 'https://api.rainviewer.com/public/weather-maps.json';
+            static const String rainViewerTileUrl = 'https://tilecache.rainviewer.com';
+            static const String overpassUrl = 'https://overpass-api.de/api/interpreter';
+            static bool get isIgnConfigured => ignApiKey.isNotEmpty;
+            static bool get isGoogleConfigured => googlePlacesKey.isNotEmpty;
+            static bool get isTomTomConfigured => tomTomKey.isNotEmpty;
+            static bool get isWeatherReady => true;
+            static bool get isRadarReady => true;
+            static bool get isOsmReady => true;
+          }
+          EOF
+          echo "api_keys.dart créé"
+
+      # ── 5b. Créer firebase_options.dart (gitignored) ────────
+      - name: Create firebase_options.dart
+        run: |
+          mkdir -p lib/config
+          cat > lib/config/firebase_options.dart << 'EOF'
+          import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
+          import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+          class DefaultFirebaseOptions {
+            static FirebaseOptions get currentPlatform {
+              switch (defaultTargetPlatform) {
+                case TargetPlatform.android: return android;
+                default: return android;
+              }
+            }
+            static const FirebaseOptions android = FirebaseOptions(
+              apiKey: 'PLACEHOLDER',
+              appId: '1:000000000000:android:0000000000000000000000',
+              messagingSenderId: '000000000000',
+              projectId: 'moto-offroad-4x4',
+              storageBucket: 'moto-offroad-4x4.appspot.com',
+              databaseURL: 'https://moto-offroad-4x4-default-rtdb.europe-west1.firebasedatabase.app',
+            );
+          }
+          EOF
+          echo "firebase_options.dart créé"
+
+      # ── 5c. Créer google-services.json minimal ───────────────
       - name: Create dummy google-services.json
         run: |
           mkdir -p android/app
