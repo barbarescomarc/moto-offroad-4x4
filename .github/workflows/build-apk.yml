@@ -1,0 +1,104 @@
+name: Build APK Android
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:   # Permet de lancer manuellement depuis GitHub
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # ── 1. Récupérer le code ────────────────────────────────
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # ── 2. Java 17 (requis pour Android) ───────────────────
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      # ── 3. Flutter stable ───────────────────────────────────
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.22.0'
+          channel: 'stable'
+          cache: true
+
+      # ── 4. Supprimer le fichier GeneratedPluginRegistrant v1 ─
+      - name: Remove v1 embedding file
+        run: |
+          rm -rf android/app/src/main/java/
+          echo "Fichier v1 supprimé"
+
+      # ── 5. Créer google-services.json minimal (Firebase désactivé pour le build) ─
+      - name: Create dummy google-services.json
+        run: |
+          mkdir -p android/app
+          cat > android/app/google-services.json << 'EOF'
+          {
+            "project_info": {
+              "project_number": "000000000000",
+              "project_id": "moto-offroad-4x4",
+              "storage_bucket": "moto-offroad-4x4.appspot.com"
+            },
+            "client": [{
+              "client_info": {
+                "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+                "android_client_info": { "package_name": "app.motooffroad" }
+              },
+              "api_key": [{ "current_key": "PLACEHOLDER" }],
+              "services": {
+                "appinvite_service": {
+                  "other_platform_oauth_client": []
+                }
+              }
+            }],
+            "configuration_version": "1"
+          }
+          EOF
+          echo "google-services.json créé"
+
+      # ── 6. Créer les dossiers assets requis ────────────────
+      - name: Create asset directories
+        run: |
+          mkdir -p assets/icons assets/maps
+          touch assets/icons/.keep assets/maps/.keep
+
+      # ── 7. Dépendances Flutter ──────────────────────────────
+      - name: Flutter pub get
+        run: flutter pub get
+
+      # ── 8. Vérification rapide du code ─────────────────────
+      - name: Flutter analyze
+        run: flutter analyze --no-fatal-infos
+        continue-on-error: true   # Ne bloque pas le build si warnings
+
+      # ── 9. Compilation APK debug ────────────────────────────
+      - name: Build APK debug
+        run: flutter build apk --debug --no-shrink
+
+      # ── 10. Upload de l'APK comme artefact téléchargeable ──
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: moto-offroad-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 30   # Disponible 30 jours
+
+      # ── 11. Afficher la taille de l'APK ────────────────────
+      - name: APK info
+        run: |
+          APK="build/app/outputs/flutter-apk/app-debug.apk"
+          if [ -f "$APK" ]; then
+            SIZE=$(du -h "$APK" | cut -f1)
+            echo "✅ APK compilé avec succès : $SIZE"
+          else
+            echo "❌ APK non trouvé"
+            exit 1
+          fi
