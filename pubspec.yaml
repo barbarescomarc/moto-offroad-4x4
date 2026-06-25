@@ -1,0 +1,72 @@
+name: moto_offroad
+description: Application GPS offroad moto — France & Europe
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: '>=3.10.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # ── Carte & GPS ─────────────────────────────────────
+  flutter_map: ^6.1.0          # Carte OSM/tile rendering
+  latlong2: ^0.9.0             # Coordonnées GPS
+  geolocator: ^11.0.0          # Position GPS temps réel
+  # flutter_compass supprimé (v1 embedding) — à réintégrer en v0.8+ ultérieurement
+
+  # ── GPX ─────────────────────────────────────────────
+  gpx: ^2.2.0                  # Parser GPX
+  file_picker: ^8.0.0          # Import fichier GPX
+  path_provider: ^2.1.0        # Chemins fichiers locaux
+
+  # ── État / Navigation ────────────────────────────────
+  provider: ^6.1.0             # State management
+  go_router: ^13.0.0           # Navigation déclarative
+
+  # ── Firebase (mode groupe) ───────────────────────────
+  firebase_core: ^2.27.0
+  firebase_database: ^10.4.0   # Realtime DB positions groupe
+  firebase_auth: ^4.17.0       # Auth anonyme
+
+  # ── Météo & APIs ─────────────────────────────────────
+  http: ^1.2.0                 # Requêtes HTTP
+
+  # ── SOS & Sécurité ───────────────────────────────────
+  url_launcher: ^6.2.0         # Appel 112, SMS, WhatsApp
+  share_plus: ^7.2.0           # Partage position
+  permission_handler: ^11.3.0  # Permissions Android/iOS
+
+  # ── Stockage ─────────────────────────────────────────
+  shared_preferences: ^2.2.0   # Préférences utilisateur
+  sqflite: ^2.3.0              # SQLite local
+
+  # ── UI ───────────────────────────────────────────────
+  wakelock_plus: ^1.1.0        # Écran actif en navigation
+
+  # ── Utilitaires ──────────────────────────────────────
+  intl: ^0.19.0                # Formatage dates/nombres
+  uuid: ^4.3.0                 # IDs uniques groupes
+  crypto: ^3.0.0               # Chiffrement liens Solo
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/icons/
+    - assets/maps/
+  # Polices Rajdhani à ajouter quand les fichiers .ttf seront présents dans assets/fonts/
+  # fonts:
+  #   - family: Rajdhani
+  #     fonts:
+  #       - asset: assets/fonts/Rajdhani-Regular.ttf
+  #       - asset: assets/fonts/Rajdhani-Bold.ttf
+  #         weight: 700
+  #       - asset: assets/fonts/Rajdhani-SemiBold.ttf
+  #         weight: 600

@@ -1,0 +1,18 @@
+# Flutter
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+*.iml
+
+# Android sensible
+android/local.properties
+android/app/google-services.json
+
+# Android build cache
+android/.gradle/
+
+# Clés API — NE JAMAIS COMMITER
+lib/config/api_keys.dart
+lib/config/firebase_options.dart
