@@ -11,6 +11,7 @@ import 'providers/trace_provider.dart';
 import 'providers/group_provider.dart';
 import 'providers/fuel_provider.dart';
 import 'providers/solo_provider.dart';
+import 'providers/settings_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -62,6 +63,11 @@ class MotoOffroadApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => GroupProvider()),
         ChangeNotifierProvider(create: (_) => FuelProvider()),
         ChangeNotifierProvider(create: (_) => SoloProvider()),
+        ChangeNotifierProvider(create: (_) {
+          final s = SettingsProvider();
+          s.load(); // chargement async des préférences persistées
+          return s;
+        }),
       ],
       child: MaterialApp.router(
         title: 'Moto Offroad 4x4',

@@ -6,15 +6,19 @@ import '../screens/solo/solo_screen.dart';
 import '../screens/fuel/fuel_screen.dart';
 import '../screens/group/group_screen.dart';
 import '../screens/weather/weather_screen.dart';
+import '../screens/info/info_screen.dart';
+import '../screens/settings/settings_screen.dart';
 
 // ── Routes nommées ───────────────────────────────────────────
 class AppRoutes {
-  static const String map     = '/';
-  static const String sos     = '/sos';
-  static const String solo    = '/solo';
-  static const String fuel    = '/fuel';
-  static const String group   = '/group';
-  static const String weather = '/weather';
+  static const String map      = '/';
+  static const String fuel     = '/fuel';
+  static const String info     = '/info';
+  static const String weather  = '/weather';
+  static const String settings = '/settings';
+  static const String sos      = '/sos';
+  static const String solo     = '/solo';
+  static const String group    = '/group';
 }
 
 // ── Router GoRouter ──────────────────────────────────────────
@@ -27,44 +31,38 @@ final GoRouter appRouter = GoRouter(
       routes: [
         GoRoute(
           path: AppRoutes.map,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: MapScreen(),
-          ),
+          pageBuilder: (_, __) => const NoTransitionPage(child: MapScreen()),
         ),
         GoRoute(
           path: AppRoutes.fuel,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: FuelScreen(),
-          ),
+          pageBuilder: (_, __) => const NoTransitionPage(child: FuelScreen()),
         ),
         GoRoute(
-          path: AppRoutes.group,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: GroupScreen(),
-          ),
+          path: AppRoutes.info,
+          pageBuilder: (_, __) => const NoTransitionPage(child: InfoScreen()),
         ),
         GoRoute(
           path: AppRoutes.weather,
-          pageBuilder: (context, state) => const NoTransitionPage(
-            child: WeatherScreen(),
-          ),
+          pageBuilder: (_, __) => const NoTransitionPage(child: WeatherScreen()),
+        ),
+        GoRoute(
+          path: AppRoutes.settings,
+          pageBuilder: (_, __) => const NoTransitionPage(child: SettingsScreen()),
         ),
       ],
     ),
-    // Modals (pas dans le shell)
+    // Modals (hors shell)
     GoRoute(
       path: AppRoutes.sos,
-      pageBuilder: (context, state) => MaterialPage(
-        fullscreenDialog: true,
-        child: const SosScreen(),
-      ),
+      pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SosScreen()),
     ),
     GoRoute(
       path: AppRoutes.solo,
-      pageBuilder: (context, state) => MaterialPage(
-        fullscreenDialog: true,
-        child: const SoloScreen(),
-      ),
+      pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SoloScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.group,
+      pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: GroupScreen()),
     ),
   ],
 );
@@ -77,11 +75,12 @@ class MainShell extends StatelessWidget {
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
     switch (location) {
-      case AppRoutes.map:     return 0;
-      case AppRoutes.fuel:    return 1;
-      case AppRoutes.group:   return 2;
-      case AppRoutes.weather: return 3;
-      default:                return 0;
+      case AppRoutes.map:      return 0;
+      case AppRoutes.fuel:     return 1;
+      case AppRoutes.info:     return 2;
+      case AppRoutes.weather:  return 3;
+      case AppRoutes.settings: return 4;
+      default:                 return 0;
     }
   }
 
@@ -91,25 +90,25 @@ class MainShell extends StatelessWidget {
       body: child,
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex(context),
-        onTap: (i) {
-          switch (i) {
-            case 0: context.go(AppRoutes.map);     break;
-            case 1: context.go(AppRoutes.fuel);    break;
-            case 2: context.go(AppRoutes.group);   break;
-            case 3: context.go(AppRoutes.weather); break;
-            case 4: context.push(AppRoutes.sos);   break;
-            case 5: context.push(AppRoutes.solo);  break;
-          }
-        },
+        onTap: (i) => _onNavTap(context, i),
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.map_outlined),              activeIcon: Icon(Icons.map),                label: 'Carte'),
-          BottomNavigationBarItem(icon: Icon(Icons.local_gas_station_outlined), activeIcon: Icon(Icons.local_gas_station),  label: 'Carbu'),
-          BottomNavigationBarItem(icon: Icon(Icons.group_outlined),            activeIcon: Icon(Icons.group),              label: 'Groupe'),
-          BottomNavigationBarItem(icon: Icon(Icons.cloud_outlined),            activeIcon: Icon(Icons.cloud),              label: 'Météo'),
-          BottomNavigationBarItem(icon: Icon(Icons.emergency_outlined),        activeIcon: Icon(Icons.emergency),          label: 'SOS'),
-          BottomNavigationBarItem(icon: Icon(Icons.shield_outlined),           activeIcon: Icon(Icons.shield),             label: 'Solo'),
+          BottomNavigationBarItem(icon: Icon(Icons.map_outlined),              activeIcon: Icon(Icons.map),                 label: 'Carte'),
+          BottomNavigationBarItem(icon: Icon(Icons.local_gas_station_outlined), activeIcon: Icon(Icons.local_gas_station),   label: 'Carbu'),
+          BottomNavigationBarItem(icon: Icon(Icons.info_outline),              activeIcon: Icon(Icons.info),                label: 'Info'),
+          BottomNavigationBarItem(icon: Icon(Icons.cloud_outlined),            activeIcon: Icon(Icons.cloud),               label: 'Météo'),
+          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined),         activeIcon: Icon(Icons.settings),            label: 'Réglages'),
         ],
       ),
     );
+  }
+
+  void _onNavTap(BuildContext context, int index) {
+    switch (index) {
+      case 0: context.go(AppRoutes.map);      break;
+      case 1: context.go(AppRoutes.fuel);     break;
+      case 2: context.go(AppRoutes.info);     break;
+      case 3: context.go(AppRoutes.weather);  break;
+      case 4: context.go(AppRoutes.settings); break;
+    }
   }
 }

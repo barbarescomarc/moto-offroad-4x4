@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import '../../app/theme.dart';
@@ -9,7 +7,6 @@ import '../../app/router.dart';
 import '../../providers/map_provider.dart';
 import '../../providers/trace_provider.dart';
 import '../../providers/group_provider.dart';
-import '../../models/trace.dart' show TracePoint;
 import '../../providers/fuel_provider.dart';
 import '../../providers/solo_provider.dart';
 import '../../services/location_service.dart';
@@ -18,6 +15,7 @@ import '../../widgets/mode_switch.dart';
 import '../../widgets/stats_bar.dart';
 import '../../widgets/layer_selector.dart';
 import '../../widgets/gpx_import_sheet.dart';
+import '../../widgets/map_search_bar.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -100,11 +98,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // ── Badge Solo ──────────────────────────────────
             _buildSoloBadge(),
 
-            // ── Contrôles carte ─────────────────────────────
+            // ── Contrôles carte + recherche ─────────────────
             Positioned(
               right: 12,
               bottom: AppSizes.statsBarHeight + 16,
-              child: _buildMapControls(),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  MapSearchBar(mapController: _mapController),
+                  const SizedBox(height: 8),
+                  _buildMapControls(),
+                ],
+              ),
             ),
 
             // ── Stats bar + fullscreen btn ───────────────────
@@ -136,7 +142,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               Positioned.fill(child: _buildMap()),
               _buildSosButton(),
               _buildSoloBadge(),
-              Positioned(bottom: 8, right: 8, child: _buildMapControls()),
+              Positioned(
+                bottom: 8, right: 8,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    MapSearchBar(mapController: _mapController),
+                    const SizedBox(height: 8),
+                    _buildMapControls(),
+                  ],
+                ),
+              ),
             ]),
           ),
           // 35% droite = panneau stats
@@ -310,11 +327,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ),
           // Switch offroad/route
           const ModeSwitchWidget(),
-          const SizedBox(width: 8),
+          const SizedBox(width: 4),
           // Import GPX
           _iconBtn(Icons.upload_file, () => _showImportSheet()),
           // Sélecteur de couche
           _iconBtn(Icons.layers_outlined, () => _showLayerSelector()),
+          const SizedBox(width: 4),
+          // Réglages
+          _iconBtn(Icons.settings_outlined, () => context.go(AppRoutes.settings)),
         ],
       ),
     );
@@ -520,6 +540,36 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             const Divider(height: 20),
           ],
           const Spacer(),
+          // ── Contrôles cartographiques ─────────────────────
+          const Divider(height: 16),
+          Row(
+            children: [
+              // Mode offroad/route
+              Expanded(child: _landscapeCtrlBtn(
+                Icons.terrain,
+                'Offroad',
+                context.watch<MapProvider>().isOffroad,
+                () => context.read<MapProvider>().toggleNavMode(),
+              )),
+              const SizedBox(width: 6),
+              // Sélecteur de couche
+              Expanded(child: _landscapeCtrlBtn(
+                Icons.layers_outlined,
+                'Couche',
+                false,
+                () => _showLayerSelector(),
+              )),
+              const SizedBox(width: 6),
+              // Import GPX
+              Expanded(child: _landscapeCtrlBtn(
+                Icons.upload_file,
+                'GPX',
+                context.watch<TraceProvider>().hasTrace,
+                () => _showImportSheet(),
+              )),
+            ],
+          ),
+          const SizedBox(height: 8),
           // SOS compact
           SizedBox(
             width: double.infinity,
@@ -653,6 +703,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   );
 
   // ── UTILITAIRES ──────────────────────────────────────────
+  Widget _landscapeCtrlBtn(IconData icon, String label, bool active, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        decoration: BoxDecoration(
+          color:        active ? AppColors.orange.withValues(alpha: .15) : AppColors.bgCard,
+          borderRadius: BorderRadius.circular(8),
+          border:       Border.all(color: active ? AppColors.orange : const Color(0xFF2A2A3E)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 16, color: active ? AppColors.orange : AppColors.textSecondary),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(
+              fontSize: 10, fontFamily: 'Rajdhani',
+              color: active ? AppColors.orange : AppColors.textSecondary,
+            )),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _iconBtn(IconData icon, VoidCallback onTap) => GestureDetector(
     onTap: onTap,
     child: Container(

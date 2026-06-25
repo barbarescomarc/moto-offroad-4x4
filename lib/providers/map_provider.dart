@@ -30,11 +30,8 @@ extension MapLayerExt on MapLayer {
                '&STYLE=normal&FORMAT=image/png'
                '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}';
       case MapLayer.contour:
-        return 'https://wxs.ign.fr/{apiKey}/geoportail/wmts?'
-               'SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'
-               '&LAYER=ELEVATION.CONTOUR.LINE'
-               '&STYLE=normal&FORMAT=image/png'
-               '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}';
+        // OpenTopoMap — gratuit, sans clé API, courbes de niveau mondiales
+        return 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png';
     }
   }
 }
