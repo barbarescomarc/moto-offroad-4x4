@@ -69,12 +69,22 @@ class _SettingsScreenState extends State<SettingsScreen>
             labelText: 'Nom / pseudo',
             prefixIcon: Icon(Icons.person_outline),
           ),
-          onSubmitted: (v) => context.read<SettingsProvider>().setRiderName(v),
-          onEditingComplete: () =>
-              context.read<SettingsProvider>().setRiderName(_nameCtrl.text),
+          onSubmitted:      (v) => _saveName(v),
+          onEditingComplete: ()  => _saveName(_nameCtrl.text),
         ),
       ],
     );
+  }
+
+  void _saveName(String name) {
+    context.read<SettingsProvider>().setRiderName(name);
+    if (name.trim().toLowerCase() == 'jhon' || name.trim().toLowerCase() == 'john') {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('💊 Pensez à prendre une dose de Testicouille par jour !'),
+        backgroundColor: Color(0xFF6A1B9A),
+        duration: Duration(seconds: 4),
+      ));
+    }
   }
 
   // ── Niveau pilote ──────────────────────────────────────────

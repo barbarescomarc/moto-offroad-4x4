@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-enum MotoCategory { trail, maxiTrail, enduro }
+enum MotoCategory { trail, maxiTrail, enduro, custom }
 
 extension MotoCategoryExt on MotoCategory {
   String get label {
@@ -8,6 +8,7 @@ extension MotoCategoryExt on MotoCategory {
       case MotoCategory.trail:     return 'Trail';
       case MotoCategory.maxiTrail: return 'Maxi-Trail';
       case MotoCategory.enduro:    return 'Enduro';
+      case MotoCategory.custom:    return 'Custom';
     }
   }
 
@@ -16,6 +17,7 @@ extension MotoCategoryExt on MotoCategory {
       case MotoCategory.trail:     return Icons.two_wheeler;
       case MotoCategory.maxiTrail: return Icons.motorcycle;
       case MotoCategory.enduro:    return Icons.sports_motorsports;
+      case MotoCategory.custom:    return Icons.build_outlined;
     }
   }
 }
@@ -38,6 +40,7 @@ const kMotoPresets = <MotoPreset>[
   // ── Trail ────────────────────────────────────────────────
   MotoPreset(name: 'Yamaha Ténéré 700',       category: MotoCategory.trail, consumptionL100: 4.8, tankLiters: 16.0),
   MotoPreset(name: 'KTM 790 Adventure',       category: MotoCategory.trail, consumptionL100: 5.2, tankLiters: 20.0),
+  MotoPreset(name: 'BMW F 900 GS',            category: MotoCategory.trail, consumptionL100: 5.2, tankLiters: 15.5),
   MotoPreset(name: 'BMW F 800 GS',            category: MotoCategory.trail, consumptionL100: 4.8, tankLiters: 16.0),
   MotoPreset(name: 'Honda CB 500 X',          category: MotoCategory.trail, consumptionL100: 4.2, tankLiters: 17.7),
   MotoPreset(name: 'Suzuki V-Strom 650',      category: MotoCategory.trail, consumptionL100: 5.0, tankLiters: 20.0),
@@ -49,6 +52,7 @@ const kMotoPresets = <MotoPreset>[
   MotoPreset(name: 'KTM 1290 Super Adventure',category: MotoCategory.maxiTrail, consumptionL100: 6.5, tankLiters: 23.0),
   MotoPreset(name: 'Ducati Multistrada V4',   category: MotoCategory.maxiTrail, consumptionL100: 6.2, tankLiters: 22.0),
   MotoPreset(name: 'Triumph Tiger 1200',      category: MotoCategory.maxiTrail, consumptionL100: 6.0, tankLiters: 20.0),
+  MotoPreset(name: 'Yamaha Super Ténéré 1200', category: MotoCategory.maxiTrail, consumptionL100: 6.8, tankLiters: 23.0),
   MotoPreset(name: 'Yamaha Ténéré 1200',      category: MotoCategory.maxiTrail, consumptionL100: 7.0, tankLiters: 23.0),
 
   // ── Enduro ───────────────────────────────────────────────
@@ -58,4 +62,7 @@ const kMotoPresets = <MotoPreset>[
   MotoPreset(name: 'Beta RR 300',             category: MotoCategory.enduro, consumptionL100: 1.9, tankLiters: 9.5),
   MotoPreset(name: 'Sherco 300 SEF-R',        category: MotoCategory.enduro, consumptionL100: 2.0, tankLiters: 9.0),
   MotoPreset(name: 'Gas Gas EC 300',          category: MotoCategory.enduro, consumptionL100: 1.9, tankLiters: 8.0),
+
+  // ── Custom ───────────────────────────────────────────────
+  MotoPreset(name: 'Ma moto perso',           category: MotoCategory.custom, consumptionL100: 5.0, tankLiters: 20.0),
 ];
