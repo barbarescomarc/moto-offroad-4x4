@@ -45,7 +45,7 @@ enum NavMode { offroad, route }
 // ── Provider — État de la carte ──────────────────────────────
 class MapProvider extends ChangeNotifier {
   // Couche de fond
-  MapLayer _activeLayer = MapLayer.satellite;
+  MapLayer _activeLayer = MapLayer.osm;
   MapLayer get activeLayer => _activeLayer;
 
   // Mode navigation

@@ -77,9 +77,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final mapProv   = context.watch<MapProvider>();
     final isFullscreen = mapProv.isFullscreen;
 
-    return Scaffold(
-      backgroundColor: AppColors.bgDark,
-      body: Stack(
+    // Pas de Scaffold imbriqué : le Scaffold vient de MainShell
+    return ColoredBox(
+      color: AppColors.bgDark,
+      child: Stack(
         children: [
           // ── Carte plein écran ou non ─────────────────────
           Positioned.fill(child: _buildMap()),
@@ -122,9 +123,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   // ── PAYSAGE ───────────────────────────────────────────────
   Widget _buildLandscape() {
-    return Scaffold(
-      backgroundColor: AppColors.bgDark,
-      body: Row(
+    // Pas de Scaffold imbriqué : le Scaffold vient de MainShell
+    return ColoredBox(
+      color: AppColors.bgDark,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // 65% gauche = carte
           Expanded(

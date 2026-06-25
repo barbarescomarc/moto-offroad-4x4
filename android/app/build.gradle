@@ -50,12 +50,6 @@ flutter {
     source "../.."
 }
 
-// flutter pub get génère automatiquement un GeneratedPluginRegistrant.java v1
-// qui bloque la compilation. On le supprime avant chaque build.
-preBuild.doFirst {
-    delete fileTree(dir: "src/main/java", include: "**/*.java")
-}
-
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
     implementation "androidx.multidex:multidex:2.0.1"
