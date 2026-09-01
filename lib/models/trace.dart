@@ -76,7 +76,6 @@ class TraceModel {
   double? _distance;
   double? _elevationGain;
   double? _elevationLoss;
-  DifficultyLevel? _difficulty;
 
   TraceModel({
     required this.id,

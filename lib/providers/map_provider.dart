@@ -10,7 +10,7 @@ extension MapLayerExt on MapLayer {
       case MapLayer.satellite: return 'Satellite';
       case MapLayer.osm:       return 'Chemins';
       case MapLayer.ign:       return 'IGN Topo';
-      case MapLayer.contour:   return 'État-Major';
+      case MapLayer.contour:   return 'Topo (relief)';
     }
   }
 
@@ -23,8 +23,8 @@ extension MapLayerExt on MapLayer {
       case MapLayer.osm:
         return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
       case MapLayer.ign:
-        // Géoportail IGN — nécessite une clé API
-        return 'https://wxs.ign.fr/{apiKey}/geoportail/wmts?'
+        // Géoplateforme IGN — endpoint public, sans clé API (data.geopf.fr)
+        return 'https://data.geopf.fr/wmts?'
                'SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'
                '&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2'
                '&STYLE=normal&FORMAT=image/png'

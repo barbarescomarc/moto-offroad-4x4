@@ -27,6 +27,7 @@ jobs:
         uses: subosito/flutter-action@v2
         with:
           channel: 'stable'
+          flutter-version: '3.44.3'
           cache: true
 
       # ── 4. Supprimer le fichier GeneratedPluginRegistrant v1 ─
