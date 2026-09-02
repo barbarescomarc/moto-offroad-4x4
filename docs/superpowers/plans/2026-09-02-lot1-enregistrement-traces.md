@@ -593,7 +593,7 @@ class RideDatabase {
   static Future<int> sizeBytes() async {
     final path = p.join(await getDatabasesPath(), fileName);
     final file = File(path);
-    return await file.exists() ? file.length() : 0;
+    return await file.exists() ? await file.length() : 0;
   }
 }
 ```
