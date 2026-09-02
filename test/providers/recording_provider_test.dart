@@ -1,0 +1,113 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:moto_offroad/models/ride.dart';
+import 'package:moto_offroad/providers/recording_provider.dart';
+import 'package:moto_offroad/services/location_service.dart';
+import 'package:moto_offroad/services/ride_database.dart';
+import 'package:moto_offroad/services/ride_recorder.dart';
+import 'package:moto_offroad/services/ride_repository.dart';
+
+final _t0 = DateTime(2026, 9, 2, 10, 0, 0);
+
+GpsSnapshot _gps(double speedKmh, int s) => GpsSnapshot(
+  position:       LatLng(44.0 + s * 0.0001, 6.0),
+  accuracyMeters: 4,
+  altitudeMeters: 300,
+  speedKmh:       speedKmh,
+  headingDeg:     90,
+  timestamp:      _t0.add(Duration(seconds: s)),
+);
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  sqfliteFfiInit();
+
+  late Database db;
+  late RideRepository repo;
+  late RecordingProvider provider;
+
+  setUp(() async {
+    db = await databaseFactoryFfi.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version:  RideDatabase.schemaVersion,
+        onCreate: RideDatabase.onCreate,
+      ),
+    );
+    repo = RideRepository(db);
+    // service null : aucune notification ni service Android en test
+    provider = RecordingProvider(repository: repo, service: null);
+  });
+
+  tearDown(() async => db.close());
+
+  test('démarrer crée une sortie en base à l état recording', () async {
+    await provider.startRide(
+      name: 'Sortie test',
+      config: const RecorderConfig(),
+    );
+    expect(provider.isRecording, isTrue);
+    final open = await repo.findUnfinishedRide();
+    expect(open, isNotNull);
+    expect(open!.name, 'Sortie test');
+  });
+
+  test('les points sont écrits en base après un flush', () async {
+    await provider.startRide(name: 'S', config: const RecorderConfig());
+    for (int s = 0; s < 12; s++) {
+      provider.onAccelerometer(0, 0, 12.0 + (s.isEven ? 1 : -1));
+      provider.onGpsSample(_gps(40, s));
+    }
+    await provider.flush();
+    final points = await repo.pointsOf(provider.currentRide!.id);
+    expect(points.length, 12);
+    expect(points.first.segment, 0);
+  });
+
+  test('les statistiques en direct suivent les points enregistrés', () async {
+    await provider.startRide(name: 'S', config: const RecorderConfig());
+    for (int s = 0; s < 10; s++) {
+      provider.onAccelerometer(0, 0, 12.0 + (s.isEven ? 1 : -1));
+      provider.onGpsSample(_gps(40, s));
+    }
+    expect(provider.liveStats.distanceMeters, greaterThan(0));
+    expect(provider.liveStats.maxSpeedKmh, 40);
+  });
+
+  test('arrêter clôture la sortie avec ses statistiques', () async {
+    await provider.startRide(name: 'S', config: const RecorderConfig());
+    for (int s = 0; s < 10; s++) {
+      provider.onAccelerometer(0, 0, 12.0 + (s.isEven ? 1 : -1));
+      provider.onGpsSample(_gps(40, s));
+    }
+    final ride = await provider.stopRide();
+    expect(ride, isNotNull);
+    expect(ride!.status, RideStatus.finished);
+    expect(ride.endedAt, isNotNull);
+    expect(ride.stats.distanceMeters, greaterThan(0));
+    expect(provider.state, RecorderState.idle);
+    expect(await repo.findUnfinishedRide(), isNull);
+  });
+
+  test('la bascule de pause passe en pause manuelle puis reprend', () async {
+    await provider.startRide(name: 'S', config: const RecorderConfig());
+    provider.onGpsSample(_gps(40, 0));
+    await provider.togglePause();
+    expect(provider.isPaused, isTrue);
+    expect(provider.pauseReason, PauseReason.manual);
+    await provider.togglePause();
+    expect(provider.isRecording, isTrue);
+  });
+
+  test('l accéléromètre alimente le niveau de vibration transmis', () async {
+    await provider.startRide(name: 'S', config: const RecorderConfig());
+    // Signal constant : niveau nul, donc immobile si la vitesse est nulle.
+    for (int s = 0; s < 40; s++) {
+      provider.onAccelerometer(0, 0, 9.81);
+      provider.onGpsSample(_gps(0, s));
+    }
+    expect(provider.isPaused, isTrue);
+    expect(provider.pauseReason, PauseReason.auto);
+  });
+}
