@@ -9,17 +9,19 @@ import '../screens/weather/weather_screen.dart';
 import '../screens/rides/rides_screen.dart';
 import '../screens/rides/ride_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/settings/vibration_calibration_screen.dart';
 
 // ── Routes nommées ───────────────────────────────────────────
 class AppRoutes {
-  static const String map      = '/';
-  static const String fuel     = '/fuel';
-  static const String rides    = '/rides';
-  static const String weather  = '/weather';
-  static const String settings = '/settings';
-  static const String sos      = '/sos';
-  static const String solo     = '/solo';
-  static const String group    = '/group';
+  static const String map         = '/';
+  static const String fuel        = '/fuel';
+  static const String rides       = '/rides';
+  static const String weather     = '/weather';
+  static const String settings    = '/settings';
+  static const String calibration = '/calibration';
+  static const String sos         = '/sos';
+  static const String solo        = '/solo';
+  static const String group       = '/group';
 }
 
 // ── Router GoRouter ──────────────────────────────────────────
@@ -61,6 +63,11 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
     // Modals (hors shell)
+    GoRoute(
+      path: AppRoutes.calibration,
+      pageBuilder: (_, __) => const MaterialPage(
+          fullscreenDialog: true, child: VibrationCalibrationScreen()),
+    ),
     GoRoute(
       path: AppRoutes.sos,
       pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SosScreen()),

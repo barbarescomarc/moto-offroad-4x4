@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../app/router.dart';
 import '../providers/recording_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ride_recorder.dart';
@@ -88,6 +91,35 @@ class _RecordingBar extends StatelessWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Sortie enregistrée : ${ride.name}')),
       );
+
+      // Invite à calibrer après la première sortie
+      final prefs = await SharedPreferences.getInstance();
+      final dejaPropose = prefs.getBool('calibration_prompt_shown') ?? false;
+      final cal = await VibrationCalibration.load();
+      if (!dejaPropose && !cal.isCalibrated && context.mounted) {
+        await prefs.setBool('calibration_prompt_shown', true);
+        final go = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Calibrer les vibrations ?'),
+            content: const Text(
+                'La pause automatique sera bien plus fiable si l\'application '
+                'connaît les vibrations de votre moto. Cela prend '
+                '20 secondes.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Plus tard'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Calibrer'),
+              ),
+            ],
+          ),
+        );
+        if (go == true && context.mounted) context.push(AppRoutes.calibration);
+      }
     }
   }
 

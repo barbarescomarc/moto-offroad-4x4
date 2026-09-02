@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../app/router.dart';
 import '../../app/theme.dart';
 import '../../models/moto_preset.dart';
 import '../../models/rider_profile.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/fuel_provider.dart';
+import '../info/info_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -49,6 +52,10 @@ class _SettingsScreenState extends State<SettingsScreen>
             _levelSection(),
             const SizedBox(height: 24),
             _motoSection(),
+            const SizedBox(height: 24),
+            _recordingSection(context),
+            const SizedBox(height: 24),
+            _infoSection(),
           ],
         ),
       ),
@@ -260,6 +267,78 @@ class _SettingsScreenState extends State<SettingsScreen>
       backgroundColor: AppColors.bgCard,
       duration: const Duration(seconds: 2),
     ));
+  }
+
+  // ── Section Enregistrement ──────────────────────────────────
+  Widget _recordingSection(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('ENREGISTREMENT'),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          title: const Text('Pause automatique'),
+          subtitle: const Text(
+              'Suspend l\'enregistrement à l\'arrêt, moteur coupé.'),
+          value: settings.autoPauseEnabled,
+          onChanged: settings.setAutoPauseEnabled,
+        ),
+        ListTile(
+          title: const Text('Seuil de la pause automatique'),
+          subtitle: const Text('Vitesse en dessous de laquelle on considère '
+              'que la moto est arrêtée.'),
+          trailing: DropdownButton<int>(
+            value: settings.pauseSpeedKmh,
+            items: SettingsProvider.pauseSpeedChoices
+                .map((v) => DropdownMenuItem(value: v, child: Text('$v km/h')))
+                .toList(),
+            onChanged: (v) => v == null ? null : settings.setPauseSpeedKmh(v),
+          ),
+        ),
+        SwitchListTile(
+          title: const Text('Demander le nom à l\'arrêt'),
+          subtitle: const Text('Sinon, un nom automatique est donné, '
+              'modifiable depuis l\'onglet Sorties.'),
+          value: settings.askNameOnStop,
+          onChanged: settings.setAskNameOnStop,
+        ),
+        SwitchListTile(
+          title: const Text('Proposer de démarrer l\'enregistrement'),
+          subtitle: const Text('Quand l\'application détecte un roulage.'),
+          value: settings.suggestAutoStart,
+          onChanged: settings.setSuggestAutoStart,
+        ),
+        SwitchListTile(
+          title: const Text('Garder l\'écran allumé sur la carte'),
+          subtitle: const Text('Pour le guidage, téléphone sur le guidon.'),
+          value: settings.keepScreenOnMap,
+          onChanged: settings.setKeepScreenOnMap,
+        ),
+        SwitchListTile(
+          title: const Text('Afficher les distances en miles'),
+          value: settings.useMiles,
+          onChanged: settings.setUseMiles,
+        ),
+        ListTile(
+          leading: const Icon(Icons.vibration),
+          title: const Text('Calibrer les vibrations'),
+          subtitle: const Text('20 secondes, pour une pause automatique '
+              'fiable sur votre moto.'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push(AppRoutes.calibration),
+        ),
+      ],
+    );
+  }
+
+  // ── Section Info (repliable) ────────────────────────────────
+  Widget _infoSection() {
+    return ExpansionTile(
+      leading: const Icon(Icons.info_outline),
+      title: const Text('INFO'),
+      children: const [InfoScreen(embedded: true)],
+    );
   }
 
   Widget _sectionLabel(String text) => Text(text, style: const TextStyle(
