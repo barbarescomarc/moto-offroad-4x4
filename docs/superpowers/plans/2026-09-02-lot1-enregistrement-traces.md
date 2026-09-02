@@ -1614,8 +1614,9 @@ class RideRecordingService {
         priority:          NotificationPriority.LOW,
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
-      foregroundTaskOptions: const ForegroundTaskOptions(
-        interval:          5000,
+      foregroundTaskOptions: ForegroundTaskOptions(
+        // 8.17.0 : plus de champ `interval`, la cadence passe par eventAction.
+        eventAction:       ForegroundTaskEventAction.repeat(5000),
         autoRunOnBoot:     false,
         allowWakeLock:     true,
         allowWifiLock:     false,
@@ -1675,11 +1676,12 @@ class RideRecordingService {
 Run: `flutter analyze lib/services/ride_recording_service.dart`
 Expected: aucune erreur.
 
-Si l'analyse signale un nom de paramètre inconnu — l'API de
-`flutter_foreground_task` a bougé entre versions majeures — ouvrir
-`~/.pub-cache/hosted/pub.dev/flutter_foreground_task-*/example/lib/main.dart`
-et aligner les noms sur la version réellement installée. Ne pas changer
-l'architecture : seul le nommage des options doit être adapté.
+La version installée est **8.17.0**, vérifiée : `ForegroundTaskOptions` y prend
+`eventAction: ForegroundTaskEventAction.repeat(int millis)` et conserve les
+champs booléens `autoRunOnBoot`, `allowWakeLock`, `allowWifiLock`. Si un autre
+nom de paramètre est refusé, ouvrir
+`~/.pub-cache/hosted/pub.dev/flutter_foreground_task-8.17.0/example/lib/main.dart`
+et aligner le nommage. Ne pas changer l'architecture.
 
 - [ ] **Step 4: Vérifier sur appareil**
 
@@ -2063,7 +2065,7 @@ class RideSensorBridge {
   void attach(RecordingProvider provider) {
     detach();
     _gpsSub = LocationService().stream.listen(provider.onGpsSample);
-    _accelSub = accelerometerEvents.listen(
+    _accelSub = accelerometerEventStream().listen(
       (e) => provider.onAccelerometer(e.x, e.y, e.z),
     );
   }
@@ -2077,9 +2079,9 @@ class RideSensorBridge {
 }
 ```
 
-Si `flutter analyze` signale que `accelerometerEvents` est déprécié, utiliser
-`accelerometerEventStream()` : le nom a changé selon les versions de
-`sensors_plus`.
+La version installée est **sensors_plus 4.0.2**, vérifiée : le getter
+`accelerometerEvents` y est marqué `@Deprecated`. Utiliser la fonction
+`accelerometerEventStream()`, comme ci-dessus.
 
 - [ ] **Step 2: Écrire le panneau**
 
@@ -3020,7 +3022,7 @@ class _VibrationCalibrationScreenState
   @override
   void initState() {
     super.initState();
-    _sub = accelerometerEvents.listen((e) {
+    _sub = accelerometerEventStream().listen((e) {
       _meter.addSample(VibrationMeter.magnitudeOf(e.x, e.y, e.z));
     });
   }
