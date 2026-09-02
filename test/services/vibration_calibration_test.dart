@@ -43,4 +43,18 @@ void main() {
     final loaded = await VibrationCalibration.load();
     expect(loaded.isCalibrated, isFalse);
   });
+
+  test('clear efface la calibration enregistrée', () async {
+    SharedPreferences.setMockInitialValues({});
+    await const VibrationCalibration(stillLevel: 0.05, idleLevel: 0.45).save();
+    expect((await VibrationCalibration.load()).isCalibrated, isTrue);
+
+    await VibrationCalibration.clear();
+
+    final after = await VibrationCalibration.load();
+    expect(after.isCalibrated, isFalse);
+    expect(after.stillLevel, isNull);
+    expect(after.idleLevel, isNull);
+    expect(after.threshold, VibrationCalibration.defaultThreshold);
+  });
 }
