@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moto_offroad/models/ride.dart';
+import 'package:moto_offroad/services/gpx_service.dart';
 import 'package:moto_offroad/services/ride_export_service.dart';
 
 Ride _ride() => Ride(
@@ -39,5 +40,25 @@ void main() {
   test('une sortie sans point produit un GPX valide mais vide', () {
     final gpx = RideExportService().toGpx(_ride(), []);
     expect(gpx, contains('<gpx'));
+  });
+
+  // Le GPX exporté sert à alimenter un logiciel PC : s il n est pas relisible,
+  // personne ne s en aperçoit avant d avoir perdu une trace. On repasse donc
+  // la sortie de l export dans le lecteur d import.
+  test('aller-retour export puis import : points et coordonnées conservés', () {
+    final gpx = RideExportService().toGpx(_ride(), _points());
+
+    final relu = GpxService().loadFromString(gpx, source: 'test');
+
+    expect(relu, isNotNull);
+    expect(relu!.points.length, _points().length);
+    expect(relu.name, 'Sortie du Ventoux');
+    for (var i = 0; i < _points().length; i++) {
+      expect(relu.points[i].position.latitude,
+          closeTo(_points()[i].lat, 0.000001));
+      expect(relu.points[i].position.longitude,
+          closeTo(_points()[i].lng, 0.000001));
+      expect(relu.points[i].elevation, closeTo(_points()[i].altitude!, 0.001));
+    }
   });
 }
