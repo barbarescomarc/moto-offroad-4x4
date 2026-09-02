@@ -1577,6 +1577,18 @@ et **avant** `<application>` :
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 ```
 
+Et, **à l'intérieur de `<application>`**, la déclaration du service. Le greffon
+ne la fournit pas dans son propre manifeste, et depuis Android 14 un service
+d'avant-plan qui suit la position doit annoncer son type, sinon `start()` lève
+une `SecurityException` :
+
+```xml
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="location"
+            android:exported="false"/>
+```
+
 Les permissions de localisation existent déjà dans le projet ; ne pas les
 dupliquer. Vérifier avant d'ajouter :
 
