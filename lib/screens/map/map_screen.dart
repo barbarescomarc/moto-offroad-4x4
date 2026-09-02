@@ -40,6 +40,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     _initLocation();
   }
 
+  // Dernier état transmis au système, pour ne pas rappeler le canal natif
+  // à chaque reconstruction.
+  bool _wakelockOn = false;
+
   @override
   void dispose() {
     WakelockPlus.disable();
@@ -71,7 +75,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final mapProv = context.watch<MapProvider>();
     final settings = context.watch<SettingsProvider>();
     final keepOn = settings.keepScreenOnMap && mapProv.followPosition;
-    WakelockPlus.toggle(enable: keepOn);
+    // build() peut se rejouer très souvent ; on ne franchit le canal natif
+    // que lorsque l'état change réellement.
+    if (keepOn != _wakelockOn) {
+      _wakelockOn = keepOn;
+      WakelockPlus.toggle(enable: keepOn);
+    }
 
     return OrientationBuilder(
       builder: (context, orientation) {
