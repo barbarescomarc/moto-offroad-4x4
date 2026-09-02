@@ -4,6 +4,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import '../../models/ride.dart';
 import '../../providers/rides_provider.dart';
+import '../../services/ride_export_service.dart';
 
 class RideDetailScreen extends StatelessWidget {
   const RideDetailScreen({super.key, required this.rideId});
@@ -25,6 +26,15 @@ class RideDetailScreen extends StatelessWidget {
             icon: const Icon(Icons.edit),
             tooltip: 'Renommer',
             onPressed: () => _rename(context, ride),
+          ),
+          IconButton(
+            icon: const Icon(Icons.ios_share),
+            tooltip: 'Exporter en GPX',
+            onPressed: () async {
+              final points =
+                  await context.read<RidesProvider>().pointsOf(rideId);
+              await RideExportService().shareGpx(ride, points);
+            },
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline),

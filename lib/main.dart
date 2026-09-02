@@ -68,6 +68,7 @@ class MotoOffroadApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<RideRepository>.value(value: rideRepository),
         ChangeNotifierProvider(create: (_) => MapProvider()),
         ChangeNotifierProvider(create: (_) => TraceProvider()),
         ChangeNotifierProvider(create: (_) => GroupProvider()),
