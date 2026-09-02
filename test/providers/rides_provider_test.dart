@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:moto_offroad/models/ride.dart';
 import 'package:moto_offroad/providers/rides_provider.dart';
