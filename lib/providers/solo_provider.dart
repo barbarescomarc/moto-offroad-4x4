@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 import 'package:crypto/crypto.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 
 // ── Contact de confiance ─────────────────────────────────────
@@ -18,10 +19,28 @@ class TrustedContact {
     required this.relation,
     this.isNotified = false,
   });
+
+  // Conversion vers JSON pour la persistance
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'phone': phone,
+    'relation': relation,
+  };
+
+  // Construction depuis JSON
+  factory TrustedContact.fromJson(Map<String, dynamic> j) => TrustedContact(
+    id:       j['id'] as String,
+    name:     j['name'] as String,
+    phone:    j['phone'] as String,
+    relation: j['relation'] as String,
+  );
 }
 
 // ── Provider — Mode Solo Sécurisé ────────────────────────────
 class SoloProvider extends ChangeNotifier {
+  static const _kContacts = 'trusted_contacts';
+
   final _uuid = const Uuid();
 
   bool _soloActive = false;
@@ -42,12 +61,34 @@ class SoloProvider extends ChangeNotifier {
   DateTime? _sessionStart;
   DateTime? get sessionStart => _sessionStart;
 
+  // ── Charger les contacts depuis le stockage persistant ────
+  Future<void> loadContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_kContacts);
+    _contacts.clear();
+    if (raw != null) {
+      final list = jsonDecode(raw) as List<dynamic>;
+      _contacts.addAll(list
+          .map((e) => TrustedContact.fromJson(e as Map<String, dynamic>)));
+    }
+    notifyListeners();
+  }
+
+  // ── Persister les contacts dans le stockage ──────────────
+  Future<void> _saveContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _kContacts,
+      jsonEncode(_contacts.map((c) => c.toJson()).toList()),
+    );
+  }
+
   // ── Ajouter un contact de confiance ──────────────────────
-  void addContact({
+  Future<void> addContact({
     required String name,
     required String phone,
     required String relation,
-  }) {
+  }) async {
     if (_contacts.length >= 3) return; // max 3 contacts
     _contacts.add(TrustedContact(
       id:       _uuid.v4(),
@@ -55,11 +96,13 @@ class SoloProvider extends ChangeNotifier {
       phone:    phone,
       relation: relation,
     ));
+    await _saveContacts();
     notifyListeners();
   }
 
-  void removeContact(String id) {
+  Future<void> removeContact(String id) async {
     _contacts.removeWhere((c) => c.id == id);
+    await _saveContacts();
     notifyListeners();
   }
 

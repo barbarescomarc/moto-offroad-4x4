@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'app/theme.dart';
 import 'app/router.dart';
@@ -50,9 +49,6 @@ void main() async {
     ),
   );
 
-  // Maintenir l'écran allumé par défaut (navigation active)
-  WakelockPlus.enable();
-
   // Base locale des sorties
   final rideRepository = RideRepository(await RideDatabase.open());
 
@@ -73,7 +69,11 @@ class MotoOffroadApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => TraceProvider()),
         ChangeNotifierProvider(create: (_) => GroupProvider()),
         ChangeNotifierProvider(create: (_) => FuelProvider()),
-        ChangeNotifierProvider(create: (_) => SoloProvider()),
+        ChangeNotifierProvider(create: (_) {
+          final s = SoloProvider();
+          s.loadContacts();
+          return s;
+        }),
         ChangeNotifierProvider(create: (_) {
           final s = SettingsProvider();
           s.load(); // chargement async des préférences persistées

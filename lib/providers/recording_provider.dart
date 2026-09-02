@@ -18,6 +18,8 @@ class RecordingProvider extends ChangeNotifier {
 
   static const Duration _flushInterval = Duration(seconds: 5);
   static const int _flushPointCount = 10;
+  static const Duration _reminderAfter = Duration(minutes: 15);
+  static const double _reminderSpeedKmh = 10;
 
   final RideRepository _repo;
   final RideRecordingService? _service;
@@ -28,12 +30,24 @@ class RecordingProvider extends ChangeNotifier {
   Ride? _currentRide;
   Timer? _flushTimer;
   final List<RidePoint> _written = [];
+  DateTime? _slowSince;
+  DateTime? _lastSampleAt;
+  bool _reminderShown = false;
 
   RecorderState get state => _recorder?.state ?? RecorderState.idle;
   bool get isRecording => state == RecorderState.recording;
   bool get isPaused    => state == RecorderState.paused;
   PauseReason get pauseReason => _recorder?.pauseReason ?? PauseReason.none;
   Ride? get currentRide => _currentRide;
+
+  // Rappel pour le pilote : « Toujours en balade ? »
+  bool get shouldRemindPause => _reminderShown == false && _slowSince != null &&
+      (_lastSampleAt ?? DateTime.now()).difference(_slowSince!) >= _reminderAfter;
+
+  void acknowledgeReminder() {
+    _reminderShown = true;
+    notifyListeners();
+  }
 
   // Statistiques recalculées sur les points déjà écrits : la liste d'une
   // sortie de 4 h reste en mémoire, mais le calcul est linéaire et n'a lieu
@@ -58,6 +72,8 @@ class RecordingProvider extends ChangeNotifier {
     _currentRide = ride;
     _written.clear();
     _meter.reset();
+    _slowSince = null;
+    _reminderShown = false;
     _recorder = RideRecorder(rideId: ride.id, config: config)..start();
 
     await _service?.start(
@@ -81,6 +97,17 @@ class RecordingProvider extends ChangeNotifier {
 
     final before = rec.state;
     rec.onSample(gps: gps, vibrationLevel: _meter.level);
+    _lastSampleAt = gps.timestamp;
+
+    // Gestion du rappel « Toujours en balade ? »
+    if (rec.state == RecorderState.recording) {
+      if (gps.speedKmh < _reminderSpeedKmh) {
+        _slowSince ??= gps.timestamp;
+      } else {
+        _slowSince = null;
+        _reminderShown = false;
+      }
+    }
 
     if (rec.pointCount - _written.length >= _flushPointCount) {
       flush();
@@ -159,6 +186,8 @@ class RecordingProvider extends ChangeNotifier {
   @override
   void dispose() {
     _flushTimer?.cancel();
+    // Arrêter le service de notification d'avant-plan si en cours d'enregistrement
+    _service?.stop().ignore();
     super.dispose();
   }
 }

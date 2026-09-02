@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../app/router.dart';
 import '../../models/ride.dart';
 import '../../providers/rides_provider.dart';
+import '../../services/ride_database.dart';
 
 class RidesScreen extends StatefulWidget {
   const RidesScreen({super.key});
@@ -13,12 +14,19 @@ class RidesScreen extends StatefulWidget {
 }
 
 class _RidesScreenState extends State<RidesScreen> {
+  Ride? _unfinishedRide;
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => context.read<RidesProvider>().refresh(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final provider = context.read<RidesProvider>();
+      await provider.refresh();
+      final open = await provider.findUnfinished();
+      if (mounted && open != null) {
+        setState(() => _unfinishedRide = open);
+      }
+    });
   }
 
   @override
@@ -30,16 +38,71 @@ class _RidesScreenState extends State<RidesScreen> {
           ? const Center(child: CircularProgressIndicator())
           : provider.rides.isEmpty
               ? const _EmptyState()
-              : RefreshIndicator(
-                  onRefresh: provider.refresh,
-                  child: ListView.separated(
-                    itemCount: provider.rides.length,
-                    separatorBuilder: (_, __) => const Divider(height: 1),
-                    itemBuilder: (_, i) => _RideTile(ride: provider.rides[i]),
-                  ),
+              : Column(
+                  children: [
+                    // Bandeau de récupération après plantage
+                    if (_unfinishedRide != null)
+                      _recoveryBanner(_unfinishedRide!),
+                    // Liste des sorties
+                    Expanded(
+                      child: RefreshIndicator(
+                        onRefresh: provider.refresh,
+                        child: ListView.separated(
+                          itemCount: provider.rides.length,
+                          separatorBuilder: (_, __) => const Divider(height: 1),
+                          itemBuilder: (_, i) => _RideTile(ride: provider.rides[i]),
+                        ),
+                      ),
+                    ),
+                    // Pied de page avec espace disque
+                    _storageFooter(provider),
+                  ],
                 ),
     );
   }
+
+  // Bandeau proposant de clôturer une sortie interrompue
+  Widget _recoveryBanner(Ride ride) => MaterialBanner(
+    content: Text('La sortie « ${ride.name} » a été interrompue.'),
+    leading: const Icon(Icons.warning_amber),
+    actions: [
+      TextButton(
+        onPressed: () async {
+          await context.read<RidesProvider>().closeUnfinished(ride);
+          if (mounted) {
+            setState(() => _unfinishedRide = null);
+          }
+        },
+        child: const Text('Clôturer'),
+      ),
+      TextButton(
+        onPressed: () async {
+          await context.read<RidesProvider>().remove(ride.id);
+          if (mounted) {
+            setState(() => _unfinishedRide = null);
+          }
+        },
+        child: const Text('Supprimer'),
+      ),
+    ],
+  );
+
+  // Pied de page affichant l'espace occupé par les sorties
+  Widget _storageFooter(RidesProvider provider) => FutureBuilder<int>(
+    future: RideDatabase.sizeBytes(),
+    builder: (_, snap) {
+      if (!snap.hasData) return const SizedBox.shrink();
+      final mo = snap.data! / (1024 * 1024);
+      return Padding(
+        padding: const EdgeInsets.all(12),
+        child: Text(
+          '${provider.rides.length} sorties · '
+          '${mo.toStringAsFixed(1).replaceAll('.', ',')} Mo occupés',
+          style: const TextStyle(fontSize: 12, color: Colors.white54),
+        ),
+      );
+    },
+  );
 }
 
 class _EmptyState extends StatelessWidget {

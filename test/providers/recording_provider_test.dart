@@ -110,4 +110,15 @@ void main() {
     expect(provider.isPaused, isTrue);
     expect(provider.pauseReason, PauseReason.auto);
   });
+
+  test('le rappel se déclenche après 15 min sous 10 km/h', () async {
+    await provider.startRide(name: 'S', config: const RecorderConfig());
+    provider.onGpsSample(_gps(4, 0));
+    expect(provider.shouldRemindPause, isFalse);
+    // Un échantillon 16 minutes plus tard, toujours lent.
+    provider.onGpsSample(_gps(4, 960));
+    expect(provider.shouldRemindPause, isTrue);
+    provider.acknowledgeReminder();
+    expect(provider.shouldRemindPause, isFalse);
+  });
 }

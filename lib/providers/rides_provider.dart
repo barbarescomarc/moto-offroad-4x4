@@ -41,4 +41,16 @@ class RidesProvider extends ChangeNotifier {
   }
 
   Future<List<RidePoint>> pointsOf(String id) => _repo.pointsOf(id);
+
+  Future<Ride?> findUnfinished() => _repo.findUnfinishedRide();
+
+  Future<void> closeUnfinished(Ride ride) async {
+    final points = await _repo.pointsOf(ride.id);
+    await _repo.updateRide(ride.copyWith(
+      status:  RideStatus.finished,
+      endedAt: points.isEmpty ? ride.startedAt : points.last.timestamp,
+      stats:   RideStats.fromPoints(points),
+    ));
+    await refresh();
+  }
 }

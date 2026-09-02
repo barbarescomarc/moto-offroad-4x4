@@ -129,66 +129,89 @@ class _RecordingBar extends StatelessWidget {
     final stats = rec.liveStats;
     final paused = rec.isPaused;
     final d = stats.totalTime;
+    final shouldRemind = rec.shouldRemindPause;
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: paused ? const Color(0xFF5C4B1F) : const Color(0xFF7A1F1F),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: paused ? const Color(0xFFF9A825) : const Color(0xFFEF5350),
-          width: 2,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(paused ? Icons.pause_circle : Icons.fiber_manual_record,
-              color: Colors.white, size: 26),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  paused ? 'EN PAUSE' : 'ENREGISTREMENT',
-                  style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 1.2),
-                ),
-                Text(
-                  '${stats.distanceKm.toStringAsFixed(1).replaceAll('.', ',')} km'
-                  ' · ${d.inHours.toString().padLeft(2, '0')}'
-                  ':${(d.inMinutes % 60).toString().padLeft(2, '0')}'
-                  ' · ${stats.avgSpeedKmh.toStringAsFixed(0)} km/h',
-                  style: const TextStyle(color: Colors.white, fontSize: 15),
-                ),
-              ],
-            ),
-          ),
-          IconButton(
-            tooltip: paused ? 'Reprendre' : 'Mettre en pause',
-            icon: Icon(paused ? Icons.play_arrow : Icons.pause,
-                color: Colors.white, size: 28),
-            onPressed: () => context.read<RecordingProvider>().togglePause(),
-          ),
-          // Appui long : un arrêt accidentel après trois heures de sortie
-          // n'est pas rattrapable.
-          GestureDetector(
-            onLongPress: () => _stop(context),
-            child: Tooltip(
-              message: 'Appui long pour arrêter',
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                child: const Icon(Icons.stop, color: Colors.white, size: 28),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Rappel « Toujours en balade ? » après 15 min sans mouvement
+        if (shouldRemind)
+          MaterialBanner(
+            content: const Text('Toujours en balade ?'),
+            leading: const Icon(Icons.info_outline),
+            actions: [
+              TextButton(
+                onPressed: () => rec.togglePause(),
+                child: const Text('Mettre en pause'),
               ),
+              TextButton(
+                onPressed: () => rec.acknowledgeReminder(),
+                child: const Text('Continuer'),
+              ),
+            ],
+          ),
+        // Panneau d'enregistrement principal
+        Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: paused ? const Color(0xFF5C4B1F) : const Color(0xFF7A1F1F),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: paused ? const Color(0xFFF9A825) : const Color(0xFFEF5350),
+              width: 2,
             ),
           ),
-        ],
-      ),
+          child: Row(
+            children: [
+              Icon(paused ? Icons.pause_circle : Icons.fiber_manual_record,
+                  color: Colors.white, size: 26),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      paused ? 'EN PAUSE' : 'ENREGISTREMENT',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2),
+                    ),
+                    Text(
+                      '${stats.distanceKm.toStringAsFixed(1).replaceAll('.', ',')} km'
+                      ' · ${d.inHours.toString().padLeft(2, '0')}'
+                      ':${(d.inMinutes % 60).toString().padLeft(2, '0')}'
+                      ' · ${stats.avgSpeedKmh.toStringAsFixed(0)} km/h',
+                      style: const TextStyle(color: Colors.white, fontSize: 15),
+                    ),
+                  ],
+                ),
+              ),
+              IconButton(
+                tooltip: paused ? 'Reprendre' : 'Mettre en pause',
+                icon: Icon(paused ? Icons.play_arrow : Icons.pause,
+                    color: Colors.white, size: 28),
+                onPressed: () => context.read<RecordingProvider>().togglePause(),
+              ),
+              // Appui long : un arrêt accidentel après trois heures de sortie
+              // n'est pas rattrapable.
+              GestureDetector(
+                onLongPress: () => _stop(context),
+                child: Tooltip(
+                  message: 'Appui long pour arrêter',
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    child: const Icon(Icons.stop, color: Colors.white, size: 28),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

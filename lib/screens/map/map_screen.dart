@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../app/theme.dart';
 import '../../app/router.dart';
 import '../../providers/map_provider.dart';
@@ -9,6 +10,7 @@ import '../../providers/trace_provider.dart';
 import '../../providers/group_provider.dart';
 import '../../providers/fuel_provider.dart';
 import '../../providers/solo_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../services/location_service.dart';
 import '../../widgets/sos_button.dart';
 import '../../widgets/mode_switch.dart';
@@ -40,6 +42,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    WakelockPlus.disable();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -63,6 +66,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    // Écran maintenu allumé uniquement en guidage : carte affichée et suivi
+    // de position actif. Ailleurs, l'écran s'éteint normalement.
+    final mapProv = context.watch<MapProvider>();
+    final settings = context.watch<SettingsProvider>();
+    final keepOn = settings.keepScreenOnMap && mapProv.followPosition;
+    WakelockPlus.toggle(enable: keepOn);
+
     return OrientationBuilder(
       builder: (context, orientation) {
         final isLandscape = orientation == Orientation.landscape;
