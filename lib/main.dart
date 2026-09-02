@@ -13,6 +13,7 @@ import 'providers/fuel_provider.dart';
 import 'providers/solo_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/recording_provider.dart';
+import 'providers/rides_provider.dart';
 import 'services/ride_database.dart';
 import 'services/ride_repository.dart';
 import 'services/ride_recording_service.dart';
@@ -82,6 +83,9 @@ class MotoOffroadApp extends StatelessWidget {
             repository: rideRepository,
             service:    RideRecordingService(),
           ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => RidesProvider(repository: rideRepository),
         ),
       ],
       child: MaterialApp.router(
