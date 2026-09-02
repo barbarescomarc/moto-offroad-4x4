@@ -16,6 +16,7 @@ import '../../widgets/stats_bar.dart';
 import '../../widgets/layer_selector.dart';
 import '../../widgets/gpx_import_sheet.dart';
 import '../../widgets/map_search_bar.dart';
+import '../../widgets/recording_panel.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -118,6 +119,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               left: 0, right: 0,
               bottom: 0,
               child: Column(children: [
+                const RecordingPanel(),
                 _buildStatsBar(),
               ]),
             ),
@@ -513,6 +515,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Panneau d'enregistrement
+          const RecordingPanel(),
+          const SizedBox(height: 10),
           // Titre
           const Text('NAVIGATION', style: TextStyle(
             fontFamily: 'Rajdhani', fontSize: 13,

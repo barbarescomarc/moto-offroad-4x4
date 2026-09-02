@@ -12,6 +12,10 @@ import 'providers/group_provider.dart';
 import 'providers/fuel_provider.dart';
 import 'providers/solo_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/recording_provider.dart';
+import 'services/ride_database.dart';
+import 'services/ride_repository.dart';
+import 'services/ride_recording_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,11 +52,16 @@ void main() async {
   // Maintenir l'écran allumé par défaut (navigation active)
   WakelockPlus.enable();
 
-  runApp(const MotoOffroadApp());
+  // Base locale des sorties
+  final rideRepository = RideRepository(await RideDatabase.open());
+
+  runApp(MotoOffroadApp(rideRepository: rideRepository));
 }
 
 class MotoOffroadApp extends StatelessWidget {
-  const MotoOffroadApp({super.key});
+  const MotoOffroadApp({super.key, required this.rideRepository});
+
+  final RideRepository rideRepository;
 
   @override
   Widget build(BuildContext context) {
@@ -68,6 +77,12 @@ class MotoOffroadApp extends StatelessWidget {
           s.load(); // chargement async des préférences persistées
           return s;
         }),
+        ChangeNotifierProvider(
+          create: (_) => RecordingProvider(
+            repository: rideRepository,
+            service:    RideRecordingService(),
+          ),
+        ),
       ],
       child: MaterialApp.router(
         title: 'Moto Offroad 4x4',
