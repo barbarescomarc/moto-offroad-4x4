@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/recording_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ride_recorder.dart';
+import '../services/ride_recording_service.dart';
 import '../services/ride_sensor_bridge.dart';
 import '../services/vibration_calibration.dart';
 
@@ -26,6 +27,20 @@ class _RecButton extends StatelessWidget {
   Future<void> _start(BuildContext context) async {
     final settings = context.read<SettingsProvider>();
     final rec = context.read<RecordingProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Sans la permission de notification, Android n'affiche pas le service
+    // d'avant-plan et tue l'application dès l'écran éteint : l'enregistrement
+    // s'arrêterait au milieu de la balade sans prévenir.
+    if (!await RideRecordingService().requestPermissions()) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text(
+          'Sans autorisation de notification, l enregistrement s arrêtera '
+          'quand l écran s éteindra.',
+        ),
+      ));
+    }
+
     final calibration = await VibrationCalibration.load();
 
     final now = DateTime.now();
