@@ -71,5 +71,15 @@
             tools:ignore="MissingClass"
             xmlns:tools="http://schemas.android.com/tools"/>
 
+        <!-- Service d'avant-plan de flutter_foreground_task. Depuis Android 14,
+             un service qui suit la position DOIT déclarer foregroundServiceType,
+             sinon son démarrage lève une SecurityException et l'enregistrement
+             ne survit pas à l'extinction de l'écran. Le nom de la classe est
+             imposé par le greffon, ne pas le modifier. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="location"
+            android:exported="false"/>
+
     </application>
 </manifest>
