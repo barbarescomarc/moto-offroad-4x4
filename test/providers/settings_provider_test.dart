@@ -60,4 +60,39 @@ void main() {
     await s.load();
     expect(s.signalGapSeconds, 90);
   });
+
+  test('les réglages d auto-réponse ont les valeurs par défaut du spec', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    expect(s.autoReplyEnabled, isTrue);
+    expect(s.autoReplyAttachPosition, isTrue);
+    expect(s.autoReplyAllCallers, isFalse);
+    expect(s.autoReplyMessage, 'Je roule, je ne peux pas répondre');
+  });
+
+  test('les réglages d auto-réponse survivent à un rechargement', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    await s.setAutoReplyEnabled(false);
+    await s.setAutoReplyAttachPosition(false);
+    await s.setAutoReplyAllCallers(true);
+    await s.setAutoReplyMessage('Je pilote, rappelle plus tard');
+
+    final reloaded = SettingsProvider();
+    await reloaded.load();
+    expect(reloaded.autoReplyEnabled, isFalse);
+    expect(reloaded.autoReplyAttachPosition, isFalse);
+    expect(reloaded.autoReplyAllCallers, isTrue);
+    expect(reloaded.autoReplyMessage, 'Je pilote, rappelle plus tard');
+  });
+
+  test('un message d auto-réponse vide retombe sur la valeur par défaut', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    await s.setAutoReplyMessage('   ');
+    expect(s.autoReplyMessage, 'Je roule, je ne peux pas répondre');
+  });
 }
