@@ -498,3 +498,75 @@ l'abonnement.
    n'envoient rien.
 10. Le service de streaming `drone31` fonctionne à l'identique après le
     déploiement du hub.
+
+## 15. Addendum lot C — décisions du 3 septembre 2026 (soir)
+
+Les lots A, B, D sont livrés et en production (hub `moto-tracker-server`,
+`motooffroad.duckdns.org`). Les points suivants, laissés ouverts par le §7,
+ont été tranchés avec Marc avant d'écrire le plan du lot C.
+
+### 15.1 Adresses e-mail
+
+- **Contact de confiance** : un champ e-mail est ajouté à `TrustedContact`.
+  À l'activation du mode Solo, les adresses des contacts sélectionnés sont
+  envoyées au hub et stockées **sur la session** — mêmes règles de purge que
+  les positions (immédiate à la clôture, 7 jours si une alerte a eu lieu).
+  C'est une extension explicite du §6.3 (« seul le prénom ») : sans adresse,
+  le canal serveur ne peut pas exister.
+- **Pilote** : son e-mail devient **obligatoire** pour activer le mode Solo
+  (saisi une fois dans les réglages). Il sert d'adresse de réponse dans
+  l'e-mail d'alerte envoyé au contact, et le pilote **reçoit une copie** de
+  toute alerte que le serveur a envoyée en son nom.
+
+### 15.2 Liste de diffusion (newsletter)
+
+Marc veut une liste d'adresses pour des nouvelles de l'application. Elle
+n'est **jamais** alimentée automatiquement par les adresses saisies pour la
+sécurité : ce serait un détournement de finalité, sans consentement des
+intéressés (RGPD). Elle est alimentée uniquement par **opt-in explicite** :
+
+- pilote : case « Recevoir les nouvelles de MOTO OFFROAD 4X4 », **décochée
+  par défaut**, à côté de son e-mail dans les réglages ;
+- contact de confiance : lien « Recevoir les nouvelles de l'app » dans
+  chaque e-mail d'alerte et sur la page de suivi ; inscription seulement
+  s'il clique.
+
+Côté hub : table `subscriber` (e-mail, date de consentement, source,
+jeton de désinscription), **séparée des sessions** et non purgée avec
+elles ; lien de désinscription dans chaque envoi ; export CSV protégé par
+une clé d'administration (variable d'environnement).
+
+### 15.3 Fournisseur d'e-mail
+
+**Brevo** (SMTP, offre gratuite 300/jour, campagnes de newsletter possibles
+avec le même compte). Identifiants en variables d'environnement (`.env` sur
+le serveur, jamais dans git). Expéditeur à vérifier chez Brevo :
+`drone-31@hotmail.fr`. Le code est testé avec un transport factice ; la
+vraie clé est branchée au déploiement.
+
+### 15.4 Passerelle SMS et appel vocal — pas de code mort
+
+Le §7.3 demandait ces deux moyens « codés mais verrouillés ». On ne les code
+**pas** : on livre uniquement le service de verrou du §7.4 (répond toujours
+« non ») et les deux options grisées « Abonnement — bientôt ». Écrire une
+intégration de passerelle qu'aucun chemin n'exécute est exactement le piège
+« écrit, jamais appelé » déjà rencontré sur ce projet. Brancher l'abonnement
+plus tard consistera à écrire l'intégration *et* changer la réponse du
+verrou.
+
+### 15.5 Côté hub
+
+- `POST /api/sessions/:id/alert` (`kind` = `fall` | `sos`) est rétabli : il
+  a désormais un appelant. Il pose `alerted_at`/`alert_kind` et déclenche
+  l'envoi e-mail.
+- `deadmanAfterSec` devient un paramètre de création de session (réglage
+  « silence avant alerte homme mort » du §10, défaut 15 min) au lieu de la
+  constante actuelle.
+- Envoi e-mail au(x) contact(s) + copie au pilote dans trois cas : balayage
+  homme mort, balayage immobilité, `POST /alert`. Une session n'alerte
+  qu'une fois (`alerted_at`, inchangé).
+
+### 15.6 Inchangé
+
+Le bouton « Appeler » de la page de suivi reste sans numéro (§6.3 vs
+confidentialité) : ce lot ne le résout pas.
