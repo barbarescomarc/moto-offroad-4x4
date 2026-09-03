@@ -165,8 +165,9 @@ void main() {
       profile: RoutingProfile.drivingCar,
     );
 
-    // À mi-parcours : 0,4 km restants sur 0,8 km, soit la moitié des 600 s.
-    positions.add(_gps(const LatLng(44.0, 6.006)));
+    // À mi-parcours, sur la charnière des deux segments : 0,4 km restants sur
+    // 0,8 km, soit la moitié des 600 s.
+    positions.add(_gps(const LatLng(44.0, 6.005)));
     await tester.pump();
     await _pump(tester, guidance);
 

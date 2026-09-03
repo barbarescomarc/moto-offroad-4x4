@@ -30,6 +30,11 @@ class GuidanceProvider extends ChangeNotifier {
   static const double _stepArrivalRadiusMeters = 30;
   // Distances (m) de pré-annonce vocale avant une manœuvre.
   static const List<double> _announceThresholds = [300, 100];
+  // Distance restante (m) le long de l'itinéraire en deçà de laquelle
+  // l'arrivée devient possible. Sur une boucle, départ et arrivée se touchent :
+  // à vol d'oiseau le rider est « arrivé » avant même d'être parti. Seule la
+  // distance restante le long du parcours dit s'il a vraiment fait la boucle.
+  static const double _finalStretchMeters = 300;
   // Écarts (m) à la trace au-delà desquels on considère une déviation.
   static const double _offRouteThresholdRoute = 40;
   static const double _offRouteThresholdOffroad = 60;
@@ -63,6 +68,13 @@ class GuidanceProvider extends ChangeNotifier {
   // recherche fenêtrée : sur une trace qui boucle, un balayage complet peut
   // rattacher le rider au brin retour et masquer une vraie déviation.
   int _lastSegmentIndex = 0;
+  // Au premier relevé d'un itinéraire, la fenêtre n'a encore rien à quoi
+  // s'accrocher : une trace GPX peut être rejointe n'importe où, y compris à
+  // rebours. Un balayage complet amorce alors _lastSegmentIndex.
+  bool _needsAcquisition = true;
+  // Le rider a-t-il déjà été loin de l'arrivée sur cet itinéraire ? Sans ce
+  // témoin, une boucle « arrive » au départ (voir _finalStretchMeters).
+  bool _hasLeftFinalStretch = false;
 
   // Contexte conservé pour un recalcul silencieux en mode destination.
   LatLng? _destination;
@@ -96,8 +108,11 @@ class GuidanceProvider extends ChangeNotifier {
     if (r == null || pos == null || r.polyline.isEmpty) return 0;
     final nearest = nearestPointOnPolylineWindowed(pos, r.polyline, _lastSegmentIndex);
     const calc = Distance();
-    double total = 0;
-    for (var i = nearest.segmentIndex + 1; i < r.polyline.length; i++) {
+    // Reste du segment courant à partir du point projeté, puis les suivants
+    // en entier — compter tout le segment courant surestimerait la distance
+    // de sa longueur, et ferait rater l'arrivée sur un long dernier tronçon.
+    double total = calc(nearest.point, r.polyline[nearest.segmentIndex + 1]);
+    for (var i = nearest.segmentIndex + 2; i < r.polyline.length; i++) {
       total += calc(r.polyline[i - 1], r.polyline[i]);
     }
     return total;
@@ -167,6 +182,8 @@ class GuidanceProvider extends ChangeNotifier {
     _offRouteStreak = 0;
     _announcedThresholds.clear();
     _lastSegmentIndex = 0;
+    _needsAcquisition = true;
+    _hasLeftFinalStretch = false;
   }
 
   // Réinitialise uniquement les étapes lors d'un recalcul d'itinéraire.
@@ -178,8 +195,10 @@ class GuidanceProvider extends ChangeNotifier {
     _currentStepIndex = 0;
     _announcedThresholds.clear();
     // La polyligne vient d'être remplacée : l'index de segment mémorisé ne
-    // désigne plus rien de comparable, la recherche fenêtrée repart du début.
+    // désigne plus rien de comparable, la recherche se ré-amorce.
     _lastSegmentIndex = 0;
+    _needsAcquisition = true;
+    _hasLeftFinalStretch = false;
   }
 
   void stop() {
@@ -220,14 +239,41 @@ class GuidanceProvider extends ChangeNotifier {
     _lastPosition = snap.position;
     _resetGpsTimeout();
 
-    _checkStepAdvance(snap.position);
+    // La position sur la trace d'abord : l'avancement des étapes s'appuie
+    // sur la distance restante, qui dépend du segment reconnu à ce relevé.
     _checkOffRoute(snap.position);
+    _noteDistanceFromFinish(snap.position);
+    _checkStepAdvance(snap.position);
     notifyListeners();
+  }
+
+  // À vol d'oiseau, pas le long du parcours : sur une boucle, la distance
+  // restante le long du tracé vaut toute la boucle dès le départ, alors que
+  // le rider n'a pas bougé du point d'arrivée.
+  void _noteDistanceFromFinish(LatLng position) {
+    final r = _route;
+    if (r == null || r.polyline.isEmpty) return;
+    if (const Distance()(position, r.polyline.last) > _finalStretchMeters) {
+      _hasLeftFinalStretch = true;
+    }
+  }
+
+  // L'étape d'arrivée n'est prise en compte que si le rider a réellement
+  // parcouru l'itinéraire : il en a déjà été loin (ou il est trop court pour
+  // ça) et il n'en reste plus qu'un dernier tronçon. À vol d'oiseau seul, une
+  // boucle serait « arrivée » dès le départ.
+  bool get _arrivalEligible {
+    final r = _route;
+    if (r == null) return false;
+    final hasCoveredRoute =
+        _hasLeftFinalStretch || r.totalDistanceMeters <= _finalStretchMeters;
+    return hasCoveredRoute && remainingDistanceMeters <= _finalStretchMeters;
   }
 
   void _checkStepAdvance(LatLng position) {
     final step = currentStep;
     if (step == null) return;
+    if (step.maneuver == ManeuverType.arrive && !_arrivalEligible) return;
     const calc = Distance();
     final d = calc(position, step.location);
 
@@ -258,8 +304,12 @@ class GuidanceProvider extends ChangeNotifier {
             ? _offRouteThresholdRoute
             : _offRouteThresholdOffroad;
 
-    final nearest =
-        nearestPointOnPolylineWindowed(position, route.polyline, _lastSegmentIndex);
+    // Premier relevé de l'itinéraire : balayage complet pour trouver où le
+    // rider a rejoint la trace. Ensuite seulement, la fenêtre suit.
+    final nearest = _needsAcquisition
+        ? nearestPointOnPolyline(position, route.polyline)
+        : nearestPointOnPolylineWindowed(position, route.polyline, _lastSegmentIndex);
+    _needsAcquisition = false;
     _lastSegmentIndex = nearest.segmentIndex;
     final offNow = nearest.distanceMeters > threshold;
 

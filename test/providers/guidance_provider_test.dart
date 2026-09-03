@@ -283,7 +283,8 @@ void main() {
       profile: RoutingProfile.drivingCar,
     );
 
-    positionController.add(_gps(const LatLng(44.0, 6.006)));
+    // À la charnière entre les deux segments : il reste exactement le second.
+    positionController.add(_gps(const LatLng(44.0, 6.005)));
     await Future<void>.delayed(Duration.zero);
 
     expect(guidance.remainingDistanceMeters, closeTo(400, 10));
@@ -306,7 +307,10 @@ void main() {
     guidance.startOnTrace(trace, GuidanceMode.gpxAlert);
     expect(guidance.isActive, isTrue);
 
-    positionController.add(_gps(const LatLng(44.01, 6.0)));
+    // On part du début de la trace, puis on en atteint le bout.
+    positionController.add(_gps(const LatLng(44.0, 6.0), s: 1));
+    await Future<void>.delayed(Duration.zero);
+    positionController.add(_gps(const LatLng(44.01, 6.0), s: 2));
     await Future<void>.delayed(Duration.zero);
 
     expect(guidance.isActive, isFalse);
@@ -324,4 +328,70 @@ void main() {
     expect(guidance.isActive, isFalse);
     expect(guidance.route, isNull);
   });
+
+  // ── Traces en boucle : départ ≈ arrivée ───────────────────
+  //
+  // Carré de 500 m de côté qui revient à son point de départ — la forme
+  // typique d'une sortie offroad. Le point d'arrivée est à moins de 30 m du
+  // point de départ : sans garde-fou, le guidage « arrive » dès le premier
+  // relevé.
+
+  test('trace GPX en boucle : le guidage ne s\'arrête pas au point de départ', () async {
+    guidance.startOnTrace(_traceFrom(_squareLoop), GuidanceMode.gpxAlert);
+
+    positionController.add(_gps(_squareLoop.first, s: 1));
+    await Future<void>.delayed(Duration.zero);
+    // Bruit GPS : 5 m au nord du départ, soit du côté du brin retour.
+    positionController.add(_gps(const LatLng(44.000045, 6.0), s: 2));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(guidance.isActive, isTrue);
+    expect(ttsEngine.spoken, isEmpty);
+  });
+
+  test('trace GPX en boucle : l\'arrivée est détectée une fois la boucle parcourue', () async {
+    guidance.startOnTrace(_traceFrom(_squareLoop), GuidanceMode.gpxAlert);
+
+    positionController.add(_gps(_squareLoop[1], s: 1));
+    await Future<void>.delayed(Duration.zero);
+    positionController.add(_gps(_squareLoop[2], s: 2));
+    await Future<void>.delayed(Duration.zero);
+    positionController.add(_gps(_squareLoop[3], s: 3));
+    await Future<void>.delayed(Duration.zero);
+    // 10 m avant la fermeture de la boucle, sur le dernier brin.
+    positionController.add(_gps(const LatLng(44.00009, 6.0), s: 4));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(guidance.isActive, isFalse);
+    expect(ttsEngine.spoken, contains('Destination atteinte'));
+  });
+
+  // ── Recherche fenêtrée : accrochage initial et recalage ───
+
+  test('guidage GPX démarré au milieu de la trace : le premier relevé s\'accroche au bon segment', () async {
+    guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+
+    positionController.add(_gps(_longStraightTrace[20], s: 1));
+    await Future<void>.delayed(Duration.zero);
+    positionController.add(_gps(_longStraightTrace[20], s: 2));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(guidance.isOffRoute, isFalse);
+    // Il reste 9 segments d'environ 100 m, pas les 29 de la trace entière.
+    expect(guidance.remainingDistanceMeters, closeTo(900, 20));
+  });
+
 }
+
+// Carré de ~500 m de côté fermé sur son point de départ (0,0045° de latitude
+// et 0,00625° de longitude font ~500 m à 44° N).
+const _squareLoop = [
+  LatLng(44.0, 6.0),
+  LatLng(44.0, 6.00625),
+  LatLng(44.0045, 6.00625),
+  LatLng(44.0045, 6.0),
+  LatLng(44.0, 6.0),
+];
+
+// 30 points plein nord espacés de ~100 m (0,0009° de latitude).
+final _longStraightTrace = List.generate(30, (i) => LatLng(44.0 + i * 0.0009, 6.0));
