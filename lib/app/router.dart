@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../screens/map/map_screen.dart';
 import '../screens/sos/sos_screen.dart';
 import '../screens/solo/solo_screen.dart';
+import '../screens/solo/send_position_screen.dart';
 import '../screens/fuel/fuel_screen.dart';
 import '../screens/group/group_screen.dart';
 import '../screens/weather/weather_screen.dart';
@@ -11,6 +12,7 @@ import '../screens/rides/rides_screen.dart';
 import '../screens/rides/ride_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/vibration_calibration_screen.dart';
+import '../screens/settings/call_settings_screen.dart';
 import '../services/update_checker.dart';
 import '../widgets/update_tile.dart';
 
@@ -22,8 +24,10 @@ class AppRoutes {
   static const String weather     = '/weather';
   static const String settings    = '/settings';
   static const String calibration = '/calibration';
+  static const String callSettings = '/call-settings';
   static const String sos         = '/sos';
   static const String solo        = '/solo';
+  static const String sendPosition = '/send-position';
   static const String group       = '/group';
 }
 
@@ -72,12 +76,22 @@ final GoRouter appRouter = GoRouter(
           fullscreenDialog: true, child: VibrationCalibrationScreen()),
     ),
     GoRoute(
+      path: AppRoutes.callSettings,
+      pageBuilder: (_, __) => const MaterialPage(
+        fullscreenDialog: true, child: CallSettingsScreen()),
+    ),
+    GoRoute(
       path: AppRoutes.sos,
       pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SosScreen()),
     ),
     GoRoute(
       path: AppRoutes.solo,
       pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SoloScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.sendPosition,
+      pageBuilder: (_, __) => const MaterialPage(
+        fullscreenDialog: true, child: SendPositionScreen()),
     ),
     GoRoute(
       path: AppRoutes.group,

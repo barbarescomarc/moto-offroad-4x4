@@ -14,6 +14,13 @@ class SettingsProvider extends ChangeNotifier {
   static const _kAutoStart   = 'rec_suggest_autostart';
   static const _kMiles       = 'unit_miles';
   static const _kScreenOn    = 'map_keep_screen_on';
+  static const _kAutoReply     = 'call_auto_reply';
+  static const _kAutoReplyPos  = 'call_auto_reply_position';
+  static const _kAutoReplyAll  = 'call_auto_reply_all';
+  static const _kAutoReplyText = 'call_auto_reply_text';
+
+  // Message envoyé seul, sans que le pilote ait à toucher l'écran.
+  static const String defaultAutoReplyMessage = 'Je roule, je ne peux pas répondre';
 
   // Seuils de pause proposés, en km/h. Un curseur libre autoriserait des
   // valeurs absurdes qui déclencheraient des pauses intempestives.
@@ -32,6 +39,10 @@ class SettingsProvider extends ChangeNotifier {
   bool _suggestAutoStart = false;
   bool _useMiles         = false;
   bool _keepScreenOnMap  = true;
+  bool _autoReplyEnabled        = true;
+  bool _autoReplyAttachPosition = true;
+  bool _autoReplyAllCallers     = false;
+  String _autoReplyMessage      = defaultAutoReplyMessage;
 
   SkillLevel  get skillLevel => _skillLevel;
   MotoPreset? get moto       => _moto;
@@ -43,6 +54,10 @@ class SettingsProvider extends ChangeNotifier {
   bool get suggestAutoStart => _suggestAutoStart;
   bool get useMiles         => _useMiles;
   bool get keepScreenOnMap  => _keepScreenOnMap;
+  bool   get autoReplyEnabled        => _autoReplyEnabled;
+  bool   get autoReplyAttachPosition => _autoReplyAttachPosition;
+  bool   get autoReplyAllCallers     => _autoReplyAllCallers;
+  String get autoReplyMessage        => _autoReplyMessage;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -61,6 +76,10 @@ class SettingsProvider extends ChangeNotifier {
     _suggestAutoStart = prefs.getBool(_kAutoStart)  ?? false;
     _useMiles         = prefs.getBool(_kMiles)      ?? false;
     _keepScreenOnMap  = prefs.getBool(_kScreenOn)   ?? true;
+    _autoReplyEnabled        = prefs.getBool(_kAutoReply)    ?? true;
+    _autoReplyAttachPosition = prefs.getBool(_kAutoReplyPos) ?? true;
+    _autoReplyAllCallers     = prefs.getBool(_kAutoReplyAll) ?? false;
+    _autoReplyMessage        = prefs.getString(_kAutoReplyText) ?? defaultAutoReplyMessage;
     notifyListeners();
   }
 
@@ -122,6 +141,32 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setKeepScreenOnMap(bool v) async {
     _keepScreenOnMap = v;
     (await SharedPreferences.getInstance()).setBool(_kScreenOn, v);
+    notifyListeners();
+  }
+
+  // ── Réglages d'auto-réponse aux appels ───────────────────
+  Future<void> setAutoReplyEnabled(bool v) async {
+    _autoReplyEnabled = v;
+    (await SharedPreferences.getInstance()).setBool(_kAutoReply, v);
+    notifyListeners();
+  }
+
+  Future<void> setAutoReplyAttachPosition(bool v) async {
+    _autoReplyAttachPosition = v;
+    (await SharedPreferences.getInstance()).setBool(_kAutoReplyPos, v);
+    notifyListeners();
+  }
+
+  Future<void> setAutoReplyAllCallers(bool v) async {
+    _autoReplyAllCallers = v;
+    (await SharedPreferences.getInstance()).setBool(_kAutoReplyAll, v);
+    notifyListeners();
+  }
+
+  Future<void> setAutoReplyMessage(String v) async {
+    final cleaned = v.trim();
+    _autoReplyMessage = cleaned.isEmpty ? defaultAutoReplyMessage : cleaned;
+    (await SharedPreferences.getInstance()).setString(_kAutoReplyText, _autoReplyMessage);
     notifyListeners();
   }
 }

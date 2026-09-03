@@ -13,9 +13,14 @@ import 'providers/solo_provider.dart';
 import 'providers/settings_provider.dart';
 import 'providers/recording_provider.dart';
 import 'providers/rides_provider.dart';
+import 'providers/quick_reply_provider.dart';
 import 'services/ride_database.dart';
 import 'services/ride_repository.dart';
 import 'services/ride_recording_service.dart';
+import 'services/auto_reply_service.dart';
+import 'services/auto_reply_policy.dart';
+import 'services/call_bridge.dart';
+import 'services/location_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -88,13 +93,73 @@ class MotoOffroadApp extends StatelessWidget {
         ChangeNotifierProvider(
           create: (_) => RidesProvider(repository: rideRepository),
         ),
+        ChangeNotifierProvider(create: (_) {
+          final q = QuickReplyProvider();
+          q.load();
+          return q;
+        }),
       ],
-      child: MaterialApp.router(
-        title: 'Moto Offroad 4x4',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark,
-        routerConfig: appRouter,
+      child: _AutoReplyHost(
+        child: MaterialApp.router(
+          title: 'Moto Offroad 4x4',
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.dark,
+          routerConfig: appRouter,
+        ),
       ),
     );
   }
+}
+
+// ── Cycle de vie du service d'auto-réponse ───────────────────
+//
+// Point d'entrée unique : démarre l'écoute des appels au lancement de
+// l'application et l'arrête proprement à la fermeture. Les providers sont
+// capturés une seule fois ici — leurs instances sont stables pour toute la
+// vie de l'app — mais leurs accesseurs sont relus à chaque appel entrant via
+// les fonctions passées au service, pour ne jamais figer un réglage.
+class _AutoReplyHost extends StatefulWidget {
+  const _AutoReplyHost({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_AutoReplyHost> createState() => _AutoReplyHostState();
+}
+
+class _AutoReplyHostState extends State<_AutoReplyHost> {
+  late final AutoReplyService _service;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final settings = context.read<SettingsProvider>();
+    final recording = context.read<RecordingProvider>();
+    final solo = context.read<SoloProvider>();
+    final quickReplies = context.read<QuickReplyProvider>();
+
+    _service = AutoReplyService(
+      bridge: CallBridge(),
+      policyBuilder: () => AutoReplyPolicy(
+        enabled:       settings.autoReplyEnabled,
+        allCallers:    settings.autoReplyAllCallers,
+        riding:        recording.isRecording || solo.soloActive,
+        trustedPhones: solo.contacts.map((c) => c.phone).toList(),
+      ),
+      messageBuilder:        () => settings.autoReplyMessage,
+      attachPositionBuilder: () => settings.autoReplyAttachPosition,
+      repliesBuilder:        () => quickReplies.replies,
+      positionProvider:      () => LocationService().getCurrentPosition(),
+    )..start();
+  }
+
+  @override
+  void dispose() {
+    _service.stop();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }

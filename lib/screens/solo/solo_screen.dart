@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../app/router.dart';
 import '../../app/theme.dart';
 import '../../providers/solo_provider.dart';
 
@@ -54,6 +56,12 @@ class _SoloScreenState extends State<SoloScreen> {
               const SizedBox(height: 8),
               ...solo.contacts.map((c) => _contactCard(c, solo)),
               if (solo.contacts.length < 3) _addContactBtn(solo),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                onPressed: () => context.push(AppRoutes.sendPosition),
+                icon: const Icon(Icons.my_location),
+                label: const Text('Envoyer ma position'),
+              ),
               const SizedBox(height: 16),
 
               // ── Seuil d'immobilisation ──────────────────
