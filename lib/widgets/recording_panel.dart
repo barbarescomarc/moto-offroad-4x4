@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../app/router.dart';
+import '../app/theme.dart';
 import '../models/ride.dart';
 import '../services/ride_merge_service.dart';
 import '../services/ride_repository.dart';
@@ -13,7 +14,12 @@ import '../services/ride_recording_service.dart';
 import '../services/ride_sensor_bridge.dart';
 import '../services/vibration_calibration.dart';
 
-// ── Bouton REC et bandeau de statistiques ────────────────────
+// ── Commandes d'enregistrement ───────────────────────────────
+//
+// Une colonne de boutons ronds au gabarit du SOS, glissée sous lui. Le
+// bandeau pleine largeur qui occupait le bas de l'écran recouvrait les
+// onglets de navigation ; empilé sur le côté, il ne recouvre plus rien et
+// reste atteignable avec des gants dans les deux orientations.
 class RecordingPanel extends StatelessWidget {
   const RecordingPanel({super.key});
 
@@ -22,7 +28,73 @@ class RecordingPanel extends StatelessWidget {
     final rec = context.watch<RecordingProvider>();
     return rec.state == RecorderState.idle
         ? const _RecButton()
-        : const _RecordingBar();
+        : const _RecControls();
+  }
+}
+
+// ── Bouton rond, même gabarit que le SOS ─────────────────────
+class _RoundBtn extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final String tooltip;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
+
+  const _RoundBtn({
+    required this.icon,
+    required this.color,
+    required this.tooltip,
+    this.onTap,
+    this.onLongPress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: GestureDetector(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Container(
+          width: AppSizes.sosButtonSize,
+          height: AppSizes.sosButtonSize,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+            boxShadow: [
+              BoxShadow(color: color.withOpacity(.5), blurRadius: 6, spreadRadius: 1),
+            ],
+            border: Border.all(color: Colors.white.withOpacity(.3), width: 1.5),
+          ),
+          child: Icon(icon, color: Colors.white, size: 26),
+        ),
+      ),
+    );
+  }
+}
+
+// ── Pastille de statistiques pendant l'enregistrement ────────
+class _StatsPill extends StatelessWidget {
+  final String texte;
+  final Color bordure;
+  const _StatsPill({required this.texte, required this.bordure});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 132),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.bgPanel.withOpacity(.9),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: bordure, width: 1.5),
+      ),
+      child: Text(
+        texte,
+        style: const TextStyle(color: Colors.white, fontSize: 12),
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
   }
 }
 
@@ -64,28 +136,18 @@ class _RecButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      child: SizedBox(
-        height: 56,
-        child: ElevatedButton.icon(
-          onPressed: () => _start(context),
-          icon: const Icon(Icons.fiber_manual_record, size: 26),
-          label: const Text('ENREGISTRER',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFFEF5350),
-            foregroundColor: Colors.white,
-          ),
-        ),
-      ),
+    return _RoundBtn(
+      icon: Icons.fiber_manual_record,
+      color: const Color(0xFFEF5350),
+      tooltip: 'Démarrer l\'enregistrement',
+      onTap: () => _start(context),
     );
   }
 }
 
-// ── Bandeau pendant l'enregistrement ─────────────────────────
-class _RecordingBar extends StatelessWidget {
-  const _RecordingBar();
+// ── Commandes pendant l'enregistrement ───────────────────────
+class _RecControls extends StatelessWidget {
+  const _RecControls();
 
   Future<void> _stop(BuildContext context) async {
     final rec = context.read<RecordingProvider>();
@@ -231,87 +293,61 @@ class _RecordingBar extends StatelessWidget {
     final stats = rec.liveStats;
     final paused = rec.isPaused;
     final d = stats.totalTime;
-    final shouldRemind = rec.shouldRemindPause;
+    final accent = paused ? const Color(0xFFF9A825) : const Color(0xFFEF5350);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Rappel « Toujours en balade ? » après 15 min sans mouvement
-        if (shouldRemind)
-          MaterialBanner(
-            content: const Text('Toujours en balade ?'),
-            leading: const Icon(Icons.info_outline),
-            actions: [
-              TextButton(
-                onPressed: () => rec.togglePause(),
-                child: const Text('Mettre en pause'),
-              ),
-              TextButton(
-                onPressed: () => rec.acknowledgeReminder(),
-                child: const Text('Continuer'),
-              ),
-            ],
-          ),
-        // Panneau d'enregistrement principal
-        Container(
-          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: paused ? const Color(0xFF5C4B1F) : const Color(0xFF7A1F1F),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: paused ? const Color(0xFFF9A825) : const Color(0xFFEF5350),
-              width: 2,
-            ),
-          ),
-          child: Row(
-            children: [
-              Icon(paused ? Icons.pause_circle : Icons.fiber_manual_record,
-                  color: Colors.white, size: 26),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      paused ? 'EN PAUSE' : 'ENREGISTREMENT',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2),
-                    ),
-                    Text(
-                      '${stats.distanceKm.toStringAsFixed(1).replaceAll('.', ',')} km'
-                      ' · ${d.inHours.toString().padLeft(2, '0')}'
-                      ':${(d.inMinutes % 60).toString().padLeft(2, '0')}'
-                      ' · ${stats.avgSpeedKmh.toStringAsFixed(0)} km/h',
-                      style: const TextStyle(color: Colors.white, fontSize: 15),
-                    ),
-                  ],
-                ),
-              ),
-              IconButton(
-                tooltip: paused ? 'Reprendre' : 'Mettre en pause',
-                icon: Icon(paused ? Icons.play_arrow : Icons.pause,
-                    color: Colors.white, size: 28),
-                onPressed: () => context.read<RecordingProvider>().togglePause(),
-              ),
-              // Appui long : un arrêt accidentel après trois heures de sortie
-              // n'est pas rattrapable.
-              GestureDetector(
-                onLongPress: () => _stop(context),
-                child: Tooltip(
-                  message: 'Appui long pour arrêter',
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    child: const Icon(Icons.stop, color: Colors.white, size: 28),
-                  ),
-                ),
-              ),
-            ],
-          ),
+        _RoundBtn(
+          icon: paused ? Icons.play_arrow : Icons.pause,
+          color: const Color(0xFFF9A825),
+          tooltip: paused ? 'Reprendre' : 'Mettre en pause',
+          onTap: () => context.read<RecordingProvider>().togglePause(),
+        ),
+        const SizedBox(height: 8),
+        // Appui long : un arrêt accidentel après trois heures de sortie
+        // n'est pas rattrapable.
+        _RoundBtn(
+          icon: Icons.stop,
+          color: const Color(0xFFEF5350),
+          tooltip: 'Appui long pour arrêter',
+          onLongPress: () => _stop(context),
+        ),
+        const SizedBox(height: 8),
+        _StatsPill(
+          bordure: accent,
+          texte: '${stats.distanceKm.toStringAsFixed(1).replaceAll('.', ',')} km'
+              ' · ${d.inHours.toString().padLeft(2, '0')}'
+              ':${(d.inMinutes % 60).toString().padLeft(2, '0')}',
+        ),
+      ],
+    );
+  }
+}
+
+// ── Rappel « Toujours en balade ? » ──────────────────────────
+//
+// Séparé des commandes : c'est un message occasionnel, il a besoin de la
+// largeur de l'écran, alors que les boutons tiennent dans une colonne.
+class RecordingReminder extends StatelessWidget {
+  const RecordingReminder({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final rec = context.watch<RecordingProvider>();
+    if (!rec.shouldRemindPause) return const SizedBox.shrink();
+    return MaterialBanner(
+      content: const Text('Toujours en balade ?'),
+      leading: const Icon(Icons.info_outline),
+      actions: [
+        TextButton(
+          onPressed: () => rec.togglePause(),
+          child: const Text('Mettre en pause'),
+        ),
+        TextButton(
+          onPressed: () => rec.acknowledgeReminder(),
+          child: const Text('Continuer'),
         ),
       ],
     );

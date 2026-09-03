@@ -106,14 +106,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           // ── HUD fullscreen ───────────────────────────────
           if (isFullscreen) ...[
             _buildFullscreenHud(),
-            _buildSosButton(),
+            _buildSideControls(),
             _buildFullscreenExitBtn(),
           ] else ...[
             // ── Header ──────────────────────────────────────
             Positioned(top: 0, left: 0, right: 0, child: _buildHeader()),
 
             // ── Bouton SOS (toujours visible) ───────────────
-            _buildSosButton(),
+            _buildSideControls(),
 
             // ── Badge Solo ──────────────────────────────────
             _buildSoloBadge(),
@@ -138,7 +138,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               left: 0, right: 0,
               bottom: 0,
               child: Column(children: [
-                const RecordingPanel(),
+                const RecordingReminder(),
                 _buildStatsBar(),
               ]),
             ),
@@ -161,7 +161,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             flex: 65,
             child: Stack(children: [
               Positioned.fill(child: _buildMap()),
-              _buildSosButton(),
+              _buildSideControls(),
               _buildSoloBadge(),
               Positioned(
                 bottom: 8, right: 8,
@@ -534,9 +534,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Panneau d'enregistrement
-          const RecordingPanel(),
-          const SizedBox(height: 10),
+          // Rappel « Toujours en balade ? » — les commandes elles-mêmes
+          // sont sur la carte, dans la colonne du SOS.
+          const RecordingReminder(),
           // Titre
           const Text('NAVIGATION', style: TextStyle(
             fontFamily: 'Rajdhani', fontSize: 13,
@@ -644,12 +644,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
-  // ── BOUTON SOS ────────────────────────────────────────────
-  Widget _buildSosButton() {
+  // ── COMMANDES LATERALES : SOS puis enregistrement ─────────
+  //
+  // Empilées sur le bord gauche. L'ancien bandeau d'enregistrement prenait
+  // toute la largeur en bas de l'écran et recouvrait les onglets ; en colonne
+  // il ne masque plus rien, en portrait comme en paysage.
+  Widget _buildSideControls() {
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,
       left: 12,
-      child: SosButton(onPressed: () => context.push(AppRoutes.sos)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SosButton(onPressed: () => context.push(AppRoutes.sos)),
+          const SizedBox(height: 8),
+          const RecordingPanel(),
+        ],
+      ),
     );
   }
 
