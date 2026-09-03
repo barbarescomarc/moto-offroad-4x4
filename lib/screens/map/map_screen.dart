@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -12,7 +13,10 @@ import '../../providers/group_provider.dart';
 import '../../providers/fuel_provider.dart';
 import '../../providers/solo_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/favorites_provider.dart';
+import '../../providers/guidance_provider.dart';
 import '../../services/location_service.dart';
+import '../../services/routing_service.dart';
 import '../../widgets/sos_button.dart';
 import '../../widgets/mode_switch.dart';
 import '../../widgets/stats_bar.dart';
@@ -236,6 +240,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         onTap: (_, __) {
           if (mapProv.isFullscreen) mapProv.exitFullscreen();
         },
+        onLongPress: (_, point) => _showLongPressSheet(point),
         onMapEvent: (event) => _onMapEvent(event, mapProv, settings),
       ),
       children: [
@@ -857,6 +862,92 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  void _showLongPressSheet(LatLng point) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.directions, color: AppColors.orange),
+              title: const Text('Guider ici', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _startGuidanceTo(point);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.star_border, color: AppColors.orange),
+              title: const Text('Ajouter aux favoris', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _promptAddFavorite(point);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startGuidanceTo(LatLng destination) async {
+    final origin = _locationService.lastSnapshot?.position;
+    if (origin == null) return;
+
+    final mapProv = context.read<MapProvider>();
+    final settings = context.read<SettingsProvider>();
+    final profile = mapProv.isOffroad ? RoutingProfile.cyclingMountain : RoutingProfile.drivingCar;
+    final avoid = <AvoidFeature>{
+      if (settings.guidanceAvoidHighways) AvoidFeature.highways,
+      if (settings.guidanceAvoidTolls) AvoidFeature.tollways,
+      if (settings.guidanceAvoidFerries) AvoidFeature.ferries,
+    };
+
+    final ok = await context.read<GuidanceProvider>().startToDestination(
+      origin: origin, destination: destination, profile: profile, avoid: avoid,
+    );
+
+    if (!ok && mounted) {
+      final error = context.read<GuidanceProvider>().error ?? "Impossible de calculer l'itinéraire";
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  Future<void> _promptAddFavorite(LatLng point) async {
+    final nameCtrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.bgPanel,
+        title: const Text('Nom du favori', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: nameCtrl,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(hintText: 'Ex: Garage'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(nameCtrl.text.trim()),
+            child: const Text('Ajouter'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    if (!mounted) return;
+    await context.read<FavoritesProvider>().add(name, point);
   }
 
   void _showLayerSelector() {
