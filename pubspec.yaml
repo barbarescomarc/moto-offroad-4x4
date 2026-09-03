@@ -51,6 +51,9 @@ dependencies:
   # ── UI ───────────────────────────────────────────────
   wakelock_plus: ^1.1.0        # Écran actif en navigation
 
+  # ── Guidage ──────────────────────────────────────────
+  flutter_tts: ^4.0.0          # Synthèse vocale (guidage)
+
   # ── Utilitaires ──────────────────────────────────────
   intl: ^0.19.0                # Formatage dates/nombres
   uuid: ^4.3.0                 # IDs uniques groupes
