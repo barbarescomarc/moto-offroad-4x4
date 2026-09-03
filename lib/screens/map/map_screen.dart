@@ -246,14 +246,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           maxZoom: 18,
         ),
 
+        // ── Noms de rues/lieux sur fond satellite ───────────
+        if (mapProv.activeLayer.labelsOverlayUrl != null)
+          TileLayer(
+            urlTemplate: mapProv.activeLayer.labelsOverlayUrl!,
+            userAgentPackageName: 'app.motooffroad',
+            maxZoom: 18,
+          ),
+
         // ── Overlay radar pluie (RainViewer) ───────────────
-        if (mapProv.radarEnabled)
+        // L'URL est construite dynamiquement (voir MapProvider) : le service
+        // ne sert pas de chemin fixe, chaque relevé a son propre identifiant.
+        // RainViewer plafonne son propre zoom à 7 (« zoom level not
+        // supported » au-delà) : maxNativeZoom réutilise les tuiles de ce
+        // niveau en zoomant plus loin sur le fond de carte, au lieu d'en
+        // redemander à un niveau que le serveur ne fournit pas.
+        if (mapProv.radarEnabled && mapProv.radarTileUrlTemplate != null)
           Opacity(
             opacity: 0.55,
             child: TileLayer(
-              urlTemplate:
-                  'https://tilecache.rainviewer.com/v2/radar/nowcast/{z}/{x}/{y}/4/1_1.png',
+              urlTemplate: mapProv.radarTileUrlTemplate!,
               userAgentPackageName: 'app.motooffroad',
+              maxNativeZoom: 7,
+              maxZoom: 18,
             ),
           ),
 

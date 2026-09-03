@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 // ── Mode carte (couche de fond) ──────────────────────────────
@@ -33,6 +36,17 @@ extension MapLayerExt on MapLayer {
         // OpenTopoMap — gratuit, sans clé API, courbes de niveau mondiales
         return 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png';
     }
+  }
+
+  // Surcouche noms de rues/lieux — l'imagerie satellite Esri (World_Imagery)
+  // est une photo pure, sans aucun texte. On superpose la couche de
+  // référence Esri (fond transparent) pour retrouver les noms de rues et de
+  // lieux, comme le mode « Hybride » de Google Maps. Non pertinent pour les
+  // autres fonds, qui portent déjà leurs propres labels.
+  String? get labelsOverlayUrl {
+    if (this != MapLayer.satellite) return null;
+    return 'https://server.arcgisonline.com/ArcGIS/rest/services/'
+           'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
   }
 }
 
@@ -73,9 +87,19 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Radar pluie
+  // Radar pluie — RainViewer ne sert pas une URL fixe : chaque relevé porte
+  // un chemin distinct (ex. /v2/radar/b215c3c68ec1), à lire dans son API de
+  // métadonnées et à rafraîchir régulièrement, un relevé n'étant conservé
+  // que quelques dizaines de minutes.
   bool _radarEnabled = false;
   bool get radarEnabled => _radarEnabled;
+
+  String? _radarTilePath;
+  String? get radarTileUrlTemplate => _radarTilePath == null
+      ? null
+      : 'https://tilecache.rainviewer.com$_radarTilePath/256/{z}/{x}/{y}/4/1_1.png';
+
+  Timer? _radarRefreshTimer;
 
   // Overlay impraticabilité
   bool _practicabilityEnabled = true;
@@ -133,7 +157,43 @@ class MapProvider extends ChangeNotifier {
 
   void toggleRadar() {
     _radarEnabled = !_radarEnabled;
+    if (_radarEnabled) {
+      _refreshRadarPath();
+      _radarRefreshTimer?.cancel();
+      _radarRefreshTimer = Timer.periodic(
+        const Duration(minutes: 10), (_) => _refreshRadarPath());
+    } else {
+      _radarRefreshTimer?.cancel();
+      _radarRefreshTimer = null;
+      _radarTilePath = null;
+    }
     notifyListeners();
+  }
+
+  // Interroge la liste des relevés disponibles et retient le plus récent.
+  Future<void> _refreshRadarPath() async {
+    try {
+      final resp = await http.get(
+        Uri.parse('https://api.rainviewer.com/public/weather-maps.json'),
+      );
+      if (resp.statusCode != 200) return;
+      final data = jsonDecode(resp.body) as Map<String, dynamic>;
+      final past = (data['radar'] as Map<String, dynamic>?)?['past'] as List<dynamic>?;
+      if (past == null || past.isEmpty) return;
+      final path = (past.last as Map<String, dynamic>)['path'] as String?;
+      if (path == null || !_radarEnabled) return;
+      _radarTilePath = path;
+      notifyListeners();
+    } catch (_) {
+      // Pas de réseau ou service indisponible : le radar reste simplement
+      // éteint jusqu'au prochain essai, sans faire planter la carte.
+    }
+  }
+
+  @override
+  void dispose() {
+    _radarRefreshTimer?.cancel();
+    super.dispose();
   }
 
   void togglePracticability() {
