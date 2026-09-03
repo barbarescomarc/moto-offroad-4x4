@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../app/router.dart';
 import '../../app/theme.dart';
 import '../../providers/solo_provider.dart';
@@ -139,6 +140,19 @@ class _SoloScreenState extends State<SoloScreen> {
             const SizedBox(height: 8),
             const Text('⚠️ Le lien est chiffré et expire à la fin de la session',
               style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: () => _shareTrackingLink(solo),
+              icon: const Icon(Icons.sms_outlined, size: 18),
+              label: const Text('Envoyer le lien par SMS'),
+              style: OutlinedButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                side: BorderSide(color: AppColors.statusGreen.withOpacity(.5)),
+                foregroundColor: AppColors.statusGreen,
+              ),
+            ),
           ],
           if (solo.sessionStart != null) ...[
             const SizedBox(height: 4),
@@ -148,6 +162,17 @@ class _SoloScreenState extends State<SoloScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _shareTrackingLink(SoloProvider solo) async {
+    final url = solo.trackingUrl;
+    if (url == null) return;
+    final notified = solo.contacts.where((c) => c.isNotified).toList();
+    final body = Uri.encodeComponent(
+      'Je pars rouler, tu peux me suivre ici : $url');
+    final recipients = notified.map((c) => c.phone).join(',');
+    final uri = Uri.parse('sms:$recipients?body=$body');
+    await launchUrl(uri);
   }
 
   Widget _contactCard(TrustedContact contact, SoloProvider solo) {
