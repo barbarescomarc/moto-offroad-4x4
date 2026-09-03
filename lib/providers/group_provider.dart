@@ -188,6 +188,7 @@ class GroupProvider extends ChangeNotifier {
       if (!_groupActive) return;
       final result = await _tracker.fetchPeers(sessionId: sid, deviceKey: dk, memberId: mid);
       if (generation != _liveGeneration || !_groupActive) return;
+      if (!result.ok) return; // echec transitoire : on ne touche a rien, on reessaie au prochain tick
       for (final peer in result.peers) {
         final idx = _members.indexWhere((m) => m.id == peer.memberId);
         if (idx >= 0) {

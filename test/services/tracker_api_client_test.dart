@@ -77,6 +77,7 @@ void main() {
       expect(result.peers.first.name, 'Claire');
       expect(result.peers.first.position, const LatLng(45.2, 5.8));
       expect(result.rally, isNull);
+      expect(result.ok, isTrue);
     });
 
     test('parses the rally point when the server has one', () async {
@@ -95,6 +96,7 @@ void main() {
       final result = await api.fetchPeers(sessionId: 's1', deviceKey: 'dk', memberId: 'm1');
       expect(result.peers, isEmpty);
       expect(result.rally, isNull);
+      expect(result.ok, isFalse);
     });
   });
 }

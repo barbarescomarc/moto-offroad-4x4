@@ -333,4 +333,42 @@ void main() {
     g.leaveGroup();
     await controller.close();
   });
+
+  test('a failed peers poll does not prune members or clear the rally point', () async {
+    var callCount = 0;
+    final client = MockClient((req) async {
+      if (req.url.path == '/api/sessions') {
+        return http.Response(
+          '{"sessionId":"s1","ownerKey":"ok","deviceKey":"dk","memberId":"m1","joinCode":"AB12CD"}',
+          201,
+        );
+      }
+      if (req.url.path.contains('/peers')) {
+        callCount++;
+        if (callCount == 1) {
+          return http.Response(
+            '{"peers":[{"memberId":"m2","name":"Claire","color":"#1565C0","lat":45.2,"lng":5.8,"speedKmh":40,"lastSeen":${DateTime.now().millisecondsSinceEpoch}}],"rally":{"lat":45.5,"lng":6.1}}',
+            200,
+          );
+        }
+        return http.Response('', 503); // panne transitoire
+      }
+      return http.Response('', 404);
+    });
+    final g = GroupProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
+    await g.createSession('Marc');
+
+    final controller = StreamController<GpsSnapshot>();
+    g.startLiveSharing(positions: controller.stream, pollInterval: const Duration(milliseconds: 20));
+    await Future.delayed(const Duration(milliseconds: 30));
+    expect(g.members.any((m) => m.id == 'm2'), isTrue);
+    expect(g.rallyPoint, isNotNull);
+
+    await Future.delayed(const Duration(milliseconds: 50)); // plusieurs polls en echec
+    expect(g.members.any((m) => m.id == 'm2'), isTrue); // toujours la, pas elaguee par l'echec
+    expect(g.rallyPoint, isNotNull); // ralliement conserve
+
+    g.leaveGroup();
+    await controller.close();
+  });
 }

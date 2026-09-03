@@ -58,8 +58,9 @@ class PeerPosition {
 class PeersResult {
   final List<PeerPosition> peers;
   final LatLng? rally;
+  final bool ok; // false si la requete a echoue — les appelants ne doivent alors rien elaguer
 
-  const PeersResult({required this.peers, required this.rally});
+  const PeersResult({required this.peers, required this.rally, required this.ok});
 }
 
 class TrackerApiClient {
@@ -160,7 +161,7 @@ class TrackerApiClient {
       final res = await _client.get(
         _uri('/api/sessions/$sessionId/peers', {'deviceKey': deviceKey, 'memberId': memberId}),
       );
-      if (res.statusCode ~/ 100 != 2) return const PeersResult(peers: [], rally: null);
+      if (res.statusCode ~/ 100 != 2) return const PeersResult(peers: [], rally: null, ok: false);
       final j = jsonDecode(res.body) as Map<String, dynamic>;
       final peers = (j['peers'] as List<dynamic>).map((raw) {
         final m = raw as Map<String, dynamic>;
@@ -181,9 +182,9 @@ class TrackerApiClient {
       final rally = rallyLat != null && rallyLng != null
           ? LatLng(rallyLat.toDouble(), rallyLng.toDouble())
           : null;
-      return PeersResult(peers: peers, rally: rally);
+      return PeersResult(peers: peers, rally: rally, ok: true);
     } catch (_) {
-      return const PeersResult(peers: [], rally: null);
+      return const PeersResult(peers: [], rally: null, ok: false);
     }
   }
 
