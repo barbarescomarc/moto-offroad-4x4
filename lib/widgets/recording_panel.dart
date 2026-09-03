@@ -3,6 +3,9 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../app/router.dart';
+import '../models/ride.dart';
+import '../services/ride_merge_service.dart';
+import '../services/ride_repository.dart';
 import '../providers/recording_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/ride_recorder.dart';
@@ -53,6 +56,7 @@ class _RecButton extends StatelessWidget {
         pauseSpeedKmh:      settings.pauseSpeedKmh.toDouble(),
         vibrationThreshold: calibration.threshold,
         autoPauseEnabled:   settings.autoPauseEnabled,
+        signalGapDelay:     Duration(seconds: settings.signalGapSeconds),
       ),
     );
     RideSensorBridge().attach(rec);
@@ -85,8 +89,25 @@ class _RecordingBar extends StatelessWidget {
 
   Future<void> _stop(BuildContext context) async {
     final rec = context.read<RecordingProvider>();
+    final settings = context.read<SettingsProvider>();
+    final repo = context.read<RideRepository>();
     RideSensorBridge().detach();
-    final ride = await rec.stopRide();
+
+    final gaps = rec.signalGapSegments;
+    var ride = await rec.stopRide();
+
+    if (ride != null && settings.askNameOnStop && context.mounted) {
+      final nom = await _demanderNom(context, ride.name);
+      if (nom != null && nom.trim().isNotEmpty) {
+        ride = ride.copyWith(name: nom.trim());
+        await repo.updateRide(ride);
+      }
+    }
+
+    if (ride != null && gaps.isNotEmpty && context.mounted) {
+      ride = await _proposerFusion(context, ride, repo, gaps);
+    }
+
     if (ride != null && context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Sortie enregistrée : ${ride.name}')),
@@ -121,6 +142,87 @@ class _RecordingBar extends StatelessWidget {
         if (go == true && context.mounted) context.push(AppRoutes.calibration);
       }
     }
+  }
+
+  Future<String?> _demanderNom(BuildContext context, String actuel) {
+    final champ = TextEditingController(text: actuel);
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Nom de la sortie'),
+        content: TextField(
+          controller: champ,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Nom de la sortie'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Garder'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, champ.text),
+            child: const Text('Valider'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Une perte de signal a coupé la trace en plusieurs morceaux. On ne fusionne
+  // jamais d'office : le pilote sait s'il a roulé en ligne droite dans le
+  // tunnel ou s'il a fait un détour que la ligne droite trahirait.
+  Future<Ride> _proposerFusion(BuildContext context, Ride ride,
+      RideRepository repo, Set<int> gaps) async {
+    final morceaux = gaps.length + 1;
+    final fusionner = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Traces séparées'),
+        content: Text(
+            'Le signal GPS a été perdu pendant la sortie : elle contient '
+            '$morceaux traces séparées.\n\nLes fusionner en une seule ?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Garder séparées'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Fusionner'),
+          ),
+        ],
+      ),
+    );
+    if (fusionner != true || !context.mounted) return ride;
+
+    final intermediaires = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Points intermédiaires'),
+        content: const Text(
+            'Ajouter des points le long de la portion sans signal ?\n\n'
+            'Sans eux, les deux traces sont simplement reliées par un trait.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Simple trait'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ajouter'),
+          ),
+        ],
+      ),
+    );
+    if (!context.mounted) return ride;
+
+    return RideMergeService.mergeGaps(
+      ride:        ride,
+      repo:        repo,
+      gapSegments: gaps,
+      interpolate: intermediaires == true,
+    );
   }
 
   @override

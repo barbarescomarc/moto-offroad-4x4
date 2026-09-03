@@ -52,6 +52,22 @@ class RideRepository {
     await batch.commit(noResult: true);
   }
 
+  // Réécrit d'un bloc tous les points d'une sortie. Sert à la fusion des
+  // traces coupées par une perte de signal : les numéros de segment changent
+  // et des points intermédiaires peuvent s'intercaler, donc la numérotation
+  // séquentielle doit être refaite entièrement. Transactionnel : une fusion
+  // interrompue ne laisse pas la sortie amputée de ses points.
+  Future<void> replacePoints(String rideId, List<RidePoint> points) async {
+    await _db.transaction((txn) async {
+      await txn.delete('ride_points', where: 'ride_id = ?', whereArgs: [rideId]);
+      final batch = txn.batch();
+      for (final p in points) {
+        batch.insert('ride_points', _toPointRow(p));
+      }
+      await batch.commit(noResult: true);
+    });
+  }
+
   Future<List<RidePoint>> pointsOf(String rideId) async {
     final rows = await _db.query(
       'ride_points',

@@ -150,4 +150,60 @@ void main() {
     rec.stop();
     expect(rec.state, RecorderState.idle);
   });
+
+  // ── Perte de signal (forêt, tunnel, gorge) ────────────────
+  // Sans cette coupure, le point d'avant et celui d'après le trou seraient
+  // reliés d'un trait à travers la montagne.
+
+  test('une perte de signal prolongée ouvre un nouveau segment', () {
+    final rec = _recorder();
+    rec.start();
+    _feed(rec, speedKmh: 40, vibration: 0.5, seconds: 5);
+    expect(rec.segment, 0);
+
+    // Retour du signal 3 minutes plus tard.
+    rec.onSample(gps: _gps(40, 185), vibrationLevel: 0.5);
+
+    expect(rec.segment, 1);
+    expect(rec.gapSegments, contains(1));
+  });
+
+  test('une coupure plus courte que le seuil ne coupe pas la trace', () {
+    final rec = _recorder();
+    rec.start();
+    _feed(rec, speedKmh: 40, vibration: 0.5, seconds: 5);
+
+    rec.onSample(gps: _gps(40, 60), vibrationLevel: 0.5);
+
+    expect(rec.segment, 0);
+    expect(rec.gapSegments, isEmpty);
+  });
+
+  test('la reprise après pause n est pas comptée comme une perte de signal', () {
+    final rec = _recorder();
+    rec.start();
+    _feed(rec, speedKmh: 40, vibration: 0.5, seconds: 5);
+    rec.pauseManually();
+
+    // Le pilote déjeune une heure, puis repart.
+    rec.resumeManually();
+    rec.onSample(gps: _gps(40, 3600), vibrationLevel: 0.5);
+
+    expect(rec.segment, 1, reason: 'la reprise ouvre un segment, une seule fois');
+    expect(rec.gapSegments, isEmpty,
+        reason: 'ce trou est une pause voulue, pas une perte de signal');
+  });
+
+  test('le seuil de coupure est configurable', () {
+    final rec = RideRecorder(
+      rideId: 'r1',
+      config: const RecorderConfig(signalGapDelay: Duration(seconds: 30)),
+    );
+    rec.start();
+    _feed(rec, speedKmh: 40, vibration: 0.5, seconds: 3);
+
+    rec.onSample(gps: _gps(40, 50), vibrationLevel: 0.5);
+
+    expect(rec.segment, 1);
+  });
 }

@@ -296,6 +296,22 @@ class _SettingsScreenState extends State<SettingsScreen>
             onChanged: (v) => v == null ? null : settings.setPauseSpeedKmh(v),
           ),
         ),
+        ListTile(
+          title: const Text('Coupure sur perte de signal'),
+          subtitle: const Text('Sans GPS plus longtemps que cette durée, la '
+              'trace est coupée en deux plutôt que de traverser la forêt en '
+              'ligne droite. La fusion est proposée à l\'arrêt.'),
+          trailing: DropdownButton<int>(
+            value: settings.signalGapSeconds,
+            items: SettingsProvider.signalGapChoices
+                .map((v) => DropdownMenuItem(
+                    value: v,
+                    child: Text(v < 120 ? '$v s' : '${v ~/ 60} min')))
+                .toList(),
+            onChanged: (v) =>
+                v == null ? null : settings.setSignalGapSeconds(v),
+          ),
+        ),
         SwitchListTile(
           title: const Text('Demander le nom à l\'arrêt'),
           subtitle: const Text('Sinon, un nom automatique est donné, '

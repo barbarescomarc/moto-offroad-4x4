@@ -40,4 +40,24 @@ void main() {
     await s.load();
     expect(s.pauseSpeedKmh, 2);
   });
+
+  test('le seuil de coupure de signal se règle et survit au rechargement',
+      () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    expect(s.signalGapSeconds, 90);
+
+    await s.setSignalGapSeconds(180);
+    final relu = SettingsProvider();
+    await relu.load();
+    expect(relu.signalGapSeconds, 180);
+  });
+
+  test('un seuil de coupure hors des valeurs prévues retombe sur 90', () async {
+    SharedPreferences.setMockInitialValues({'rec_signal_gap': 7});
+    final s = SettingsProvider();
+    await s.load();
+    expect(s.signalGapSeconds, 90);
+  });
 }

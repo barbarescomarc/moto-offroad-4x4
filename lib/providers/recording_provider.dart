@@ -35,6 +35,12 @@ class RecordingProvider extends ChangeNotifier {
   DateTime? _lastSampleAt;
   bool _reminderShown = false;
 
+  // Segments ouverts par une perte de signal. Conservés après l'arrêt : le
+  // dialogue de fusion en a besoin alors que l'enregistreur est déjà relâché.
+  Set<int> _lastGapSegments = const {};
+  Set<int> get signalGapSegments =>
+      _recorder?.gapSegments ?? _lastGapSegments;
+
   RecorderState get state => _recorder?.state ?? RecorderState.idle;
   bool get isRecording => state == RecorderState.recording;
   bool get isPaused    => state == RecorderState.paused;
@@ -126,6 +132,7 @@ class RecordingProvider extends ChangeNotifier {
     _written.clear();
     _unsaved.clear();
     _resetStats();
+    _lastGapSegments = const {};
     _meter.reset();
     _slowSince = null;
     _reminderShown = false;
@@ -246,6 +253,7 @@ class RecordingProvider extends ChangeNotifier {
     if (rec == null || ride == null) return null;
 
     await flush();
+    _lastGapSegments = rec.gapSegments;
     rec.stop();
     _flushTimer?.cancel();
     _flushTimer = null;

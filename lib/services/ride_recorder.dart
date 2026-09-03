@@ -13,11 +13,17 @@ class RecorderConfig {
   final Duration pauseDelay;
   final bool autoPauseEnabled;
 
+  // Au-delà de ce silence du GPS, on considère le signal perdu (forêt, tunnel,
+  // gorge) et on coupe la trace : relier le point d'avant à celui d'après
+  // dessinerait un trait à travers la montagne.
+  final Duration signalGapDelay;
+
   const RecorderConfig({
     this.pauseSpeedKmh      = 2,
     this.vibrationThreshold = VibrationCalibration.defaultThreshold,
     this.pauseDelay         = const Duration(seconds: 30),
     this.autoPauseEnabled   = true,
+    this.signalGapDelay     = const Duration(seconds: 90),
   });
 
   // Hystérésis : sans écart entre pause et reprise, une vitesse oscillant
@@ -37,24 +43,32 @@ class RideRecorder {
   int _segment = 0;
   int _seq = 0;
   DateTime? _stillSince;
+  DateTime? _lastAppendAt;
   final List<RidePoint> _pending = [];
+  final Set<int> _gapSegments = {};
 
   RecorderState get state => _state;
   PauseReason get pauseReason => _pauseReason;
   int get segment => _segment;
   int get pointCount => _seq;
 
+  // Segments ouverts par une perte de signal, et non par une pause. Seuls
+  // ceux-là seront proposés à la fusion en fin de sortie.
+  Set<int> get gapSegments => Set.unmodifiable(_gapSegments);
+
   // ── Cycle de vie ─────────────────────────────────────────
   void start() {
     _state = RecorderState.recording;
     _pauseReason = PauseReason.none;
     _stillSince = null;
+    _lastAppendAt = null;
   }
 
   void stop() {
     _state = RecorderState.idle;
     _pauseReason = PauseReason.none;
     _stillSince = null;
+    _lastAppendAt = null;
   }
 
   void pauseManually() {
@@ -62,6 +76,9 @@ class RideRecorder {
     _state = RecorderState.paused;
     _pauseReason = PauseReason.manual;
     _stillSince = null;
+    // La pause ouvre déjà un segment à la reprise : on oublie l'horodatage
+    // pour que l'arrêt déjeuner ne soit pas pris pour une perte de signal.
+    _lastAppendAt = null;
   }
 
   void resumeManually() {
@@ -96,6 +113,7 @@ class RideRecorder {
             _state = RecorderState.paused;
             _pauseReason = PauseReason.auto;
             _stillSince = null;
+            _lastAppendAt = null;
             return;
           }
         } else {
@@ -118,9 +136,18 @@ class RideRecorder {
     _state = RecorderState.recording;
     _pauseReason = PauseReason.none;
     _stillSince = null;
+    _lastAppendAt = null;
   }
 
   void _append(GpsSnapshot gps) {
+    final last = _lastAppendAt;
+    if (last != null &&
+        gps.timestamp.difference(last) > config.signalGapDelay) {
+      _segment++;
+      _gapSegments.add(_segment);
+    }
+    _lastAppendAt = gps.timestamp;
+
     _pending.add(RidePoint(
       rideId:    rideId,
       seq:       _seq++,

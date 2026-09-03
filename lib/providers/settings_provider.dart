@@ -10,6 +10,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kAutoPause   = 'rec_auto_pause';
   static const _kPauseSpeed  = 'rec_pause_speed';
   static const _kAskName     = 'rec_ask_name';
+  static const _kSignalGap   = 'rec_signal_gap';
   static const _kAutoStart   = 'rec_suggest_autostart';
   static const _kMiles       = 'unit_miles';
   static const _kScreenOn    = 'map_keep_screen_on';
@@ -18,11 +19,15 @@ class SettingsProvider extends ChangeNotifier {
   // valeurs absurdes qui déclencheraient des pauses intempestives.
   static const List<int> pauseSpeedChoices = [2, 5];
 
+  // Silence du GPS au-delà duquel la trace est coupée, en secondes.
+  static const List<int> signalGapChoices = [60, 90, 180];
+
   SkillLevel _skillLevel  = SkillLevel.confirme;
   MotoPreset? _moto;
   String _riderName       = 'Pilote';
   bool _autoPauseEnabled = true;
   int  _pauseSpeedKmh    = 2;
+  int  _signalGapSeconds = 90;
   bool _askNameOnStop    = false;
   bool _suggestAutoStart = false;
   bool _useMiles         = false;
@@ -33,6 +38,7 @@ class SettingsProvider extends ChangeNotifier {
   String      get riderName  => _riderName;
   bool get autoPauseEnabled => _autoPauseEnabled;
   int  get pauseSpeedKmh    => _pauseSpeedKmh;
+  int  get signalGapSeconds => _signalGapSeconds;
   bool get askNameOnStop    => _askNameOnStop;
   bool get suggestAutoStart => _suggestAutoStart;
   bool get useMiles         => _useMiles;
@@ -49,6 +55,8 @@ class SettingsProvider extends ChangeNotifier {
     _autoPauseEnabled = prefs.getBool(_kAutoPause)  ?? true;
     final speed       = prefs.getInt(_kPauseSpeed)  ?? 2;
     _pauseSpeedKmh    = pauseSpeedChoices.contains(speed) ? speed : 2;
+    final gap         = prefs.getInt(_kSignalGap)   ?? 90;
+    _signalGapSeconds = signalGapChoices.contains(gap) ? gap : 90;
     _askNameOnStop    = prefs.getBool(_kAskName)    ?? false;
     _suggestAutoStart = prefs.getBool(_kAutoStart)  ?? false;
     _useMiles         = prefs.getBool(_kMiles)      ?? false;
@@ -84,6 +92,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setPauseSpeedKmh(int v) async {
     _pauseSpeedKmh = pauseSpeedChoices.contains(v) ? v : 2;
     (await SharedPreferences.getInstance()).setInt(_kPauseSpeed, _pauseSpeedKmh);
+    notifyListeners();
+  }
+
+  Future<void> setSignalGapSeconds(int v) async {
+    _signalGapSeconds = signalGapChoices.contains(v) ? v : 90;
+    (await SharedPreferences.getInstance()).setInt(_kSignalGap, _signalGapSeconds);
     notifyListeners();
   }
 

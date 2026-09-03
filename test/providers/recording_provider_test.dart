@@ -190,4 +190,26 @@ void main() {
     expect(live.maxSpeedKmh, reference.maxSpeedKmh);
     expect(live.avgSpeedKmh, closeTo(reference.avgSpeedKmh, 0.001));
   });
+
+  // Chemin complet : la perte de signal coupe la trace, et l information
+  // survit à l arrêt pour que le dialogue de fusion puisse la proposer.
+  test('une perte de signal survit à l arrêt et reste proposable à la fusion',
+      () async {
+    await provider.startRide(
+      name: 'Forêt',
+      config: const RecorderConfig(signalGapDelay: Duration(seconds: 90)),
+    );
+    for (int s = 0; s < 5; s++) {
+      provider.onGpsSample(_gps(40, s));
+    }
+    // Trois minutes sous les arbres, puis le signal revient.
+    provider.onGpsSample(_gps(40, 185));
+    provider.onGpsSample(_gps(40, 186));
+
+    final ride = await provider.stopRide();
+
+    expect(provider.signalGapSegments, contains(1));
+    final points = await repo.pointsOf(ride!.id);
+    expect(points.map((p) => p.segment).toSet(), {0, 1});
+  });
 }
