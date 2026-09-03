@@ -289,7 +289,13 @@ class _SoloScreenState extends State<SoloScreen> {
           child: ElevatedButton.icon(
             onPressed: canActivate
                 ? () async {
-                    await solo.activate(_selectedContactIds.toList());
+                    final ok = await solo.activate(_selectedContactIds.toList());
+                    if (!ok && context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text(
+                          'Impossible de joindre le serveur de suivi — réessayez.')),
+                      );
+                    }
                   }
                 : null,
             icon: const Icon(Icons.shield, size: 22),

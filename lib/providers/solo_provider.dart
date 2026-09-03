@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
-import 'package:crypto/crypto.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import '../services/tracker_api_client.dart';
 
 // ── Contact de confiance ─────────────────────────────────────
 class TrustedContact {
@@ -39,18 +39,28 @@ class TrustedContact {
 
 // ── Provider — Mode Solo Sécurisé ────────────────────────────
 class SoloProvider extends ChangeNotifier {
+  SoloProvider({TrackerApiClient? trackerClient})
+      : _tracker = trackerClient ?? TrackerApiClient();
+
   static const _kContacts = 'trusted_contacts';
+  static const String watchBaseUrl = 'https://motooffroad.duckdns.org/s/';
 
   final _uuid = const Uuid();
+  final TrackerApiClient _tracker;
 
   bool _soloActive = false;
   bool get soloActive => _soloActive;
 
-  String? _trackingToken;   // token URL de suivi
-  String? get trackingToken => _trackingToken;
+  String? _watchToken;
+  String? get trackingUrl => _watchToken != null ? '$watchBaseUrl$_watchToken' : null;
 
-  String? get trackingUrl =>
-      _trackingToken != null ? 'https://motooffroad.app/s/$_trackingToken' : null;
+  String? _sessionId;
+  String? get sessionId => _sessionId;
+  String? _deviceKey;
+  String? get deviceKey => _deviceKey;
+  String? _memberId;
+  String? get memberId => _memberId;
+  String? _ownerKey;
 
   final List<TrustedContact> _contacts = [];
   List<TrustedContact> get contacts => List.unmodifiable(_contacts);
@@ -107,30 +117,45 @@ class SoloProvider extends ChangeNotifier {
   }
 
   // ── Activer le mode Solo ──────────────────────────────────
-  Future<void> activate(List<String> contactIds) async {
-    if (_contacts.isEmpty) return;
+  Future<bool> activate(List<String> contactIds) async {
+    if (_contacts.isEmpty) return false;
 
-    // Génère un token de suivi unique et chiffré
-    final raw = '${_uuid.v4()}${DateTime.now().millisecondsSinceEpoch}';
-    final bytes = utf8.encode(raw);
-    final digest = sha256.convert(bytes);
-    _trackingToken = digest.toString().substring(0, 12);
+    final created = await _tracker.createSoloSession(
+      name: 'Pilote',
+      immobileAfterSec: _immobilityThresholdMin * 60,
+    );
+    if (created == null || created.watchToken == null) return false;
 
+    _sessionId  = created.sessionId;
+    _deviceKey  = created.deviceKey;
+    _memberId   = created.memberId;
+    _ownerKey   = created.ownerKey;
+    _watchToken = created.watchToken;
     _sessionStart = DateTime.now();
     _soloActive = true;
 
-    // Marque les contacts sélectionnés comme notifiés
     for (final c in _contacts) {
       c.isNotified = contactIds.contains(c.id);
     }
 
     notifyListeners();
+    return true;
   }
 
   // ── Désactiver le mode Solo ───────────────────────────────
   void deactivate() {
+    final sid = _sessionId;
+    final ok = _ownerKey;
+    if (sid != null && ok != null) {
+      _tracker.endSession(sessionId: sid, ownerKey: ok); // fire-and-forget, échec avalé par le client
+    }
+
     _soloActive = false;
-    _trackingToken = null;
+    _watchToken = null;
+    _sessionId = null;
+    _deviceKey = null;
+    _memberId = null;
+    _ownerKey = null;
     _sessionStart = null;
     for (final c in _contacts) {
       c.isNotified = false;
