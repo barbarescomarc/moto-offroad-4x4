@@ -35,7 +35,7 @@ class GroupScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Mode groupe — jusqu\'à 10 motos', style: TextStyle(
+                const Text('Mode groupe — jusqu\'à 20 motos', style: TextStyle(
                   fontFamily: 'Rajdhani', fontSize: 18, fontWeight: FontWeight.w700,
                   color: Colors.white)),
                 const SizedBox(height: 4),

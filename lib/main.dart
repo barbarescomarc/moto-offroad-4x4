@@ -166,10 +166,13 @@ class _SoloUplinkHost extends StatefulWidget {
 class _SoloUplinkHostState extends State<_SoloUplinkHost> {
   final _uplink = PositionUplinkService(sendPositions: TrackerApiClient().sendPositions);
   bool _wasActive = false;
+  bool _groupWasActive = false;
 
   @override
   Widget build(BuildContext context) {
     final solo = context.watch<SoloProvider>();
+    final group = context.watch<GroupProvider>();
+
     if (solo.soloActive && !_wasActive) {
       _wasActive = true;
       RideRecordingService().start(
@@ -187,6 +190,14 @@ class _SoloUplinkHostState extends State<_SoloUplinkHost> {
       _wasActive = false;
       _uplink.stop();
     }
+
+    if (group.groupActive && !_groupWasActive) {
+      _groupWasActive = true;
+      group.startLiveSharing(positions: LocationService().stream);
+    } else if (!group.groupActive && _groupWasActive) {
+      _groupWasActive = false;
+    }
+
     return widget.child;
   }
 
