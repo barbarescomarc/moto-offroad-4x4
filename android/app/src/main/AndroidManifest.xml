@@ -22,6 +22,11 @@
     <uses-permission android:name="android.permission.SEND_SMS"/>
     <uses-permission android:name="android.permission.CALL_PHONE"/>
 
+    <!-- Auto-réponse aux appels : READ_CALL_LOG est indispensable, sans elle
+         Android 9+ ne communique pas le numéro de l'appelant -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+    <uses-permission android:name="android.permission.READ_CALL_LOG"/>
+
     <!-- Stockage -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
@@ -79,6 +84,10 @@
         <service
             android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
             android:foregroundServiceType="location"
+            android:exported="false"/>
+
+        <receiver
+            android:name=".QuickReplyReceiver"
             android:exported="false"/>
 
     </application>
