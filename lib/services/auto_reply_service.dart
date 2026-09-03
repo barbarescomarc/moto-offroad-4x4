@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../models/quick_reply.dart';
 import 'auto_reply_composer.dart';
 import 'auto_reply_policy.dart';
@@ -19,6 +20,12 @@ class AutoReplyService {
   final List<QuickReply> Function() repliesBuilder;
   final Future<GpsSnapshot?> Function() positionProvider;
 
+  // Appelé quand un envoi échoue — permission SMS révoquée en cours de
+  // sortie, absence de réseau. Sur une fonction de sécurité, un échec avalé
+  // en silence est le pire résultat possible : par défaut on le journalise,
+  // et un appelant peut fournir sa propre sonde pour le vérifier en test.
+  final void Function(String message) onSendFailed;
+
   StreamSubscription<CallEvent>? _sub;
 
   AutoReplyService({
@@ -28,7 +35,8 @@ class AutoReplyService {
     required this.attachPositionBuilder,
     required this.repliesBuilder,
     required this.positionProvider,
-  });
+    void Function(String message)? onSendFailed,
+  }) : onSendFailed = onSendFailed ?? debugPrint;
 
   void start() {
     _sub ??= bridge.events.listen(_onEvent);
@@ -56,7 +64,10 @@ class AutoReplyService {
       attachPosition: attachPositionBuilder(),
       snapshot:       attachPositionBuilder() ? await positionProvider() : null,
     );
-    await bridge.sendSms(number, text);
+    final sent = await bridge.sendSms(number, text);
+    if (!sent) {
+      onSendFailed("Échec de l'auto-réponse SMS vers $number");
+    }
     await bridge.showBanner(
       repliesBuilder().map((r) => r.text).toList(),
       number,
@@ -75,7 +86,10 @@ class AutoReplyService {
       attachPosition: reply.attachPosition,
       snapshot:       reply.attachPosition ? await positionProvider() : null,
     );
-    await bridge.sendSms(number, text);
+    final sent = await bridge.sendSms(number, text);
+    if (!sent) {
+      onSendFailed("Échec de l'envoi de la réponse rapide vers $number");
+    }
     await bridge.hideBanner();
   }
 }

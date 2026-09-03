@@ -13,6 +13,7 @@ class FakeCallBridge implements CallBridge {
   final sentSms = <List<String>>[];
   final banners = <List<String>>[];
   bool bannerHidden = false;
+  bool failSends = false;
 
   @override
   Stream<CallEvent> get events => _controller.stream;
@@ -22,7 +23,7 @@ class FakeCallBridge implements CallBridge {
   @override
   Future<bool> sendSms(String phone, String text) async {
     sentSms.add([phone, text]);
-    return true;
+    return !failSends;
   }
 
   @override
@@ -52,6 +53,7 @@ void main() {
     bool riding = true,
     bool enabled = true,
     List<String> trustedPhones = const ['+33612345678'],
+    void Function(String message)? onSendFailed,
   }) {
     bridge = FakeCallBridge();
     return AutoReplyService(
@@ -64,6 +66,7 @@ void main() {
       attachPositionBuilder: () => true,
       repliesBuilder: () => QuickReplyProvider.defaults,
       positionProvider: () async => _snapshot(),
+      onSendFailed: onSendFailed,
     );
   }
 
@@ -149,6 +152,43 @@ void main() {
       expect(bridge.sentSms.length, 1); // toujours un seul envoi
     },
   );
+
+  test('un échec d envoi sur un appel entrant est signalé, pas avalé', () async {
+    final failures = <String>[];
+    final service = build(onSendFailed: failures.add);
+    bridge.failSends = true;
+    service.start();
+    bridge.emit(const CallEvent(type: CallEventType.incoming, number: '0612345678'));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(bridge.sentSms.length, 1); // la tentative a bien eu lieu
+    expect(failures.length, 1);
+    expect(failures.single, contains('0612345678'));
+  });
+
+  test('un échec d envoi sur une réponse rapide est signalé, pas avalé', () async {
+    final failures = <String>[];
+    final service = build(onSendFailed: failures.add);
+    bridge.failSends = true;
+    service.start();
+    bridge.emit(const CallEvent(
+      type: CallEventType.quickReply, number: '0612345678', index: 0));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(bridge.sentSms.length, 1);
+    expect(failures.length, 1);
+    expect(failures.single, contains('0612345678'));
+  });
+
+  test('un envoi réussi ne déclenche aucun signalement d échec', () async {
+    final failures = <String>[];
+    final service = build(onSendFailed: failures.add);
+    service.start();
+    bridge.emit(const CallEvent(type: CallEventType.incoming, number: '0612345678'));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(failures, isEmpty);
+  });
 
   test('après stop, plus rien n est envoyé', () async {
     final service = build();
