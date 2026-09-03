@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../app/theme.dart';
 import '../models/route_result.dart';
 import '../providers/guidance_provider.dart';
+import '../providers/settings_provider.dart';
 
 class GuidanceBanner extends StatelessWidget {
   const GuidanceBanner({super.key});
@@ -18,13 +19,17 @@ class GuidanceBanner extends StatelessWidget {
       children: [
         _instructionCard(guidance),
         const SizedBox(height: 6),
-        _footer(guidance),
+        _footer(context, guidance),
       ],
     );
   }
 
   Widget _instructionCard(GuidanceProvider guidance) {
-    final step = guidance.currentStep;
+    // En mode alerte, l'unique étape est l'arrivée : elle pilote la fin du
+    // guidage, elle n'est pas une manœuvre à exécuter. Le rider suit sa trace,
+    // c'est ce que le bandeau doit dire.
+    final step =
+        guidance.mode == GuidanceMode.gpxAlert ? null : guidance.currentStep;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
@@ -61,8 +66,9 @@ class GuidanceBanner extends StatelessWidget {
     );
   }
 
-  Widget _footer(GuidanceProvider guidance) {
+  Widget _footer(BuildContext context, GuidanceProvider guidance) {
     final remainingKm = (guidance.remainingDistanceMeters / 1000).toStringAsFixed(1);
+    final eta = guidance.eta;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
@@ -73,10 +79,16 @@ class GuidanceBanner extends StatelessWidget {
       child: Row(
         children: [
           Text('$remainingKm km restants', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          // Pas d'estimation sur une trace GPX : elle ne porte aucune durée,
+          // afficher « 0 min » induirait le rider en erreur.
+          if (eta > Duration.zero) ...[
+            const Text(' · ', style: TextStyle(color: Colors.white38, fontSize: 12)),
+            Text(_formatEta(eta), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          ],
           const Spacer(),
           IconButton(
             icon: Icon(guidance.isMuted ? Icons.volume_off : Icons.volume_up, color: Colors.white70, size: 20),
-            onPressed: guidance.toggleMute,
+            onPressed: () => _toggleMute(context, guidance),
           ),
           IconButton(
             icon: const Icon(Icons.close, color: AppColors.statusRed, size: 20),
@@ -85,6 +97,22 @@ class GuidanceBanner extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Le bouton du bandeau et l'interrupteur des Réglages commandent la même
+  // chose : on bascule la voix en session ET on persiste le choix, sinon
+  // l'un des deux affiche un état que l'autre a démenti.
+  void _toggleMute(BuildContext context, GuidanceProvider guidance) {
+    final newMuted = !guidance.isMuted;
+    guidance.toggleMute();
+    context.read<SettingsProvider>().setGuidanceVoiceMuted(newMuted);
+  }
+
+  static String _formatEta(Duration d) {
+    if (d.inHours >= 1) {
+      return '${d.inHours}h${(d.inMinutes % 60).toString().padLeft(2, '0')}';
+    }
+    return d.inMinutes < 1 ? '< 1 min' : '${d.inMinutes} min';
   }
 
   IconData _iconFor(ManeuverType? m) {
