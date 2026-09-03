@@ -7,6 +7,7 @@ import '../../models/moto_preset.dart';
 import '../../models/rider_profile.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/fuel_provider.dart';
+import '../../widgets/update_tile.dart';
 import '../info/info_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -54,6 +55,8 @@ class _SettingsScreenState extends State<SettingsScreen>
             _motoSection(),
             const SizedBox(height: 24),
             _recordingSection(context),
+            const SizedBox(height: 24),
+            _appSection(),
             const SizedBox(height: 24),
             _infoSection(),
           ],
@@ -344,6 +347,17 @@ class _SettingsScreenState extends State<SettingsScreen>
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push(AppRoutes.calibration),
         ),
+      ],
+    );
+  }
+
+  // ── Application : version, partage, mise à jour ─────────────
+  Widget _appSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('APPLICATION'),
+        const UpdateTile(),
       ],
     );
   }

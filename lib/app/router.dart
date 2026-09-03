@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:go_router/go_router.dart';
 import '../screens/map/map_screen.dart';
 import '../screens/sos/sos_screen.dart';
@@ -10,6 +11,8 @@ import '../screens/rides/rides_screen.dart';
 import '../screens/rides/ride_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/vibration_calibration_screen.dart';
+import '../services/update_checker.dart';
+import '../widgets/update_tile.dart';
 
 // ── Routes nommées ───────────────────────────────────────────
 class AppRoutes {
@@ -84,9 +87,31 @@ final GoRouter appRouter = GoRouter(
 );
 
 // ── Shell principal avec BottomNavigationBar ─────────────────
-class MainShell extends StatelessWidget {
+class MainShell extends StatefulWidget {
   final Widget child;
   const MainShell({super.key, required this.child});
+
+  @override
+  State<MainShell> createState() => _MainShellState();
+}
+
+class _MainShellState extends State<MainShell> {
+  UpdateInfo? _maj;
+
+  @override
+  void initState() {
+    super.initState();
+    // Au plus une interrogation de GitHub par jour, et jamais bloquante :
+    // l'application est distribuée hors magasin, personne ne prévient
+    // l'utilisateur à notre place, mais ce n'est pas une urgence.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _chercherMaj());
+  }
+
+  Future<void> _chercherMaj() async {
+    final info = await PackageInfo.fromPlatform();
+    final maj = await UpdateChecker.checkIfDue(currentVersion: info.version);
+    if (maj != null && mounted) setState(() => _maj = maj);
+  }
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
@@ -102,8 +127,18 @@ class MainShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maj = _maj;
     return Scaffold(
-      body: child,
+      body: Column(
+        children: [
+          if (maj != null)
+            UpdateBanner(
+              maj: maj,
+              onDismiss: () => setState(() => _maj = null),
+            ),
+          Expanded(child: widget.child),
+        ],
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex(context),
         onTap: (i) => _onNavTap(context, i),

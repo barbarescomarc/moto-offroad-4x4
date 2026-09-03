@@ -5,6 +5,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:   # Permet de lancer manuellement depuis GitHub
 
+permissions:
+  contents: write   # nécessaire pour publier une Release
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -130,22 +133,39 @@ jobs:
         run: flutter analyze --no-fatal-infos
         continue-on-error: true   # Ne bloque pas le build si warnings
 
-      # ── 9. Compilation APK debug ────────────────────────────
-      - name: Build APK debug
-        run: flutter build apk --debug --no-shrink
+      # ── 9. Lire la version déclarée dans pubspec.yaml ───────
+      # C'est elle qui décide s'il y a une nouvelle version à publier.
+      - name: Lire la version
+        id: version
+        run: |
+          VERSION=$(grep '^version:' pubspec.yaml | head -1 | sed 's/version:[[:space:]]*//' | cut -d'+' -f1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Version déclarée : $VERSION"
 
-      # ── 10. Upload de l'APK comme artefact téléchargeable ──
+      # ── 10. Compilation APK release ─────────────────────────
+      # --release et non --debug : trois fois plus léger à télécharger.
+      # La signature retombe sur la clé de debug (android/app/build.gradle),
+      # ce qui suffit pour une installation hors Play Store.
+      - name: Build APK release
+        run: flutter build apk --release
+
+      - name: Renommer l'APK
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk \
+             build/app/outputs/flutter-apk/moto-offroad.apk
+
+      # ── 11. Upload de l'APK comme artefact ──────────────────
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: moto-offroad-debug-apk
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: moto-offroad-apk
+          path: build/app/outputs/flutter-apk/moto-offroad.apk
           retention-days: 30   # Disponible 30 jours
 
-      # ── 11. Afficher la taille de l'APK ────────────────────
+      # ── 12. Afficher la taille de l'APK ────────────────────
       - name: APK info
         run: |
-          APK="build/app/outputs/flutter-apk/app-debug.apk"
+          APK="build/app/outputs/flutter-apk/moto-offroad.apk"
           if [ -f "$APK" ]; then
             SIZE=$(du -h "$APK" | cut -f1)
             echo "✅ APK compilé avec succès : $SIZE"
@@ -153,3 +173,30 @@ jobs:
             echo "❌ APK non trouvé"
             exit 1
           fi
+
+      # ── 13. Publier une Release si la version a changé ──────
+      # Un artefact d'Actions est un zip réservé aux comptes GitHub. Une
+      # Release, sur un dépôt public, donne une URL de téléchargement direct
+      # que l'on peut envoyer à n'importe qui :
+      #   .../releases/latest/download/moto-offroad.apk
+      # On ne publie que si le tag n'existe pas encore : les pushes ordinaires
+      # compilent sans rien annoncer aux utilisateurs.
+      - name: Publier la Release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if gh release view "v$VERSION" >/dev/null 2>&1; then
+            echo "La version v$VERSION est déjà publiée — rien à annoncer."
+            exit 0
+          fi
+          gh release create "v$VERSION" \
+            build/app/outputs/flutter-apk/moto-offroad.apk \
+            --title "MOTO OFFROAD 4X4 $VERSION" \
+            --notes "Téléchargement direct : l'APK ci-dessous.
+
+          Sur Android, autorisez l'installation depuis cette source lorsque le téléphone le demande.
+          Lien permanent vers la dernière version :
+          https://github.com/${{ github.repository }}/releases/latest/download/moto-offroad.apk"
+          echo "✅ Release v$VERSION publiée"
