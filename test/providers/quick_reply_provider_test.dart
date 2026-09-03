@@ -56,4 +56,37 @@ void main() {
     await p.load();
     expect(p.replies.length, QuickReplyProvider.maxReplies);
   });
+
+  test('une sauvegarde corrompue restaure les trois réponses par défaut', () async {
+    SharedPreferences.setMockInitialValues({'quick_replies': 'pas du json'});
+    final p = QuickReplyProvider();
+    await p.load();
+
+    expect(p.replies.length, 3);
+    expect(p.replies[0].text, 'Je roule, je ne peux pas répondre');
+    expect(p.replies[0].attachPosition, isFalse);
+    expect(p.replies[1].text, 'Je roule, je suis ici');
+    expect(p.replies[1].attachPosition, isTrue);
+    expect(p.replies[2].text, "Tout va bien, j'arrive");
+    expect(p.replies[2].attachPosition, isFalse);
+  });
+
+  test('une sauvegarde incomplète complète avec les valeurs par défaut', () async {
+    SharedPreferences.setMockInitialValues({
+      'quick_replies': '[{"id":"r1","text":"Personnalisé r1","position":true}]'
+    });
+    final p = QuickReplyProvider();
+    await p.load();
+
+    expect(p.replies.length, 3);
+    expect(p.replies[0].id, 'r1');
+    expect(p.replies[0].text, 'Personnalisé r1');
+    expect(p.replies[0].attachPosition, isTrue);
+    expect(p.replies[1].id, 'r2');
+    expect(p.replies[1].text, 'Je roule, je suis ici');
+    expect(p.replies[1].attachPosition, isTrue);
+    expect(p.replies[2].id, 'r3');
+    expect(p.replies[2].text, "Tout va bien, j'arrive");
+    expect(p.replies[2].attachPosition, isFalse);
+  });
 }
