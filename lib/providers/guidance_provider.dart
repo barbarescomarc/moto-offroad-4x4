@@ -241,11 +241,19 @@ class GuidanceProvider extends ChangeNotifier {
     final wasOffRoute = _isOffRoute;
     _isOffRoute = _offRouteStreak >= _offRouteStreakThreshold;
 
-    if (!_isOffRoute || wasOffRoute == _isOffRoute) return;
+    if (!_isOffRoute) return;
 
+    // Mode destination : on retente à chaque relevé tant que la déviation
+    // persiste, pas seulement sur le front montant — sinon un rider qui
+    // reste hors trace en continu (ex. piste alors que le guidage est en
+    // profil route) n'est plus jamais rerouté après le premier recalcul.
+    // _maybeReroute applique son propre cooldown, donc l'appel réseau
+    // reste limité à ~1 fois par _rerouteCooldown malgré cet appel répété.
     if (_mode == GuidanceMode.destination) {
       _maybeReroute(position);
-    } else if (_mode == GuidanceMode.gpxAlert) {
+    } else if (_mode == GuidanceMode.gpxAlert && wasOffRoute != _isOffRoute) {
+      // L'alerte vocale, elle, ne doit sonner qu'une fois par déviation —
+      // pas de nag à chaque relevé tant qu'on reste hors trace.
       _voice.announce('Vous vous éloignez de la trace');
     }
   }

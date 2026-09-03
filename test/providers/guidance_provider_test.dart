@@ -196,6 +196,42 @@ void main() {
     expect(routing.calls, 2); // appel initial + recalcul
   });
 
+  test(
+    'une déviation qui persiste après le recalcul redemande un itinéraire une fois le cooldown écoulé',
+    () async {
+      routing.nextResult = _straightRoute;
+      await guidance.startToDestination(
+        origin: const LatLng(44.0, 6.0),
+        destination: const LatLng(44.0, 6.01),
+        profile: RoutingProfile.drivingCar,
+      );
+
+      positionController.add(_gps(const LatLng(44.002, 6.0), s: 1));
+      await Future<void>.delayed(Duration.zero);
+      positionController.add(_gps(const LatLng(44.002, 6.0), s: 2));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(guidance.isOffRoute, isTrue);
+      expect(routing.calls, 2); // appel initial + premier recalcul
+
+      // Toujours hors trace juste après : le cooldown de 20s bloque un
+      // nouvel appel réseau immédiat, même si la déviation persiste.
+      positionController.add(_gps(const LatLng(44.002, 6.0), s: 3));
+      await Future<void>.delayed(Duration.zero);
+      expect(routing.calls, 2);
+
+      // Le cooldown écoulé, un relevé toujours hors trace redemande un
+      // itinéraire : la déviation continue de retenter tant qu'elle
+      // persiste, elle ne s'arme plus seulement sur le front montant.
+      await Future<void>.delayed(const Duration(seconds: 21));
+      positionController.add(_gps(const LatLng(44.002, 6.0), s: 4));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(routing.calls, 3);
+    },
+    timeout: const Timeout(Duration(seconds: 40)),
+  );
+
   test('startOnTrace en mode alerte ne fait aucun appel réseau', () {
     final trace = _traceFrom([const LatLng(44.0, 6.0), const LatLng(44.01, 6.0)]);
     guidance.startOnTrace(trace, GuidanceMode.gpxAlert);
