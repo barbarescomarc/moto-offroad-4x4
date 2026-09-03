@@ -335,11 +335,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // ── Membres du groupe ───────────────────────────────
         MarkerLayer(
           markers: groupProv.members
-              .where((m) => m.id != 'me' && m.position != null && m.isSharing)
+              .where((m) => m.id != groupProv.myMemberId && m.position != null && m.isSharing)
+              .where((m) {
+                if (m.lastUpdate == null) return true;
+                return DateTime.now().difference(m.lastUpdate!) < const Duration(minutes: 2);
+              })
               .map((m) => Marker(
                     point: m.position!,
                     width: 36, height: 36,
-                    child: _memberMarker(m.name, m.color),
+                    child: _memberMarker(m.name, m.color, _peerOpacity(m.lastUpdate)),
                   ))
               .toList(),
         ),
@@ -751,16 +755,33 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     ),
   );
 
-  Widget _memberMarker(String name, String colorHex) {
+  double _peerOpacity(DateTime? lastUpdate) {
+    if (lastUpdate == null) return 1.0;
+    final age = DateTime.now().difference(lastUpdate);
+    if (age < const Duration(seconds: 30)) return 1.0;
+    return 0.4; // au-delà de 30s et jusqu'à 2min (filtré plus haut) : estompé
+  }
+
+  Widget _memberMarker(String name, String colorHex, [double opacity = 1.0]) {
     final color = Color(int.parse('0xFF${colorHex.replaceFirst('#', '')}'));
+    // Le remplissage porte tout l'estompage (position pair vieillissante) ;
+    // le contour et la lettre restent proches de l'opacité pleine (plancher
+    // 0.55) pour que le marqueur garde un contour net sur fond de carte
+    // clair (satellite, IGN) même une fois estompé — sinon il se fond dans
+    // le fond de carte au lieu de lire comme "position pas à jour".
+    final crispness = 0.55 + 0.45 * opacity;
     return Container(
       decoration: BoxDecoration(
-        shape: BoxShape.circle, color: color,
-        border: Border.all(color: Colors.white, width: 2),
+        shape: BoxShape.circle,
+        color: color.withValues(alpha: opacity),
+        border: Border.all(color: Colors.white.withValues(alpha: crispness), width: 2),
+        boxShadow: [
+          BoxShadow(color: Colors.black.withValues(alpha: .25 * crispness), blurRadius: 4, offset: const Offset(0, 1)),
+        ],
       ),
       child: Center(child: Text(
         name.isNotEmpty ? name[0].toUpperCase() : '?',
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: crispness)),
       )),
     );
   }
