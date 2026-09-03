@@ -57,6 +57,8 @@ class _SettingsScreenState extends State<SettingsScreen>
             const SizedBox(height: 16),
             GlassPanel(child: _recordingSection(context)),
             const SizedBox(height: 16),
+            GlassPanel(child: _guidanceSection(context)),
+            const SizedBox(height: 16),
             GlassPanel(child: _appSection()),
             const SizedBox(height: 16),
             GlassPanel(child: _infoSection()),
@@ -375,6 +377,40 @@ class _SettingsScreenState extends State<SettingsScreen>
             style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
           onTap: () => context.push(AppRoutes.solo),
+        ),
+      ],
+    );
+  }
+
+  // ── Section Guidage GPS ────────────────────────────────────
+  Widget _guidanceSection(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('GUIDAGE GPS'),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          title: const Text('Éviter les autoroutes'),
+          subtitle: const Text('En mode Route.'),
+          value: settings.guidanceAvoidHighways,
+          onChanged: settings.setGuidanceAvoidHighways,
+        ),
+        SwitchListTile(
+          title: const Text('Éviter les péages'),
+          value: settings.guidanceAvoidTolls,
+          onChanged: settings.setGuidanceAvoidTolls,
+        ),
+        SwitchListTile(
+          title: const Text('Éviter les ferries'),
+          value: settings.guidanceAvoidFerries,
+          onChanged: settings.setGuidanceAvoidFerries,
+        ),
+        SwitchListTile(
+          title: const Text('Couper la voix du guidage'),
+          subtitle: const Text('Les instructions restent visibles à l\'écran.'),
+          value: settings.guidanceVoiceMuted,
+          onChanged: settings.setGuidanceVoiceMuted,
         ),
       ],
     );
