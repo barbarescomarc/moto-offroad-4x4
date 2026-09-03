@@ -61,6 +61,22 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
   sqflite_common_ffi: ^2.3.0   # sqflite hors appareil, pour les tests
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.1
+
+flutter_launcher_icons:
+  android: true
+  ios: false
+  image_path: "assets/icons/app_icon.png"
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: "assets/icons/app_icon.png"
+
+flutter_native_splash:
+  color: "#000000"
+  image: "assets/icons/app_splash.png"
+  android_12:
+    color: "#000000"
+    image: "assets/icons/app_splash.png"
 
 flutter:
   uses-material-design: true
