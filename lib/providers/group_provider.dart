@@ -37,8 +37,16 @@ class GroupProvider extends ChangeNotifier {
   bool _groupActive = false;
   bool get groupActive => _groupActive;
 
+  // Code public affiché/partagé (le join code à 6 caractères) — jamais l'id
+  // interne réel du serveur, qui vit dans _hubSessionId ci-dessous.
   String? _sessionId;
   String? get sessionId => _sessionId;
+
+  // Id de session réel côté hub, utilisé pour tous les appels API — distinct
+  // du join code affiché : le serveur clé ses routes sur cet id, jamais sur
+  // le code à 6 caractères que les pilotes se partagent.
+  String? _hubSessionId;
+
   String? _ownerKey;
   String? _deviceKey;
   String? get deviceKey => _deviceKey;
@@ -66,6 +74,7 @@ class GroupProvider extends ChangeNotifier {
     if (created == null || created.joinCode == null) return false;
 
     _sessionId = created.joinCode;
+    _hubSessionId = created.sessionId;
     _ownerKey  = created.ownerKey;
     _deviceKey = created.deviceKey;
     _myMemberId = created.memberId;
@@ -85,7 +94,8 @@ class GroupProvider extends ChangeNotifier {
     final joined = await _tracker.joinGroupSession(joinCode: joinCode, name: myName);
     if (joined == null) return false;
 
-    _sessionId = joined.sessionId;
+    _sessionId = joinCode; // le code que le pilote vient de saisir, pas l'id interne
+    _hubSessionId = joined.sessionId;
     _deviceKey = joined.deviceKey;
     _myMemberId = joined.memberId;
     _groupActive = true;
@@ -113,14 +123,14 @@ class GroupProvider extends ChangeNotifier {
   // ── Toggle partage de ma position ────────────────────────
   void toggleMySharing() {
     _sharingMyPosition = !_sharingMyPosition;
-    final me = _members.where((m) => m.id == 'me').firstOrNull;
+    final me = _members.where((m) => m.id == _myMemberId).firstOrNull;
     if (me != null) me.isSharing = _sharingMyPosition;
     notifyListeners();
   }
 
   // ── Envoyer un point de ralliement ────────────────────────
   Future<void> setRallyPoint(LatLng? point) async {
-    final sid = _sessionId, dk = _deviceKey;
+    final sid = _hubSessionId, dk = _deviceKey;
     if (sid == null || dk == null) return;
     if (point == null) {
       await _tracker.clearRally(sessionId: sid, deviceKey: dk);
@@ -138,7 +148,7 @@ class GroupProvider extends ChangeNotifier {
   // autres. Le distinguo tient à _ownerKey : seul le créateur en reçoit un
   // à la création (joinGroupSession n'en renvoie pas).
   void leaveGroup() {
-    final sid = _sessionId, dk = _deviceKey, mid = _myMemberId, ok = _ownerKey;
+    final sid = _hubSessionId, dk = _deviceKey, mid = _myMemberId, ok = _ownerKey;
     if (sid != null && ok != null) {
       _tracker.endSession(sessionId: sid, ownerKey: ok);
     } else if (sid != null && dk != null && mid != null) {
@@ -146,6 +156,7 @@ class GroupProvider extends ChangeNotifier {
     }
     _groupActive = false;
     _sessionId = null;
+    _hubSessionId = null;
     _ownerKey = null;
     _deviceKey = null;
     _myMemberId = null;

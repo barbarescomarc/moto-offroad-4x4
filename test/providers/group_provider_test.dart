@@ -111,4 +111,48 @@ void main() {
     expect(leaveCalled, isTrue);
     expect(endCalled, isFalse);
   });
+
+  test('creator hub calls use the real session id, not the public join code', () async {
+    String? capturedPath;
+    final client = MockClient((req) async {
+      if (req.url.path == '/api/sessions') {
+        return http.Response(
+          '{"sessionId":"s1","ownerKey":"ok","deviceKey":"dk","memberId":"m1","joinCode":"AB12CD"}',
+          201,
+        );
+      }
+      if (req.url.path.endsWith('/end')) {
+        capturedPath = req.url.path;
+        return http.Response('{}', 200);
+      }
+      return http.Response('', 404);
+    });
+    final g = GroupProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
+    await g.createSession('Marc');
+
+    expect(g.sessionId, 'AB12CD'); // affiché : le join code
+
+    g.leaveGroup();
+    await Future.delayed(Duration.zero);
+
+    expect(capturedPath, '/api/sessions/s1/end'); // appel reseau : l'id interne reel, jamais le join code
+  });
+
+  test('toggleMySharing updates the real self member, not a stale sentinel', () async {
+    final client = MockClient((req) async {
+      if (req.url.path == '/api/sessions') {
+        return http.Response(
+          '{"sessionId":"s1","ownerKey":"ok","deviceKey":"dk","memberId":"m1","joinCode":"AB12CD"}',
+          201,
+        );
+      }
+      return http.Response('', 404);
+    });
+    final g = GroupProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
+    await g.createSession('Marc');
+
+    expect(g.members.single.isSharing, isTrue);
+    g.toggleMySharing();
+    expect(g.members.single.isSharing, isFalse);
+  });
 }
