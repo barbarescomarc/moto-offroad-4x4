@@ -27,6 +27,7 @@ import '../../widgets/glass_control.dart';
 import '../../widgets/map_search_bar.dart';
 import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
+import '../../widgets/guidance_banner.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -198,6 +199,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             flex: 65,
             child: Stack(children: [
               Positioned.fill(child: _buildMap()),
+              const Positioned(top: 8, left: 8, right: 8, child: GuidanceBanner()),
               _buildSideControls(),
               _buildSoloBadge(),
               Positioned(
@@ -366,6 +368,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // ── HEADER ────────────────────────────────────────────────
   Widget _buildHeader() {
     final traceProv = context.watch<TraceProvider>();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildHeaderBar(traceProv),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          child: GuidanceBanner(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeaderBar(TraceProvider traceProv) {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 4,
