@@ -859,6 +859,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           mapController: _mapController,
           startVisible: true,
           onResultSelected: () => Navigator.of(context).pop(),
+          onGuide: _startGuidanceTo,
         ),
       ),
     );
