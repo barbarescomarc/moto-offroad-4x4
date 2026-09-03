@@ -221,4 +221,43 @@ void main() {
     expect(peersCallCount, countAtLeave);
     await controller.close();
   });
+
+  test('a peer poll still in flight when leaveGroup is called does not repopulate members', () async {
+    final completer = Completer<http.Response>();
+    var peersRequested = false;
+    final client = MockClient((req) async {
+      if (req.url.path == '/api/sessions') {
+        return http.Response(
+          '{"sessionId":"s1","ownerKey":"ok","deviceKey":"dk","memberId":"m1","joinCode":"AB12CD"}',
+          201,
+        );
+      }
+      if (req.url.path.contains('/peers')) {
+        peersRequested = true;
+        return completer.future;
+      }
+      return http.Response('', 404);
+    });
+    final g = GroupProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
+    await g.createSession('Marc');
+
+    final controller = StreamController<GpsSnapshot>();
+    g.startLiveSharing(positions: controller.stream, pollInterval: const Duration(milliseconds: 20));
+    await Future.delayed(const Duration(milliseconds: 30)); // le premier tick a demarre et attend la reponse
+
+    expect(peersRequested, isTrue);
+
+    g.leaveGroup(); // le groupe est quitte pendant que fetchPeers est encore en vol
+
+    completer.complete(http.Response(
+      '{"peers":[{"memberId":"m2","name":"Claire","color":"#1565C0","lat":45.2,"lng":5.8,"speedKmh":40,"lastSeen":${DateTime.now().millisecondsSinceEpoch}}],"rally":null}',
+      200,
+    ));
+    await Future.delayed(const Duration(milliseconds: 30));
+
+    expect(g.groupActive, isFalse);
+    expect(g.members, isEmpty); // ne doit pas etre repeuplee par la reponse tardive
+
+    await controller.close();
+  });
 }

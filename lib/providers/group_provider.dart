@@ -73,6 +73,7 @@ class GroupProvider extends ChangeNotifier {
 
   Timer? _pollTimer;
   PositionUplinkService? _uplink;
+  int _liveGeneration = 0;
 
   // ── Créer une session groupe ──────────────────────────────
   Future<bool> createSession(String myName) async {
@@ -155,6 +156,8 @@ class GroupProvider extends ChangeNotifier {
     final sid = _hubSessionId, dk = _deviceKey, mid = _myMemberId;
     if (sid == null || dk == null || mid == null) return;
 
+    final generation = _liveGeneration;
+
     _uplink?.stop();
     _uplink = PositionUplinkService(sendPositions: _tracker.sendPositions)
       ..start(positions: positions, sessionId: sid, deviceKey: dk, memberId: mid, interval: pollInterval);
@@ -163,6 +166,7 @@ class GroupProvider extends ChangeNotifier {
     _pollTimer = Timer.periodic(pollInterval, (_) async {
       if (!_groupActive) return;
       final peers = await _tracker.fetchPeers(sessionId: sid, deviceKey: dk, memberId: mid);
+      if (generation != _liveGeneration || !_groupActive) return;
       for (final peer in peers) {
         final idx = _members.indexWhere((m) => m.id == peer.memberId);
         if (idx >= 0) {
@@ -193,6 +197,7 @@ class GroupProvider extends ChangeNotifier {
     _pollTimer = null;
     _uplink?.stop();
     _uplink = null;
+    _liveGeneration++;
     final sid = _hubSessionId, dk = _deviceKey, mid = _myMemberId, ok = _ownerKey;
     if (sid != null && ok != null) {
       _tracker.endSession(sessionId: sid, ownerKey: ok);
