@@ -48,13 +48,17 @@ GpsSnapshot _snapshot() => GpsSnapshot(
 void main() {
   late FakeCallBridge bridge;
 
-  AutoReplyService build({bool riding = true, bool enabled = true}) {
+  AutoReplyService build({
+    bool riding = true,
+    bool enabled = true,
+    List<String> trustedPhones = const ['+33612345678'],
+  }) {
     bridge = FakeCallBridge();
     return AutoReplyService(
       bridge: bridge,
       policyBuilder: () => AutoReplyPolicy(
         enabled: enabled, allCallers: false, riding: riding,
-        trustedPhones: const ['+33612345678'],
+        trustedPhones: trustedPhones,
       ),
       messageBuilder: () => 'Je roule',
       attachPositionBuilder: () => true,
@@ -105,6 +109,46 @@ void main() {
     expect(bridge.sentSms.single[1], "Tout va bien, j'arrive");
     expect(bridge.sentSms.single[1], isNot(contains('maps.google.com')));
   });
+
+  test(
+    'une pression sur une réponse rapide envoie le SMS même pour un numéro '
+    'non approuvé, alors qu un appel entrant du même numéro ne déclenche rien',
+    () async {
+      final service = build(trustedPhones: const []);
+      service.start();
+
+      bridge.emit(const CallEvent(
+        type: CallEventType.quickReply, number: '0699999999', index: 0));
+      await Future<void>.delayed(Duration.zero);
+      expect(bridge.sentSms.length, 1);
+      expect(bridge.sentSms.single[0], '0699999999');
+
+      bridge.emit(const CallEvent(
+        type: CallEventType.incoming, number: '0699999999'));
+      await Future<void>.delayed(Duration.zero);
+      expect(bridge.sentSms.length, 1); // toujours un seul envoi
+    },
+  );
+
+  test(
+    'une pression sur une réponse rapide envoie le SMS même si le pilote ne '
+    'roule pas, alors qu un appel entrant dans la même situation ne déclenche rien',
+    () async {
+      final service = build(riding: false);
+      service.start();
+
+      bridge.emit(const CallEvent(
+        type: CallEventType.quickReply, number: '0612345678', index: 0));
+      await Future<void>.delayed(Duration.zero);
+      expect(bridge.sentSms.length, 1);
+      expect(bridge.sentSms.single[0], '0612345678');
+
+      bridge.emit(const CallEvent(
+        type: CallEventType.incoming, number: '0612345678'));
+      await Future<void>.delayed(Duration.zero);
+      expect(bridge.sentSms.length, 1); // toujours un seul envoi
+    },
+  );
 
   test('après stop, plus rien n est envoyé', () async {
     final service = build();
