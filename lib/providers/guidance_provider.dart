@@ -59,6 +59,10 @@ class GuidanceProvider extends ChangeNotifier {
   bool _gpsSignalLost = false;
   String? _error;
   final Set<double> _announcedThresholds = {};
+  // Dernier segment de la polyligne reconnu sous le rider. Sert d'amorce à la
+  // recherche fenêtrée : sur une trace qui boucle, un balayage complet peut
+  // rattacher le rider au brin retour et masquer une vraie déviation.
+  int _lastSegmentIndex = 0;
 
   // Contexte conservé pour un recalcul silencieux en mode destination.
   LatLng? _destination;
@@ -90,13 +94,26 @@ class GuidanceProvider extends ChangeNotifier {
     final r = _route;
     final pos = _lastPosition;
     if (r == null || pos == null || r.polyline.isEmpty) return 0;
-    final nearest = nearestPointOnPolyline(pos, r.polyline);
+    final nearest = nearestPointOnPolylineWindowed(pos, r.polyline, _lastSegmentIndex);
     const calc = Distance();
     double total = 0;
     for (var i = nearest.segmentIndex + 1; i < r.polyline.length; i++) {
       total += calc(r.polyline[i - 1], r.polyline[i]);
     }
     return total;
+  }
+
+  // Durée restante estimée, extrapolée de la durée totale de l'itinéraire au
+  // prorata de la distance qu'il reste à parcourir. Les itinéraires dérivés
+  // d'une trace GPX n'ont pas de durée (totalDurationSeconds == 0) : aucune
+  // estimation n'est possible, on renvoie zéro et l'affichage s'en abstient.
+  Duration get eta {
+    final r = _route;
+    if (r == null || r.totalDurationSeconds <= 0 || r.totalDistanceMeters <= 0) {
+      return Duration.zero;
+    }
+    final ratio = (remainingDistanceMeters / r.totalDistanceMeters).clamp(0.0, 1.0);
+    return Duration(seconds: (r.totalDurationSeconds * ratio).round());
   }
 
   // ── Démarrage : destination calculée ─────────────────────
@@ -149,6 +166,7 @@ class GuidanceProvider extends ChangeNotifier {
     _isOffRoute = false;
     _offRouteStreak = 0;
     _announcedThresholds.clear();
+    _lastSegmentIndex = 0;
   }
 
   // Réinitialise uniquement les étapes lors d'un recalcul d'itinéraire.
@@ -159,6 +177,9 @@ class GuidanceProvider extends ChangeNotifier {
   void _resetStepsForNewRoute() {
     _currentStepIndex = 0;
     _announcedThresholds.clear();
+    // La polyligne vient d'être remplacée : l'index de segment mémorisé ne
+    // désigne plus rien de comparable, la recherche fenêtrée repart du début.
+    _lastSegmentIndex = 0;
   }
 
   void stop() {
@@ -237,8 +258,10 @@ class GuidanceProvider extends ChangeNotifier {
             ? _offRouteThresholdRoute
             : _offRouteThresholdOffroad;
 
-    final distance = distanceToPolyline(position, route.polyline);
-    final offNow = distance > threshold;
+    final nearest =
+        nearestPointOnPolylineWindowed(position, route.polyline, _lastSegmentIndex);
+    _lastSegmentIndex = nearest.segmentIndex;
+    final offNow = nearest.distanceMeters > threshold;
 
     _offRouteStreak = offNow ? _offRouteStreak + 1 : 0;
     final wasOffRoute = _isOffRoute;

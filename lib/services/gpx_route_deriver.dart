@@ -18,11 +18,25 @@ class GpxRouteDeriver {
 
   static const _calc = Distance();
 
+  // Le mode alerte n'a pas de manœuvre à annoncer, mais il lui faut malgré
+  // tout une étape terminale : c'est elle qui, via la machinerie d'étapes de
+  // GuidanceProvider, détecte l'arrivée en bout de trace, annonce
+  // « Destination atteinte » et libère le service d'avant-plan. Sans elle le
+  // guidage — et son wake lock — tournaient jusqu'à un arrêt manuel.
   static RouteResult deriveForAlert(TraceModel trace) {
     final points = trace.points.map((p) => p.position).toList();
     return RouteResult(
       polyline: points,
-      steps: const [],
+      steps: points.isEmpty
+          ? const []
+          : [
+              RouteStep(
+                instruction: 'Destination atteinte',
+                distanceMeters: 0,
+                maneuver: ManeuverType.arrive,
+                location: points.last,
+              ),
+            ],
       totalDistanceMeters: trace.distanceMeters,
       totalDurationSeconds: 0,
     );

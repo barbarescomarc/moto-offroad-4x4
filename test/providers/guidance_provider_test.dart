@@ -81,6 +81,22 @@ RouteResult _straightRoute() => RouteResult(
   totalDurationSeconds: 120,
 );
 
+// Deux segments d'environ 400 m, 800,7 m annoncés en 600 s : à la charnière,
+// il reste exactement la moitié du trajet.
+RouteResult _twoSegmentRoute() => const RouteResult(
+  polyline: [LatLng(44.0, 6.0), LatLng(44.0, 6.005), LatLng(44.0, 6.01)],
+  steps: [
+    RouteStep(
+      instruction: 'Destination atteinte',
+      distanceMeters: 800,
+      maneuver: ManeuverType.arrive,
+      location: LatLng(44.0, 6.01),
+    ),
+  ],
+  totalDistanceMeters: 800.7,
+  totalDurationSeconds: 600,
+);
+
 TraceModel _traceFrom(List<LatLng> points) => TraceModel(
   id: 't1', name: 'test',
   points: points.map((p) => TracePoint(position: p)).toList(),
@@ -257,6 +273,44 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(ttsEngine.spoken, isEmpty);
+  });
+
+  test('l\'ETA est proportionnelle à la distance restante', () async {
+    routing.nextResult = _twoSegmentRoute;
+    await guidance.startToDestination(
+      origin: const LatLng(44.0, 6.0),
+      destination: const LatLng(44.0, 6.01),
+      profile: RoutingProfile.drivingCar,
+    );
+
+    positionController.add(_gps(const LatLng(44.0, 6.006)));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(guidance.remainingDistanceMeters, closeTo(400, 10));
+    expect(guidance.eta.inSeconds, closeTo(300, 15));
+  });
+
+  test('pas d\'ETA sur une trace GPX, faute de durée connue', () async {
+    final trace = _traceFrom([const LatLng(44.0, 6.0), const LatLng(44.01, 6.0)]);
+    guidance.startOnTrace(trace, GuidanceMode.gpxAlert);
+
+    positionController.add(_gps(const LatLng(44.001, 6.0)));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(guidance.remainingDistanceMeters, greaterThan(0));
+    expect(guidance.eta, Duration.zero);
+  });
+
+  test('le mode alerte GPX s\'arrête en bout de trace', () async {
+    final trace = _traceFrom([const LatLng(44.0, 6.0), const LatLng(44.01, 6.0)]);
+    guidance.startOnTrace(trace, GuidanceMode.gpxAlert);
+    expect(guidance.isActive, isTrue);
+
+    positionController.add(_gps(const LatLng(44.01, 6.0)));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(guidance.isActive, isFalse);
+    expect(ttsEngine.spoken, contains('Destination atteinte'));
   });
 
   test('stop désactive le guidage', () async {

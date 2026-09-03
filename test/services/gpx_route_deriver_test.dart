@@ -13,10 +13,24 @@ TraceModel _traceFrom(List<LatLng> points) => TraceModel(
 
 void main() {
   group('deriveForAlert', () {
-    test('reprend la polyligne telle quelle, sans étape', () {
+    test('reprend la polyligne telle quelle', () {
       final trace = _traceFrom([const LatLng(44.0, 6.0), const LatLng(44.01, 6.0)]);
       final result = GpxRouteDeriver.deriveForAlert(trace);
       expect(result.polyline.length, 2);
+    });
+
+    test('pose une étape d\'arrivée en bout de trace', () {
+      // Sans cette étape, GuidanceProvider n'a rien à quoi comparer la
+      // position : le guidage ne s'arrêterait jamais tout seul.
+      final trace = _traceFrom([const LatLng(44.0, 6.0), const LatLng(44.01, 6.0)]);
+      final result = GpxRouteDeriver.deriveForAlert(trace);
+      expect(result.steps.length, 1);
+      expect(result.steps.single.maneuver, ManeuverType.arrive);
+      expect(result.steps.single.location, const LatLng(44.01, 6.0));
+    });
+
+    test('une trace vide ne génère aucune étape', () {
+      final result = GpxRouteDeriver.deriveForAlert(_traceFrom([]));
       expect(result.steps, isEmpty);
     });
   });

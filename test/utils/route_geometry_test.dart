@@ -35,6 +35,65 @@ void main() {
     });
   });
 
+  group('nearestPointOnPolylineWindowed', () {
+    // Trace en aller-retour, typique de l'offroad : on monte le long de la
+    // longitude 6.0 (segments 0 à 9), on bascule à l'est (segment 10) puis on
+    // redescend un brin parallèle 80 m plus loin (segments 11 à 20). Les deux
+    // brins sont voisins dans l'espace, opposés dans la séquence.
+    List<LatLng> outAndBackTrace() => [
+          for (var i = 0; i <= 10; i++) LatLng(44.0 + i * 0.001, 6.0),
+          for (var i = 10; i >= 0; i--) LatLng(44.0 + i * 0.001, 6.001),
+        ];
+
+    test('trouve le point le plus proche dans la fenêtre', () {
+      final polyline = [
+        const LatLng(44.0, 6.0),
+        const LatLng(44.01, 6.0),
+        const LatLng(44.02, 6.0),
+      ];
+      final result =
+          nearestPointOnPolylineWindowed(const LatLng(44.015, 6.0), polyline, 1);
+      expect(result.segmentIndex, 1);
+      expect(result.distanceMeters, lessThan(1));
+    });
+
+    test('une déviation vers un brin hors fenêtre reste une déviation', () {
+      final polyline = outAndBackTrace();
+      // Le rider redescend le brin retour (segment 18) puis s'écarte à
+      // l'ouest, ce qui le pose pile sur le brin aller.
+      const deviation = LatLng(44.0015, 6.0);
+
+      // Le balayage complet le déclare « sur la trace » : il a trouvé le brin
+      // aller, très loin dans la séquence. C'est le bug que la fenêtre corrige.
+      expect(nearestPointOnPolyline(deviation, polyline).distanceMeters, lessThan(1));
+
+      final windowed = nearestPointOnPolylineWindowed(deviation, polyline, 18);
+      expect(windowed.segmentIndex, greaterThanOrEqualTo(11));
+      expect(windowed.distanceMeters, greaterThan(60)); // au-delà du seuil offroad
+    });
+
+    test('reste sur le brin suivi quand le rider y est réellement', () {
+      final polyline = outAndBackTrace();
+      const onReturnLeg = LatLng(44.002, 6.001);
+      final windowed = nearestPointOnPolylineWindowed(onReturnLeg, polyline, 18);
+      expect(windowed.segmentIndex, greaterThanOrEqualTo(11));
+      expect(windowed.distanceMeters, lessThan(1));
+    });
+
+    test('un index hors bornes est ramené dans la polyligne', () {
+      final polyline = [const LatLng(44.0, 6.0), const LatLng(44.01, 6.0)];
+      final result =
+          nearestPointOnPolylineWindowed(const LatLng(44.005, 6.0), polyline, 99);
+      expect(result.segmentIndex, 0);
+      expect(result.distanceMeters, lessThan(1));
+    });
+
+    test('polyligne vide → distance infinie', () {
+      final result = nearestPointOnPolylineWindowed(const LatLng(44.0, 6.0), [], 0);
+      expect(result.distanceMeters, double.infinity);
+    });
+  });
+
   group('bearingDeltaDeg', () {
     test('aucun changement de cap → delta 0', () {
       expect(bearingDeltaDeg(90, 90), 0);
