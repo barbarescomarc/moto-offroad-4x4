@@ -15,6 +15,7 @@ import '../../providers/solo_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/guidance_provider.dart';
+import '../../models/trace.dart';
 import '../../services/location_service.dart';
 import '../../services/routing_service.dart';
 import '../../widgets/sos_button.dart';
@@ -443,6 +444,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // ces deux boutons ne servaient à rien.
   Widget _buildMapControls() {
     final mapProv = context.watch<MapProvider>();
+    final traceProv = context.watch<TraceProvider>();
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -476,6 +478,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ),
           ],
         ),
+        if (traceProv.hasTrace) ...[
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () => _showGpxGuidanceChooser(traceProv.activeTrace!),
+            child: const GlassPuck(icon: Icons.alt_route, color: AppColors.orange),
+          ),
+        ],
         const SizedBox(height: 6),
         // Radar
         _mapCtrlBtn(
@@ -837,6 +846,51 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => const GpxImportSheet(),
+    );
+  }
+
+  void _showGpxGuidanceChooser(TraceModel trace) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Guidage sur la trace', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.notifications_active, color: AppColors.orange),
+              title: const Text('Alerte de déviation', style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Suis la trace, prévient si tu t\'en éloignes.',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.read<GuidanceProvider>().startOnTrace(trace, GuidanceMode.gpxAlert);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.turn_right, color: AppColors.orange),
+              title: const Text('Guidage virage par virage', style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Instructions dérivées de la trace.',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.read<GuidanceProvider>().startOnTrace(trace, GuidanceMode.gpxTurnByTurn);
+              },
+            ),
+          ],
+        ),
+      ),
     );
   }
 
