@@ -35,6 +35,11 @@ class CallBridge(private val activity: Activity) : EventChannel.StreamHandler {
     private var callReceiver: BroadcastReceiver? = null
     private var lastState: String? = null
 
+    // Demande de permission en cours : ActivityCompat.requestPermissions est
+    // asynchrone, la réponse Dart n'est honorée qu'au retour de
+    // onRequestPermissionsResult, via onPermissionsResult ci-dessous.
+    private var pendingPermissionResult: MethodChannel.Result? = null
+
     override fun onListen(arguments: Any?, events: EventChannel.EventSink?) {
         sink = events
         registerCallReceiver()
@@ -43,6 +48,10 @@ class CallBridge(private val activity: Activity) : EventChannel.StreamHandler {
     override fun onCancel(arguments: Any?) {
         unregisterCallReceiver()
         sink = null
+        // Ne pas laisser un Future Dart pendre indéfiniment si l'écoute
+        // s'arrête pendant qu'une demande de permission est en cours.
+        pendingPermissionResult?.success(false)
+        pendingPermissionResult = null
     }
 
     // ── Détection d'appel entrant ────────────────────────────
@@ -102,11 +111,30 @@ class CallBridge(private val activity: Activity) : EventChannel.StreamHandler {
             }
             "hasPermissions" -> result.success(hasPermissions())
             "requestPermissions" -> {
-                ActivityCompat.requestPermissions(activity, REQUIRED, PERMISSION_REQUEST)
-                result.success(hasPermissions())
+                if (hasPermissions()) {
+                    // Déjà accordées : pas de dialogue à ouvrir.
+                    result.success(true)
+                } else if (pendingPermissionResult != null) {
+                    // Une demande est déjà en cours : un MethodChannel.Result ne
+                    // peut être honoré qu'une seule fois, on ne peut pas écraser
+                    // l'ancien sans faire planter l'application.
+                    result.success(false)
+                } else {
+                    pendingPermissionResult = result
+                    ActivityCompat.requestPermissions(activity, REQUIRED, PERMISSION_REQUEST)
+                }
             }
             else -> result.notImplemented()
         }
+    }
+
+    // Appelée depuis MainActivity.onRequestPermissionsResult une fois que
+    // l'utilisateur a répondu à la boîte de dialogue système.
+    fun onPermissionsResult(requestCode: Int): Boolean {
+        if (requestCode != PERMISSION_REQUEST) return false
+        pendingPermissionResult?.success(hasPermissions())
+        pendingPermissionResult = null
+        return true
     }
 
     private fun hasPermissions(): Boolean = REQUIRED.all {
