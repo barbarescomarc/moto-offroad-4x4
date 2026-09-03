@@ -19,3 +19,6 @@ android/app/src/main/java/
 # Clés API — NE JAMAIS COMMITER
 lib/config/api_keys.dart
 lib/config/firebase_options.dart
+
+# Worktrees locaux (superpowers:using-git-worktrees)
+.worktrees/
