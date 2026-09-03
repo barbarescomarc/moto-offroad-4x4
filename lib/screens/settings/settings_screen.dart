@@ -347,6 +347,15 @@ class _SettingsScreenState extends State<SettingsScreen>
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push(AppRoutes.calibration),
         ),
+        ListTile(
+          leading: const Icon(Icons.phone_callback, color: AppColors.textMuted),
+          title: const Text('Appels et position',
+            style: TextStyle(color: Colors.white)),
+          subtitle: const Text('Auto-réponse SMS, réponses rapides',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+          onTap: () => context.push(AppRoutes.callSettings),
+        ),
       ],
     );
   }
