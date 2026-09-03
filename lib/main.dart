@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'app/theme.dart';
 import 'app/router.dart';
-import 'config/firebase_options.dart';
 import 'providers/map_provider.dart';
 import 'providers/trace_provider.dart';
 import 'providers/group_provider.dart';
@@ -26,18 +24,6 @@ import 'services/position_uplink_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  // Initialisation Firebase (mode groupe temps réel)
-  // ⚠️  Nécessite google-services.json dans android/app/
-  // ⚠️  Voir lib/config/firebase_options.dart pour le guide de configuration
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  } catch (e) {
-    // Firebase non configuré — le mode groupe sera désactivé
-    debugPrint('Firebase non initialisé : $e');
-  }
 
   // Orientation : portrait + paysage autorisés
   await SystemChrome.setPreferredOrientations([

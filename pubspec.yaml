@@ -26,11 +26,6 @@ dependencies:
   provider: ^6.1.0             # State management
   go_router: ^13.0.0           # Navigation déclarative
 
-  # ── Firebase (mode groupe) ───────────────────────────
-  firebase_core: ^2.27.0
-  firebase_database: ^10.4.0   # Realtime DB positions groupe
-  firebase_auth: ^4.17.0       # Auth anonyme
-
   # ── Météo & APIs ─────────────────────────────────────
   http: ^1.2.0                 # Requêtes HTTP
 
