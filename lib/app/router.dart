@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../screens/map/map_screen.dart';
 import '../screens/sos/sos_screen.dart';
 import '../screens/solo/solo_screen.dart';
+import '../screens/solo/send_position_screen.dart';
 import '../screens/fuel/fuel_screen.dart';
 import '../screens/group/group_screen.dart';
 import '../screens/weather/weather_screen.dart';
@@ -26,6 +27,7 @@ class AppRoutes {
   static const String callSettings = '/call-settings';
   static const String sos         = '/sos';
   static const String solo        = '/solo';
+  static const String sendPosition = '/send-position';
   static const String group       = '/group';
 }
 
@@ -85,6 +87,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.solo,
       pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SoloScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.sendPosition,
+      pageBuilder: (_, __) => const MaterialPage(
+        fullscreenDialog: true, child: SendPositionScreen()),
     ),
     GoRoute(
       path: AppRoutes.group,

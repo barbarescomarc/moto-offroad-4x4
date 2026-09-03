@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../../app/router.dart';
 import '../../app/theme.dart';
 import '../../models/quick_reply.dart';
 import '../../providers/quick_reply_provider.dart';
@@ -94,6 +96,17 @@ class _CallSettingsScreenState extends State<CallSettingsScreen> {
               onPressed: replies.resetToDefaults,
               child: const Text('Rétablir les réponses par défaut'),
             ),
+          ),
+          const Divider(color: Color(0xFF2A2A3E)),
+          ListTile(
+            leading: const Icon(Icons.my_location),
+            title: const Text('Envoyer ma position',
+              style: TextStyle(color: Colors.white)),
+            subtitle: const Text(
+              'Transmet vos coordonnées GPS par SMS à un contact de confiance',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => context.push(AppRoutes.sendPosition),
           ),
         ],
       ),
