@@ -71,6 +71,7 @@ class RecordingProvider extends ChangeNotifier {
 
     _currentRide = ride;
     _written.clear();
+    _unsaved.clear();
     _meter.reset();
     _slowSince = null;
     _reminderShown = false;
@@ -133,13 +134,51 @@ class RecordingProvider extends ChangeNotifier {
   }
 
   // ── Écriture par lots ────────────────────────────────────
-  Future<void> flush() async {
+  // Les points quittent le tampon de l'enregistreur AVANT d'atteindre la base.
+  // Si l'écriture échoue (disque plein, base verrouillée), on les garde ici
+  // pour le prochain essai : sans ce filet ils n'existeraient plus qu'en
+  // mémoire et la trace serait vide à l'arrivée, sans que rien ne prévienne.
+  final List<RidePoint> _unsaved = [];
+
+  // Les écritures sont mises à la queue leu leu. La minuterie et le seuil de
+  // points peuvent déclencher deux flush qui se chevauchent ; sans cette file,
+  // le second retirerait de _unsaved des points que le premier n'a pas encore
+  // écrits. Chaque appelant attend son propre tour — stopRide en dépend pour
+  // ne pas clôturer la sortie avant que les derniers points soient en base.
+  Future<void> _queue = Future.value();
+
+  bool get hasUnsavedPoints => _unsaved.isNotEmpty;
+
+  Future<void> flush() {
     final rec = _recorder;
-    if (rec == null) return;
-    final batch = rec.takePending();
-    if (batch.isEmpty) return;
-    _written.addAll(batch);
-    await _repo.appendPoints(batch);
+    if (rec == null) return Future.value();
+
+    // Partie synchrone : les statistiques du bandeau suivent les points dès
+    // qu'ils sont relevés, sans attendre l'écriture en base.
+    final fresh = rec.takePending();
+    if (fresh.isNotEmpty) {
+      _written.addAll(fresh);
+      _unsaved.addAll(fresh);
+    }
+    if (_unsaved.isEmpty) return Future.value();
+
+    _queue = _queue.then((_) => _writePending());
+    return _queue;
+  }
+
+  Future<void> _writePending() async {
+    if (_unsaved.isEmpty) return;
+    final batch = List<RidePoint>.from(_unsaved);
+    try {
+      await _repo.appendPoints(batch);
+    } on Exception {
+      // Rien n'est retiré : le prochain flush réessaiera avec ces points.
+      notifyListeners();
+      return;
+    }
+    // Seuls les points écrits quittent la file ; ceux arrivés pendant
+    // l'écriture restent en queue pour le tour suivant.
+    _unsaved.removeRange(0, batch.length);
     await _updateNotification();
   }
 

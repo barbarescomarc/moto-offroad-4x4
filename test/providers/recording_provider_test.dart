@@ -19,6 +19,20 @@ GpsSnapshot _gps(double speedKmh, int s) => GpsSnapshot(
   timestamp:      _t0.add(Duration(seconds: s)),
 );
 
+// Dépôt qui refuse d'écrire, pour simuler un disque plein ou une base
+// verrouillée en pleine balade.
+class _RepoQuiEchoue extends RideRepository {
+  _RepoQuiEchoue(super.db);
+
+  bool enPanne = true;
+
+  @override
+  Future<void> appendPoints(List<RidePoint> points) async {
+    if (enPanne) throw Exception('écriture impossible');
+    return super.appendPoints(points);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   sqfliteFfiInit();
@@ -120,5 +134,28 @@ void main() {
     expect(provider.shouldRemindPause, isTrue);
     provider.acknowledgeReminder();
     expect(provider.shouldRemindPause, isFalse);
+  });
+
+  test('une écriture qui échoue ne perd pas les points : ils sont rejoués',
+      () async {
+    final repoKo = _RepoQuiEchoue(db);
+    final p = RecordingProvider(repository: repoKo, service: null);
+    await p.startRide(name: 'Panne disque', config: const RecorderConfig());
+
+    for (int i = 0; i < 12; i++) {
+      p.onGpsSample(_gps(40, i));
+    }
+    await p.flush();
+
+    // L écriture a échoué : rien en base, mais rien de perdu non plus.
+    expect(await repoKo.pointsOf(p.currentRide!.id), isEmpty);
+    expect(p.hasUnsavedPoints, isTrue);
+
+    // Le disque se libère, le flush suivant rattrape tout.
+    repoKo.enPanne = false;
+    await p.flush();
+
+    expect(p.hasUnsavedPoints, isFalse);
+    expect((await repoKo.pointsOf(p.currentRide!.id)).length, 12);
   });
 }
