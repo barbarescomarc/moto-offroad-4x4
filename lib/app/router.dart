@@ -17,6 +17,7 @@ import '../screens/rides/ride_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/vibration_calibration_screen.dart';
 import '../screens/settings/call_settings_screen.dart';
+import '../screens/favorites/favorites_screen.dart';
 import '../services/update_checker.dart';
 import '../widgets/glass_control.dart';
 import '../widgets/update_tile.dart';
@@ -34,6 +35,7 @@ class AppRoutes {
   static const String solo        = '/solo';
   static const String sendPosition = '/send-position';
   static const String group       = '/group';
+  static const String favorites   = '/favorites';
 }
 
 // ── Router GoRouter ──────────────────────────────────────────
@@ -92,6 +94,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.solo,
       pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SoloScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.favorites,
+      pageBuilder: (_, __) =>
+          const MaterialPage(fullscreenDialog: true, child: FavoritesScreen()),
     ),
     GoRoute(
       path: AppRoutes.sendPosition,
