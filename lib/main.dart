@@ -21,6 +21,8 @@ import 'services/auto_reply_service.dart';
 import 'services/auto_reply_policy.dart';
 import 'services/call_bridge.dart';
 import 'services/location_service.dart';
+import 'services/tracker_api_client.dart';
+import 'services/position_uplink_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -100,11 +102,13 @@ class MotoOffroadApp extends StatelessWidget {
         }),
       ],
       child: _AutoReplyHost(
-        child: MaterialApp.router(
-          title: 'Moto Offroad 4x4',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.dark,
-          routerConfig: appRouter,
+        child: _SoloUplinkHost(
+          child: MaterialApp.router(
+            title: 'Moto Offroad 4x4',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.dark,
+            routerConfig: appRouter,
+          ),
         ),
       ),
     );
@@ -162,4 +166,47 @@ class _AutoReplyHostState extends State<_AutoReplyHost> {
 
   @override
   Widget build(BuildContext context) => widget.child;
+}
+
+// ── Cycle de vie de l'envoi de position en mode Solo ─────────
+class _SoloUplinkHost extends StatefulWidget {
+  const _SoloUplinkHost({required this.child});
+  final Widget child;
+
+  @override
+  State<_SoloUplinkHost> createState() => _SoloUplinkHostState();
+}
+
+class _SoloUplinkHostState extends State<_SoloUplinkHost> {
+  final _uplink = PositionUplinkService(sendPositions: TrackerApiClient().sendPositions);
+  bool _wasActive = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final solo = context.watch<SoloProvider>();
+    if (solo.soloActive && !_wasActive) {
+      _wasActive = true;
+      RideRecordingService().start(
+        title: 'Mode Solo Sécurisé actif',
+        text: 'Votre position est envoyée à vos contacts de confiance',
+      );
+      _uplink.start(
+        positions: LocationService().stream,
+        sessionId: solo.sessionId!,
+        deviceKey: solo.deviceKey!,
+        memberId: solo.memberId!,
+        interval: const Duration(seconds: 5),
+      );
+    } else if (!solo.soloActive && _wasActive) {
+      _wasActive = false;
+      _uplink.stop();
+    }
+    return widget.child;
+  }
+
+  @override
+  void dispose() {
+    _uplink.stop();
+    super.dispose();
+  }
 }
