@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
+import '../app/theme.dart';
+import '../providers/map_provider.dart';
+import '../providers/settings_provider.dart';
 import '../screens/map/map_screen.dart';
 import '../screens/sos/sos_screen.dart';
 import '../screens/solo/solo_screen.dart';
@@ -14,6 +18,7 @@ import '../screens/settings/settings_screen.dart';
 import '../screens/settings/vibration_calibration_screen.dart';
 import '../screens/settings/call_settings_screen.dart';
 import '../services/update_checker.dart';
+import '../widgets/glass_control.dart';
 import '../widgets/update_tile.dart';
 
 // ── Routes nommées ───────────────────────────────────────────
@@ -141,7 +146,14 @@ class _MainShellState extends State<MainShell> {
 
   @override
   Widget build(BuildContext context) {
-    final maj = _maj;
+    final maj      = _maj;
+    final mapProv  = context.watch<MapProvider>();
+    final settings = context.watch<SettingsProvider>();
+    // Masquée seulement si le réglage l'autorise ET qu'un déplacement de
+    // carte l'a demandé — désactiver le réglage la rend toujours visible,
+    // quel que soit l'état accumulé de MapProvider.
+    final hidden = settings.autoHideNavBar && !mapProv.navBarVisible;
+
     return Scaffold(
       body: Column(
         children: [
@@ -153,16 +165,11 @@ class _MainShellState extends State<MainShell> {
           Expanded(child: widget.child),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex(context),
-        onTap: (i) => _onNavTap(context, i),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.map_outlined),              activeIcon: Icon(Icons.map),                 label: 'Carte'),
-          BottomNavigationBarItem(icon: Icon(Icons.local_gas_station_outlined), activeIcon: Icon(Icons.local_gas_station),   label: 'Carbu'),
-          BottomNavigationBarItem(icon: Icon(Icons.route_outlined),            activeIcon: Icon(Icons.route),               label: 'Sorties'),
-          BottomNavigationBarItem(icon: Icon(Icons.cloud_outlined),            activeIcon: Icon(Icons.cloud),               label: 'Météo'),
-          BottomNavigationBarItem(icon: Icon(Icons.settings_outlined),         activeIcon: Icon(Icons.settings),            label: 'Réglages'),
-        ],
+      bottomNavigationBar: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 180),
+        child: hidden
+            ? _NavBarRevealHandle(key: const ValueKey('handle'), onTap: mapProv.showNavBar)
+            : _GlassNavBar(key: const ValueKey('bar'), currentIndex: _currentIndex(context), onTap: (i) => _onNavTap(context, i)),
       ),
     );
   }
@@ -175,5 +182,107 @@ class _MainShellState extends State<MainShell> {
       case 3: context.go(AppRoutes.weather);  break;
       case 4: context.go(AppRoutes.settings); break;
     }
+  }
+}
+
+// ── Barre de navigation, verre dépoli ────────────────────────
+//
+// Remplace BottomNavigationBar, dont le style Material ne permet pas la
+// translucidité — même matériau que les contrôles flottants de la carte,
+// détachée du bord bas comme une barre flottante plutôt que collée dessus.
+class _GlassNavBar extends StatelessWidget {
+  final int currentIndex;
+  final ValueChanged<int> onTap;
+  const _GlassNavBar({super.key, required this.currentIndex, required this.onTap});
+
+  static const _items = [
+    (icon: Icons.map_outlined,               active: Icons.map,               label: 'Carte'),
+    (icon: Icons.local_gas_station_outlined, active: Icons.local_gas_station, label: 'Carbu'),
+    (icon: Icons.route_outlined,             active: Icons.route,             label: 'Sorties'),
+    (icon: Icons.cloud_outlined,             active: Icons.cloud,             label: 'Météo'),
+    (icon: Icons.settings_outlined,          active: Icons.settings,          label: 'Réglages'),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: GlassPanel(
+          borderRadius: 22,
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              for (var i = 0; i < _items.length; i++)
+                Expanded(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: () => onTap(i),
+                    child: _navItem(_items[i], selected: i == currentIndex),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _navItem(({IconData icon, IconData active, String label}) item, {required bool selected}) {
+    final color = selected ? AppColors.orange : Colors.white70;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(selected ? item.active : item.icon, color: color, size: 24),
+          const SizedBox(height: 2),
+          Text(item.label, style: TextStyle(color: color, fontSize: 11)),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Poignée de révélation ────────────────────────────────────
+//
+// Remplace la barre de navigation quand elle est masquée. Un toucher la fait
+// réapparaître sans naviguer : il faut un second geste, sur l'onglet voulu,
+// pour changer d'écran — comme sur YouTube ou Google Maps.
+class _NavBarRevealHandle extends StatelessWidget {
+  final VoidCallback onTap;
+  const _NavBarRevealHandle({super.key, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: GestureDetector(
+          onTap: onTap,
+          behavior: HitTestBehavior.opaque,
+          child: SizedBox(
+            height: 28,
+            width: double.infinity,
+            child: GlassPanel(
+              borderRadius: 12,
+              padding: EdgeInsets.zero,
+              child: Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(.35),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

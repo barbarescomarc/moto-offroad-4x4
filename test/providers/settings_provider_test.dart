@@ -15,6 +15,7 @@ void main() {
     expect(s.suggestAutoStart, isFalse);
     expect(s.useMiles, isFalse);
     expect(s.keepScreenOnMap, isTrue);
+    expect(s.autoHideNavBar, isTrue);
   });
 
   test('les réglages survivent à un rechargement', () async {
@@ -25,6 +26,7 @@ void main() {
     await s.setPauseSpeedKmh(5);
     await s.setAskNameOnStop(true);
     await s.setKeepScreenOnMap(false);
+    await s.setAutoHideNavBar(false);
 
     final reloaded = SettingsProvider();
     await reloaded.load();
@@ -32,6 +34,7 @@ void main() {
     expect(reloaded.pauseSpeedKmh, 5);
     expect(reloaded.askNameOnStop, isTrue);
     expect(reloaded.keepScreenOnMap, isFalse);
+    expect(reloaded.autoHideNavBar, isFalse);
   });
 
   test('un seuil de pause hors des valeurs prévues retombe sur 2', () async {

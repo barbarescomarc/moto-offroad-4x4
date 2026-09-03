@@ -1,9 +1,12 @@
+import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../app/router.dart';
 import '../app/theme.dart';
+import '../widgets/glass_control.dart';
 import '../models/ride.dart';
 import '../services/ride_merge_service.dart';
 import '../services/ride_repository.dart';
@@ -33,19 +36,21 @@ class RecordingPanel extends StatelessWidget {
 }
 
 // ── Bouton rond, même gabarit que le SOS ─────────────────────
+//
+// Utilisé pour Démarrer, seule commande de recording_panel.dart dont
+// l'action reste un simple appui court : la bulle d'info s'y affiche sans
+// conflit, contrairement à Pause/Arrêter (voir RadialRecordingControl).
 class _RoundBtn extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String tooltip;
   final VoidCallback? onTap;
-  final VoidCallback? onLongPress;
 
   const _RoundBtn({
     required this.icon,
     required this.color,
     required this.tooltip,
     this.onTap,
-    this.onLongPress,
   });
 
   @override
@@ -54,20 +59,264 @@ class _RoundBtn extends StatelessWidget {
       message: tooltip,
       child: GestureDetector(
         onTap: onTap,
-        onLongPress: onLongPress,
-        child: Container(
-          width: AppSizes.sosButtonSize,
-          height: AppSizes.sosButtonSize,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: color,
-            boxShadow: [
-              BoxShadow(color: color.withOpacity(.5), blurRadius: 6, spreadRadius: 1),
-            ],
-            border: Border.all(color: Colors.white.withOpacity(.3), width: 1.5),
-          ),
-          child: Icon(icon, color: Colors.white, size: 26),
+        child: GlassPuck(
+          icon: icon,
+          color: color,
+          active: true,
+          size: AppSizes.sosButtonSize,
+          iconSize: 26,
         ),
+      ),
+    );
+  }
+}
+
+// ── Rendu visuel d'un rond, sans geste propre ─────────────────
+//
+// Le geste vit au niveau du menu radial ou de _RoundBtn ; ce widget ne fait
+// que dessiner le cercle, dans son état normal ou mis en avant.
+class _RoundVisual extends StatelessWidget {
+  final IconData icon;
+  final Color color;
+  final bool highlight;
+  final bool scaledDown;
+
+  const _RoundVisual({
+    required this.icon,
+    required this.color,
+    this.highlight = false,
+    this.scaledDown = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: scaledDown ? 0.85 : 1.0,
+      duration: const Duration(milliseconds: 150),
+      child: GlassPuck(
+        icon: icon,
+        color: color,
+        active: highlight,
+        size: AppSizes.sosButtonSize,
+        iconSize: 26,
+      ),
+    );
+  }
+}
+
+enum _RadialSegment { none, pauseResume, stop }
+
+// ── Menu radial : pause/reprendre et arrêter ──────────────────
+//
+// Un appui long ouvre un grand rond avec les deux commandes ; on glisse le
+// doigt sans le relever pour choisir, puis on relâche dessus. Remplace la
+// pile de deux boutons ronds : la bulle d'info du bouton Arrêter ne
+// s'affichait jamais, son propre appui long entrant en conflit avec celui
+// que Tooltip utilise pour se révéler.
+//
+// Arrêter exige en plus un temps de maintien une fois le segment atteint —
+// il se déclenche pendant le maintien, pas au relâcher — pour qu'un
+// relâchement accidentel n'arrête jamais l'enregistrement par erreur.
+// Pause/Reprendre reste instantané au relâcher.
+class RadialRecordingControl extends StatefulWidget {
+  final bool paused;
+  final VoidCallback onTogglePause;
+  final VoidCallback onStop;
+
+  const RadialRecordingControl({
+    super.key,
+    required this.paused,
+    required this.onTogglePause,
+    required this.onStop,
+  });
+
+  @override
+  State<RadialRecordingControl> createState() => _RadialRecordingControlState();
+}
+
+class _RadialRecordingControlState extends State<RadialRecordingControl> {
+  // Distance du centre à chaque segment ouvert.
+  static const double _radius = 78;
+  // Angles depuis la verticale basse, vers la droite : les deux segments
+  // restent sous et à droite du bouton, jamais au-dessus (le SOS y est) ni
+  // vers la gauche (bord de l'écran).
+  // Décalé vers la droite : à la main gauche, le pouce qui tient le geste
+  // masque ce qui est trop proche de la verticale sous le bouton.
+  static const double _angleStopDeg = 40;
+  static const double _anglePauseResumeDeg = 80;
+  // Rayon mort autour du point de départ avant qu'un segment soit visé.
+  static const double _deadZoneRadius = 28;
+  static const Duration _stopDwell = Duration(milliseconds: 550);
+
+  bool _expanded = false;
+  _RadialSegment _active = _RadialSegment.none;
+  double _stopProgress = 0;
+  Timer? _stopTimer;
+
+  Offset _segmentOffset(_RadialSegment segment) {
+    final deg = segment == _RadialSegment.stop ? _angleStopDeg : _anglePauseResumeDeg;
+    final rad = deg * math.pi / 180;
+    return Offset(_radius * math.sin(rad), _radius * math.cos(rad));
+  }
+
+  @override
+  void dispose() {
+    _stopTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onLongPressStart(LongPressStartDetails d) {
+    setState(() {
+      _expanded = true;
+      _active = _RadialSegment.none;
+      _stopProgress = 0;
+    });
+  }
+
+  void _onLongPressMoveUpdate(LongPressMoveUpdateDetails d) {
+    final offset = d.offsetFromOrigin;
+    _RadialSegment segment;
+    if (offset.distance < _deadZoneRadius) {
+      segment = _RadialSegment.none;
+    } else {
+      final toStop  = (offset - _segmentOffset(_RadialSegment.stop)).distance;
+      final toPause = (offset - _segmentOffset(_RadialSegment.pauseResume)).distance;
+      segment = toStop < toPause ? _RadialSegment.stop : _RadialSegment.pauseResume;
+    }
+
+    if (segment == _active) return;
+
+    _stopTimer?.cancel();
+    setState(() {
+      _active = segment;
+      _stopProgress = 0;
+    });
+
+    if (segment == _RadialSegment.stop) _armStopDwell();
+  }
+
+  // Le déclenchement se fait ICI, pendant le maintien — jamais au relâcher.
+  void _armStopDwell() {
+    const steps = 22;
+    final stepDuration = _stopDwell ~/ steps;
+    var step = 0;
+    _stopTimer = Timer.periodic(stepDuration, (t) {
+      step++;
+      if (!mounted || _active != _RadialSegment.stop) {
+        t.cancel();
+        return;
+      }
+      setState(() => _stopProgress = step / steps);
+      if (step >= steps) {
+        t.cancel();
+        _closeMenu();
+        widget.onStop();
+      }
+    });
+  }
+
+  void _onLongPressEnd(LongPressEndDetails d) {
+    _stopTimer?.cancel();
+    final active = _active;
+    _closeMenu();
+    // L'arrêt se déclenche déjà pendant le maintien (_armStopDwell) : ici,
+    // seul Pause/Reprendre peut encore se produire.
+    if (active == _RadialSegment.pauseResume) {
+      widget.onTogglePause();
+    }
+  }
+
+  void _closeMenu() {
+    if (!mounted) return;
+    setState(() {
+      _expanded = false;
+      _active = _RadialSegment.none;
+      _stopProgress = 0;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final centerIcon  = widget.paused ? Icons.play_arrow : Icons.pause;
+    final centerColor = widget.paused ? const Color(0xFFF9A825) : const Color(0xFFEF5350);
+
+    return GestureDetector(
+      onLongPressStart: _onLongPressStart,
+      onLongPressMoveUpdate: _onLongPressMoveUpdate,
+      onLongPressEnd: _onLongPressEnd,
+      child: SizedBox(
+        width: AppSizes.sosButtonSize,
+        height: AppSizes.sosButtonSize,
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            if (_expanded) ...[
+              // Anneau indiquant la zone de glissement, centré sur le bouton.
+              Positioned(
+                top: AppSizes.sosButtonSize / 2 - _radius,
+                left: AppSizes.sosButtonSize / 2 - _radius,
+                child: Container(
+                  width: _radius * 2,
+                  height: _radius * 2,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.white.withOpacity(.15), width: 1.5),
+                  ),
+                ),
+              ),
+              _segment(
+                offset: _segmentOffset(_RadialSegment.pauseResume),
+                icon: widget.paused ? Icons.play_arrow : Icons.pause,
+                color: const Color(0xFFF9A825),
+                active: _active == _RadialSegment.pauseResume,
+              ),
+              _segment(
+                offset: _segmentOffset(_RadialSegment.stop),
+                icon: Icons.stop,
+                color: const Color(0xFFEF5350),
+                active: _active == _RadialSegment.stop,
+                progress: _active == _RadialSegment.stop ? _stopProgress : null,
+              ),
+            ],
+            _RoundVisual(icon: centerIcon, color: centerColor, highlight: true, scaledDown: _expanded),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Place un segment centré sur `offset`, relatif au centre du bouton — la
+  // même formule que celle utilisée pour la détection du glissement, afin
+  // que ce qui est affiché corresponde exactement à ce qui est détecté.
+  Widget _segment({
+    required Offset offset,
+    required IconData icon,
+    required Color color,
+    required bool active,
+    double? progress,
+  }) {
+    // Segment et bouton central font la même taille : positionner le coin
+    // haut-gauche à `offset` aligne exactement leurs centres.
+    return Positioned(
+      top:  offset.dy,
+      left: offset.dx,
+      child: Stack(
+        clipBehavior: Clip.none,
+        alignment: Alignment.center,
+        children: [
+          if (progress != null)
+            SizedBox(
+              width: AppSizes.sosButtonSize + 10,
+              height: AppSizes.sosButtonSize + 10,
+              child: CircularProgressIndicator(
+                value: progress,
+                strokeWidth: 3,
+                backgroundColor: Colors.white.withOpacity(.15),
+                color: Colors.white,
+              ),
+            ),
+          _RoundVisual(icon: icon, color: color, highlight: active),
+        ],
       ),
     );
   }
@@ -299,20 +548,14 @@ class _RecControls extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _RoundBtn(
-          icon: paused ? Icons.play_arrow : Icons.pause,
-          color: const Color(0xFFF9A825),
-          tooltip: paused ? 'Reprendre' : 'Mettre en pause',
-          onTap: () => context.read<RecordingProvider>().togglePause(),
-        ),
-        const SizedBox(height: 8),
-        // Appui long : un arrêt accidentel après trois heures de sortie
-        // n'est pas rattrapable.
-        _RoundBtn(
-          icon: Icons.stop,
-          color: const Color(0xFFEF5350),
-          tooltip: 'Appui long pour arrêter',
-          onLongPress: () => _stop(context),
+        // Appui long, puis glisser sans relever le doigt vers Pause/Reprendre
+        // ou Arrêter. Un arrêt accidentel après trois heures de sortie n'est
+        // pas rattrapable : Arrêter exige un temps de maintien supplémentaire
+        // une fois le segment atteint, Pause/Reprendre reste instantané.
+        RadialRecordingControl(
+          paused: paused,
+          onTogglePause: () => context.read<RecordingProvider>().togglePause(),
+          onStop: () => _stop(context),
         ),
         const SizedBox(height: 8),
         _StatsPill(

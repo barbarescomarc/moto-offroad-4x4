@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:provider/provider.dart';
@@ -17,7 +18,9 @@ import '../../widgets/mode_switch.dart';
 import '../../widgets/stats_bar.dart';
 import '../../widgets/layer_selector.dart';
 import '../../widgets/gpx_import_sheet.dart';
+import '../../widgets/glass_control.dart';
 import '../../widgets/map_search_bar.dart';
+import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
 
 class MapScreen extends StatefulWidget {
@@ -33,6 +36,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   bool _mapReady = false;
 
+  // Détection du masquage de la barre de navigation : flutter_map émet
+  // MapEventSource.dragStart dès le premier micro-mouvement d'un doigt sur
+  // la carte, y compris pendant un simple tap. On attend un geste
+  // réellement soutenu avant de masquer, pour ne pas la faire disparaître
+  // sur un effleurement.
+  Timer? _navBarHideTimer;
+
   @override
   void initState() {
     super.initState();
@@ -46,9 +56,25 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _navBarHideTimer?.cancel();
     WakelockPlus.disable();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
+  }
+
+  void _onMapEvent(MapEvent event, MapProvider mapProv, SettingsProvider settings) {
+    if (!settings.autoHideNavBar) return;
+
+    if (event.source == MapEventSource.dragStart) {
+      _navBarHideTimer?.cancel();
+      _navBarHideTimer = Timer(const Duration(milliseconds: 140), () {
+        mapProv.hideNavBar();
+      });
+    } else if (event.source == MapEventSource.dragEnd) {
+      // Le geste s'est terminé avant le délai : c'était un tap, pas un
+      // déplacement de la carte — on ne masque pas.
+      _navBarHideTimer?.cancel();
+    }
   }
 
   Future<void> _initLocation() async {
@@ -118,7 +144,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // ── Badge Solo ──────────────────────────────────
             _buildSoloBadge(),
 
-            // ── Contrôles carte + recherche ─────────────────
+            // ── Contrôles carte ──────────────────────────────
+            // Recherche d'adresse, Météo et Mode Solo ont rejoint le menu
+            // radial de Recentrer (voir _buildMapControls) : appui long
+            // dessus pour les atteindre, plutôt qu'une barre de recherche
+            // en permanence à l'écran.
             Positioned(
               right: 12,
               bottom: AppSizes.statsBarHeight + 16,
@@ -126,9 +156,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  MapSearchBar(mapController: _mapController),
-                  const SizedBox(height: 8),
                   _buildMapControls(),
+                  const SizedBox(height: 6),
+                  // Plein écran : uniquement en portrait, la vue paysage
+                  // dédie déjà 35% de l'écran au panneau de statistiques.
+                  _mapCtrlBtn(Icons.fullscreen, mapProv.toggleFullscreen),
                 ],
               ),
             ),
@@ -169,8 +201,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    MapSearchBar(mapController: _mapController),
-                    const SizedBox(height: 8),
                     _buildMapControls(),
                   ],
                 ),
@@ -192,6 +222,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final mapProv   = context.watch<MapProvider>();
     final traceProv = context.watch<TraceProvider>();
     final groupProv = context.watch<GroupProvider>();
+    final settings  = context.watch<SettingsProvider>();
     final snap      = _locationService.lastSnapshot;
 
     return FlutterMap(
@@ -205,6 +236,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         onTap: (_, __) {
           if (mapProv.isFullscreen) mapProv.exitFullscreen();
         },
+        onMapEvent: (event) => _onMapEvent(event, mapProv, settings),
       ),
       children: [
         // ── Tuile de fond ──────────────────────────────────
@@ -362,78 +394,67 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   // ── STATS BAR ─────────────────────────────────────────────
+  // Le bouton plein écran a quitté cet emplacement : posé juste au-dessus de
+  // la barre de stats sans que sa hauteur soit comptée dans le calcul de
+  // position de la colonne de contrôles carte, il finissait chevauché par
+  // elle en portrait. Il vit maintenant dans cette même colonne (voir
+  // _buildPortrait), qui n'a plus besoin de deviner une hauteur.
   Widget _buildStatsBar() {
     return Consumer3<TraceProvider, FuelProvider, MapProvider>(
       builder: (ctx, trace, fuel, map, _) {
         final snap = _locationService.lastSnapshot;
-        return Column(
-          children: [
-            // Bouton plein écran
-            Align(
-              alignment: Alignment.centerRight,
-              child: GestureDetector(
-                onTap: map.toggleFullscreen,
-                child: Container(
-                  margin: const EdgeInsets.only(right: 12, bottom: 4),
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: AppColors.bgPanel.withOpacity(.9),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xFF2A2A3E)),
-                  ),
-                  child: const Icon(Icons.fullscreen, color: Colors.white, size: 18),
-                ),
-              ),
-            ),
-            StatsBar(
-              speedKmh:    snap?.speedKmh ?? 0,
-              remainingKm: trace.hasTrace && snap != null
-                  ? trace.remainingKm(
-                      snap.position.latitude, snap.position.longitude)
-                  : null,
-              fuelRangeKm: fuel.rangeKm,
-              fuelOk:      !fuel.isLow,
-              altitude:    snap?.altitudeMeters,
-            ),
-          ],
+        return StatsBar(
+          speedKmh:    snap?.speedKmh ?? 0,
+          remainingKm: trace.hasTrace && snap != null
+              ? trace.remainingKm(
+                  snap.position.latitude, snap.position.longitude)
+              : null,
+          fuelRangeKm: fuel.rangeKm,
+          fuelOk:      !fuel.isLow,
+          altitude:    snap?.altitudeMeters,
         );
       },
     );
   }
 
   // ── CONTRÔLES CARTE ──────────────────────────────────────
+  //
+  // Zoom +/- retirés : le pincement à deux doigts fait déjà le travail, et
+  // ces deux boutons ne servaient à rien.
   Widget _buildMapControls() {
     final mapProv = context.watch<MapProvider>();
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Zoom +
-        _mapCtrlBtn(Icons.add, () {
-          _mapController.move(
-            _mapController.camera.center,
-            _mapController.camera.zoom + 1,
-          );
-        }),
-        const SizedBox(height: 6),
-        // Zoom -
-        _mapCtrlBtn(Icons.remove, () {
-          _mapController.move(
-            _mapController.camera.center,
-            _mapController.camera.zoom - 1,
-          );
-        }),
-        const SizedBox(height: 6),
-        // Recentrer
-        _mapCtrlBtn(
-          mapProv.followPosition ? Icons.my_location : Icons.location_searching,
-          () {
+        // Recentrer : appui court inchangé. Appui long puis glissement vers
+        // le haut-gauche (côté opposé au bord droit de l'écran et aux
+        // boutons Radar/Plein écran juste en dessous) révèle Recherche,
+        // Météo et Mode Solo.
+        RadialActionMenu(
+          centerIcon:  mapProv.followPosition ? Icons.my_location : Icons.location_searching,
+          centerColor: AppColors.orange,
+          centerActive: mapProv.followPosition,
+          onCenterTap: () {
             mapProv.toggleFollowPosition();
             final snap = _locationService.lastSnapshot;
             if (snap != null) {
               _mapController.move(snap.position, _mapController.camera.zoom);
             }
           },
-          active: mapProv.followPosition,
+          segments: [
+            RadialMenuSegment(
+              icon: Icons.search, color: AppColors.orange, angleDeg: 190,
+              onSelect: _openSearchSheet,
+            ),
+            RadialMenuSegment(
+              icon: Icons.cloud, color: AppColors.blue, angleDeg: 227,
+              onSelect: () => context.go(AppRoutes.weather),
+            ),
+            RadialMenuSegment(
+              icon: Icons.shield, color: AppColors.green, angleDeg: 265,
+              onSelect: () => context.push(AppRoutes.solo),
+            ),
+          ],
         ),
         const SizedBox(height: 6),
         // Radar
@@ -766,30 +787,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   Widget _iconBtn(IconData icon, VoidCallback onTap) => GestureDetector(
     onTap: onTap,
-    child: Container(
-      width: 36, height: 36,
-      decoration: BoxDecoration(
-        color: AppColors.bgPanel.withOpacity(.9),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF2A2A3E)),
-      ),
-      child: Icon(icon, color: Colors.white, size: 18),
-    ),
+    child: GlassPuck(icon: icon, color: AppColors.orange, size: 36, iconSize: 18),
   );
 
   Widget _mapCtrlBtn(IconData icon, VoidCallback onTap,
       {bool active = false, Color activeColor = AppColors.orange}) {
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(
-          color: active ? activeColor.withOpacity(.2) : AppColors.bgPanel.withOpacity(.9),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: active ? activeColor : const Color(0xFF2A2A3E)),
-        ),
-        child: Icon(icon, color: active ? activeColor : Colors.white, size: 20),
-      ),
+      child: GlassPuck(icon: icon, color: activeColor, active: active),
     );
   }
 
@@ -812,6 +817,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => const GpxImportSheet(),
+    );
+  }
+
+  // Ouvre directement le champ de saisie, sans passer par l'icône repliée :
+  // choisir ce segment du menu radial est déjà le geste d'ouverture.
+  void _openSearchSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => Padding(
+        padding: EdgeInsets.only(
+          left: 16, right: 16, top: 16,
+          bottom: 16 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: MapSearchBar(
+          mapController: _mapController,
+          startVisible: true,
+          onResultSelected: () => Navigator.of(context).pop(),
+        ),
+      ),
     );
   }
 

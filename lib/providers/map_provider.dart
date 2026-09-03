@@ -54,6 +54,25 @@ class MapProvider extends ChangeNotifier {
   bool _isFullscreen = false;
   bool get isFullscreen => _isFullscreen;
 
+  // Barre de navigation du bas — masquée pendant qu'on déplace la carte,
+  // ramenée par un toucher près du bord. L'état vit ici plutôt que dans
+  // MainShell, qui n'a pas de dépendance naturelle vers ce qui se passe sur
+  // la carte ; MapScreen et MainShell lisent tous deux ce provider.
+  bool _navBarVisible = true;
+  bool get navBarVisible => _navBarVisible;
+
+  void hideNavBar() {
+    if (!_navBarVisible) return;
+    _navBarVisible = false;
+    notifyListeners();
+  }
+
+  void showNavBar() {
+    if (_navBarVisible) return;
+    _navBarVisible = true;
+    notifyListeners();
+  }
+
   // Radar pluie
   bool _radarEnabled = false;
   bool get radarEnabled => _radarEnabled;

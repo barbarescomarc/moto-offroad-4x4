@@ -4,11 +4,24 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../app/theme.dart';
+import 'glass_control.dart';
 
 class MapSearchBar extends StatefulWidget {
   final MapController mapController;
+  // Ouvre directement le champ, sans passer par l'icône repliée — utile
+  // quand cette barre apparaît dans une feuille modale plutôt qu'à sa
+  // position habituelle sur la carte.
+  final bool startVisible;
+  // Appelé après qu'un résultat a été choisi — permet à un appelant qui
+  // affiche cette barre dans une feuille modale de la refermer lui-même.
+  final VoidCallback? onResultSelected;
 
-  const MapSearchBar({super.key, required this.mapController});
+  const MapSearchBar({
+    super.key,
+    required this.mapController,
+    this.startVisible = false,
+    this.onResultSelected,
+  });
 
   @override
   State<MapSearchBar> createState() => _MapSearchBarState();
@@ -17,9 +30,17 @@ class MapSearchBar extends StatefulWidget {
 class _MapSearchBarState extends State<MapSearchBar> {
   final _ctrl   = TextEditingController();
   final _focus  = FocusNode();
-  bool _visible = false;
+  late bool _visible = widget.startVisible;
   bool _loading = false;
   List<_GeoResult> _results = [];
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.startVisible) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _focus.requestFocus());
+    }
+  }
 
   @override
   void dispose() {
@@ -74,6 +95,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
   void _goTo(_GeoResult result) {
     widget.mapController.move(result.position, 14);
     _toggle();
+    widget.onResultSelected?.call();
   }
 
   LatLng? _parseCoords(String text) {
@@ -116,20 +138,10 @@ class _MapSearchBarState extends State<MapSearchBar> {
   Widget _searchToggleButton() {
     return GestureDetector(
       onTap: _toggle,
-      child: Container(
-        width: 40, height: 40,
-        decoration: BoxDecoration(
-          color: _visible
-              ? AppColors.orange.withValues(alpha: .2)
-              : AppColors.bgPanel.withValues(alpha: .95),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: _visible ? AppColors.orange : const Color(0xFF2A2A3E)),
-        ),
-        child: Icon(
-          _visible ? Icons.close : Icons.search,
-          color: _visible ? AppColors.orange : Colors.white,
-          size: 20,
-        ),
+      child: GlassPuck(
+        icon:   _visible ? Icons.close : Icons.search,
+        color:  AppColors.orange,
+        active: _visible,
       ),
     );
   }

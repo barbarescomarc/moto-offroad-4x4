@@ -7,6 +7,7 @@ import '../../models/moto_preset.dart';
 import '../../models/rider_profile.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/fuel_provider.dart';
+import '../../widgets/glass_control.dart';
 import '../../widgets/update_tile.dart';
 import '../info/info_screen.dart';
 
@@ -48,17 +49,17 @@ class _SettingsScreenState extends State<SettingsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _riderSection(),
-            const SizedBox(height: 24),
-            _levelSection(),
-            const SizedBox(height: 24),
-            _motoSection(),
-            const SizedBox(height: 24),
-            _recordingSection(context),
-            const SizedBox(height: 24),
-            _appSection(),
-            const SizedBox(height: 24),
-            _infoSection(),
+            GlassPanel(child: _riderSection()),
+            const SizedBox(height: 16),
+            GlassPanel(child: _levelSection()),
+            const SizedBox(height: 16),
+            GlassPanel(child: _motoSection()),
+            const SizedBox(height: 16),
+            GlassPanel(child: _recordingSection(context)),
+            const SizedBox(height: 16),
+            GlassPanel(child: _appSection()),
+            const SizedBox(height: 16),
+            GlassPanel(child: _infoSection()),
           ],
         ),
       ),
@@ -335,6 +336,13 @@ class _SettingsScreenState extends State<SettingsScreen>
           onChanged: settings.setKeepScreenOnMap,
         ),
         SwitchListTile(
+          title: const Text('Masquer la barre en bas pendant la conduite'),
+          subtitle: const Text('Disparaît quand vous déplacez la carte, revient '
+              'd\'un toucher près du bord.'),
+          value: settings.autoHideNavBar,
+          onChanged: settings.setAutoHideNavBar,
+        ),
+        SwitchListTile(
           title: const Text('Afficher les distances en miles'),
           value: settings.useMiles,
           onChanged: settings.setUseMiles,
@@ -355,6 +363,18 @@ class _SettingsScreenState extends State<SettingsScreen>
             style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
           trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
           onTap: () => context.push(AppRoutes.callSettings),
+        ),
+        // Seul chemin vers l'écran Mode Solo : le badge de la carte ne
+        // s'affiche que si le mode est déjà actif, il ne peut donc pas
+        // servir à l'activer la première fois.
+        ListTile(
+          leading: const Icon(Icons.shield_outlined, color: AppColors.textMuted),
+          title: const Text('Mode Solo Sécurisé',
+            style: TextStyle(color: Colors.white)),
+          subtitle: const Text('Contacts de confiance, suivi de trajet',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+          onTap: () => context.push(AppRoutes.solo),
         ),
       ],
     );

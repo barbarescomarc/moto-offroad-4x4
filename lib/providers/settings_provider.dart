@@ -14,6 +14,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kAutoStart   = 'rec_suggest_autostart';
   static const _kMiles       = 'unit_miles';
   static const _kScreenOn    = 'map_keep_screen_on';
+  static const _kAutoHideNav = 'map_auto_hide_nav_bar';
   static const _kAutoReply     = 'call_auto_reply';
   static const _kAutoReplyPos  = 'call_auto_reply_position';
   static const _kAutoReplyAll  = 'call_auto_reply_all';
@@ -39,6 +40,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _suggestAutoStart = false;
   bool _useMiles         = false;
   bool _keepScreenOnMap  = true;
+  bool _autoHideNavBar   = true;
   bool _autoReplyEnabled        = true;
   bool _autoReplyAttachPosition = true;
   bool _autoReplyAllCallers     = false;
@@ -54,6 +56,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get suggestAutoStart => _suggestAutoStart;
   bool get useMiles         => _useMiles;
   bool get keepScreenOnMap  => _keepScreenOnMap;
+  bool get autoHideNavBar   => _autoHideNavBar;
   bool   get autoReplyEnabled        => _autoReplyEnabled;
   bool   get autoReplyAttachPosition => _autoReplyAttachPosition;
   bool   get autoReplyAllCallers     => _autoReplyAllCallers;
@@ -76,6 +79,7 @@ class SettingsProvider extends ChangeNotifier {
     _suggestAutoStart = prefs.getBool(_kAutoStart)  ?? false;
     _useMiles         = prefs.getBool(_kMiles)      ?? false;
     _keepScreenOnMap  = prefs.getBool(_kScreenOn)   ?? true;
+    _autoHideNavBar   = prefs.getBool(_kAutoHideNav) ?? true;
     _autoReplyEnabled        = prefs.getBool(_kAutoReply)    ?? true;
     _autoReplyAttachPosition = prefs.getBool(_kAutoReplyPos) ?? true;
     _autoReplyAllCallers     = prefs.getBool(_kAutoReplyAll) ?? false;
@@ -141,6 +145,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setKeepScreenOnMap(bool v) async {
     _keepScreenOnMap = v;
     (await SharedPreferences.getInstance()).setBool(_kScreenOn, v);
+    notifyListeners();
+  }
+
+  Future<void> setAutoHideNavBar(bool v) async {
+    _autoHideNavBar = v;
+    (await SharedPreferences.getInstance()).setBool(_kAutoHideNav, v);
     notifyListeners();
   }
 
