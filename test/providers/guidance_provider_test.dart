@@ -91,11 +91,13 @@ void main() {
   late _FakeRoutingService routing;
   late _FakeTtsEngine ttsEngine;
   late GuidanceProvider guidance;
+  late DateTime fakeNow;
 
   setUp(() {
     positionController = StreamController<GpsSnapshot>.broadcast();
     routing = _FakeRoutingService();
     ttsEngine = _FakeTtsEngine();
+    fakeNow = _t0;
     guidance = GuidanceProvider(
       routingService: routing,
       voiceService: GuidanceVoiceService(engine: ttsEngine),
@@ -103,6 +105,7 @@ void main() {
         coordinator: BackgroundServiceCoordinator(control: _FakeControl()),
       ),
       positionStream: positionController.stream,
+      clock: () => fakeNow,
     );
   });
 
@@ -220,16 +223,16 @@ void main() {
       await Future<void>.delayed(Duration.zero);
       expect(routing.calls, 2);
 
-      // Le cooldown écoulé, un relevé toujours hors trace redemande un
-      // itinéraire : la déviation continue de retenter tant qu'elle
-      // persiste, elle ne s'arme plus seulement sur le front montant.
-      await Future<void>.delayed(const Duration(seconds: 21));
+      // Le cooldown écoulé (horloge simulée, pas d'attente réelle), un
+      // relevé toujours hors trace redemande un itinéraire : la déviation
+      // continue de retenter tant qu'elle persiste, elle ne s'arme plus
+      // seulement sur le front montant.
+      fakeNow = fakeNow.add(const Duration(seconds: 21));
       positionController.add(_gps(const LatLng(44.002, 6.0), s: 4));
       await Future<void>.delayed(Duration.zero);
 
       expect(routing.calls, 3);
     },
-    timeout: const Timeout(Duration(seconds: 40)),
   );
 
   test('startOnTrace en mode alerte ne fait aucun appel réseau', () {

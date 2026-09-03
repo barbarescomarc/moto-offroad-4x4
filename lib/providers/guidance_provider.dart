@@ -19,10 +19,12 @@ class GuidanceProvider extends ChangeNotifier {
     GuidanceVoiceService? voiceService,
     GuidanceBackgroundClient? backgroundClient,
     Stream<GpsSnapshot>? positionStream,
+    DateTime Function()? clock,
   })  : _routing = routingService ?? RoutingService(),
         _voice = voiceService ?? GuidanceVoiceService(),
         _background = backgroundClient ?? GuidanceBackgroundClient(),
-        _positionStream = positionStream ?? LocationService().stream;
+        _positionStream = positionStream ?? LocationService().stream,
+        _clock = clock ?? DateTime.now;
 
   // Rayon (m) d'arrivée sur une manœuvre — au-delà, l'étape suivante démarre.
   static const double _stepArrivalRadiusMeters = 30;
@@ -42,6 +44,7 @@ class GuidanceProvider extends ChangeNotifier {
   final GuidanceVoiceService _voice;
   final GuidanceBackgroundClient _background;
   final Stream<GpsSnapshot> _positionStream;
+  final DateTime Function() _clock;
 
   StreamSubscription<GpsSnapshot>? _positionSub;
   Timer? _gpsTimeoutTimer;
@@ -259,7 +262,7 @@ class GuidanceProvider extends ChangeNotifier {
   }
 
   Future<void> _maybeReroute(LatLng position) async {
-    final now = DateTime.now();
+    final now = _clock();
     if (_lastRerouteAttempt != null && now.difference(_lastRerouteAttempt!) < _rerouteCooldown) {
       return;
     }
