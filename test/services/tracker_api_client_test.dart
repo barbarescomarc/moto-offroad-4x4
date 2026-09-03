@@ -72,17 +72,29 @@ void main() {
         200,
       ));
       final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
-      final peers = await api.fetchPeers(sessionId: 's1', deviceKey: 'dk', memberId: 'm1');
-      expect(peers.length, 1);
-      expect(peers.first.name, 'Claire');
-      expect(peers.first.position, const LatLng(45.2, 5.8));
+      final result = await api.fetchPeers(sessionId: 's1', deviceKey: 'dk', memberId: 'm1');
+      expect(result.peers.length, 1);
+      expect(result.peers.first.name, 'Claire');
+      expect(result.peers.first.position, const LatLng(45.2, 5.8));
+      expect(result.rally, isNull);
     });
 
-    test('returns an empty list on failure', () async {
+    test('parses the rally point when the server has one', () async {
+      final client = MockClient((_) async => http.Response(
+        '{"peers":[],"rally":{"lat":45.5,"lng":6.1}}',
+        200,
+      ));
+      final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
+      final result = await api.fetchPeers(sessionId: 's1', deviceKey: 'dk', memberId: 'm1');
+      expect(result.rally, const LatLng(45.5, 6.1));
+    });
+
+    test('returns an empty result on failure', () async {
       final client = MockClient((_) async => http.Response('', 500));
       final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
-      final peers = await api.fetchPeers(sessionId: 's1', deviceKey: 'dk', memberId: 'm1');
-      expect(peers, isEmpty);
+      final result = await api.fetchPeers(sessionId: 's1', deviceKey: 'dk', memberId: 'm1');
+      expect(result.peers, isEmpty);
+      expect(result.rally, isNull);
     });
   });
 }

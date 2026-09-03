@@ -33,8 +33,6 @@ class GroupProvider extends ChangeNotifier {
   GroupProvider({TrackerApiClient? trackerClient})
       : _tracker = trackerClient ?? TrackerApiClient();
 
-  static const String watchBaseUrl = 'https://motooffroad.duckdns.org/g/';
-
   final TrackerApiClient _tracker;
 
   bool _groupActive = false;
@@ -55,8 +53,6 @@ class GroupProvider extends ChangeNotifier {
   String? get deviceKey => _deviceKey;
   String? _myMemberId;
   String? get myMemberId => _myMemberId;
-
-  String? get inviteLink => _sessionId != null ? '$watchBaseUrl$_sessionId' : null;
 
   bool _sharingMyPosition = true;
   bool get sharingMyPosition => _sharingMyPosition;
@@ -128,11 +124,33 @@ class GroupProvider extends ChangeNotifier {
   }
 
   // ── Toggle partage de ma position ────────────────────────
+  // Coupe/relance réellement l'uplink de position — sans ça, "masquer sa
+  // position" ne change que l'affichage local pendant que le serveur
+  // continue de recevoir les positions (défaut relevé en revue finale).
   void toggleMySharing() {
     _sharingMyPosition = !_sharingMyPosition;
     final me = _members.where((m) => m.id == _myMemberId).firstOrNull;
     if (me != null) me.isSharing = _sharingMyPosition;
+    if (_sharingMyPosition) {
+      _resumeUplinkIfPossible();
+    } else {
+      _uplink?.stop();
+    }
     notifyListeners();
+  }
+
+  // Positions et intervalle passés à startLiveSharing, conservés pour que
+  // toggleMySharing puisse relancer l'uplink sans dupliquer sa logique.
+  Stream<GpsSnapshot>? _liveSharingPositions;
+  Duration _liveSharingInterval = const Duration(seconds: 3);
+
+  void _resumeUplinkIfPossible() {
+    final positions = _liveSharingPositions;
+    final sid = _hubSessionId, dk = _deviceKey, mid = _myMemberId;
+    if (positions == null || sid == null || dk == null || mid == null) return;
+    _uplink?.stop();
+    _uplink = PositionUplinkService(sendPositions: _tracker.sendPositions)
+      ..start(positions: positions, sessionId: sid, deviceKey: dk, memberId: mid, interval: _liveSharingInterval);
   }
 
   // ── Envoyer un point de ralliement ────────────────────────
@@ -156,6 +174,9 @@ class GroupProvider extends ChangeNotifier {
     final sid = _hubSessionId, dk = _deviceKey, mid = _myMemberId;
     if (sid == null || dk == null || mid == null) return;
 
+    _liveSharingPositions = positions;
+    _liveSharingInterval = pollInterval;
+
     final generation = _liveGeneration;
 
     _uplink?.stop();
@@ -165,9 +186,9 @@ class GroupProvider extends ChangeNotifier {
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(pollInterval, (_) async {
       if (!_groupActive) return;
-      final peers = await _tracker.fetchPeers(sessionId: sid, deviceKey: dk, memberId: mid);
+      final result = await _tracker.fetchPeers(sessionId: sid, deviceKey: dk, memberId: mid);
       if (generation != _liveGeneration || !_groupActive) return;
-      for (final peer in peers) {
+      for (final peer in result.peers) {
         final idx = _members.indexWhere((m) => m.id == peer.memberId);
         if (idx >= 0) {
           _members[idx].position   = peer.position;
@@ -182,6 +203,11 @@ class GroupProvider extends ChangeNotifier {
           ));
         }
       }
+      // Un membre absent de la réponse (parti, ou session éteinte) est
+      // élagué — sauf soi-même, jamais retiré par le polling.
+      final seenIds = result.peers.map((p) => p.memberId).toSet();
+      _members.removeWhere((m) => m.id != _myMemberId && !seenIds.contains(m.id));
+      _rallyPoint = result.rally;
       notifyListeners();
     });
   }

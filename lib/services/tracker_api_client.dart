@@ -53,6 +53,15 @@ class PeerPosition {
   });
 }
 
+// Résultat du polling /peers : la liste des pairs, et le point de
+// ralliement partagé par le groupe (posé par n'importe quel membre).
+class PeersResult {
+  final List<PeerPosition> peers;
+  final LatLng? rally;
+
+  const PeersResult({required this.peers, required this.rally});
+}
+
 class TrackerApiClient {
   TrackerApiClient({http.Client? client, String? baseUrl})
       : _client = client ?? http.Client(),
@@ -142,7 +151,7 @@ class TrackerApiClient {
     }
   }
 
-  Future<List<PeerPosition>> fetchPeers({
+  Future<PeersResult> fetchPeers({
     required String sessionId,
     required String deviceKey,
     required String memberId,
@@ -151,9 +160,9 @@ class TrackerApiClient {
       final res = await _client.get(
         _uri('/api/sessions/$sessionId/peers', {'deviceKey': deviceKey, 'memberId': memberId}),
       );
-      if (res.statusCode ~/ 100 != 2) return [];
+      if (res.statusCode ~/ 100 != 2) return const PeersResult(peers: [], rally: null);
       final j = jsonDecode(res.body) as Map<String, dynamic>;
-      return (j['peers'] as List<dynamic>).map((raw) {
+      final peers = (j['peers'] as List<dynamic>).map((raw) {
         final m = raw as Map<String, dynamic>;
         final lat = m['lat'] as num?;
         final lng = m['lng'] as num?;
@@ -166,8 +175,15 @@ class TrackerApiClient {
           lastSeen: DateTime.fromMillisecondsSinceEpoch(m['lastSeen'] as int),
         );
       }).toList();
+      final rallyRaw = j['rally'] as Map<String, dynamic>?;
+      final rallyLat = rallyRaw?['lat'] as num?;
+      final rallyLng = rallyRaw?['lng'] as num?;
+      final rally = rallyLat != null && rallyLng != null
+          ? LatLng(rallyLat.toDouble(), rallyLng.toDouble())
+          : null;
+      return PeersResult(peers: peers, rally: rally);
     } catch (_) {
-      return [];
+      return const PeersResult(peers: [], rally: null);
     }
   }
 

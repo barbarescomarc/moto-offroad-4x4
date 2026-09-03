@@ -20,6 +20,7 @@ class GroupScreen extends StatelessWidget {
 
   Widget _buildInactive(BuildContext context, GroupProvider group) {
     final nameCtrl = TextEditingController(text: 'Pilote');
+    final joinCodeCtrl = TextEditingController();
     return Padding(
       padding: const EdgeInsets.all(20),
       child: Column(
@@ -57,6 +58,44 @@ class GroupScreen extends StatelessWidget {
                     onPressed: () => group.createSession(nameCtrl.text.isEmpty ? 'Pilote' : nameCtrl.text),
                     icon: const Icon(Icons.add_circle_outline),
                     label: const Text('CRÉER UNE SESSION'),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                const Row(
+                  children: [
+                    Expanded(child: Divider()),
+                    Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 12),
+                      child: Text('OU', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
+                    ),
+                    Expanded(child: Divider()),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                TextField(
+                  controller: joinCodeCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  style: const TextStyle(color: Colors.white, letterSpacing: 4, fontSize: 18),
+                  decoration: const InputDecoration(
+                    labelText: 'Code du groupe',
+                    prefixIcon: Icon(Icons.tag, color: AppColors.textMuted),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () async {
+                      final code = joinCodeCtrl.text.trim().toUpperCase();
+                      if (code.isEmpty) return;
+                      final ok = await group.joinSession(code, nameCtrl.text.isEmpty ? 'Pilote' : nameCtrl.text);
+                      if (!ok && context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Code invalide ou groupe introuvable')));
+                      }
+                    },
+                    icon: const Icon(Icons.group_add_outlined),
+                    label: const Text('REJOINDRE'),
                   ),
                 ),
               ],
@@ -142,27 +181,6 @@ class GroupScreen extends StatelessWidget {
               ),
             ],
           ),
-          if (group.inviteLink != null) ...[
-            GestureDetector(
-              onTap: () => Clipboard.setData(ClipboardData(text: group.inviteLink!)),
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: AppColors.bgSurface,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0xFF2A2A3E)),
-                ),
-                child: Row(children: [
-                  const Icon(Icons.link, color: AppColors.textMuted, size: 14),
-                  const SizedBox(width: 6),
-                  Expanded(child: Text(group.inviteLink!,
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 11),
-                    overflow: TextOverflow.ellipsis)),
-                  const Icon(Icons.copy, color: AppColors.textMuted, size: 14),
-                ]),
-              ),
-            ),
-          ],
         ],
       ),
     );
