@@ -1,7 +1,9 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:moto_offroad/providers/group_provider.dart';
+import 'package:moto_offroad/services/location_service.dart';
 import 'package:moto_offroad/services/tracker_api_client.dart';
 
 void main() {
@@ -154,5 +156,69 @@ void main() {
     expect(g.members.single.isSharing, isTrue);
     g.toggleMySharing();
     expect(g.members.single.isSharing, isFalse);
+  });
+
+  test('startLiveSharing polls peers and merges them into members', () async {
+    var peersCallCount = 0;
+    final client = MockClient((req) async {
+      if (req.url.path == '/api/sessions') {
+        return http.Response(
+          '{"sessionId":"s1","ownerKey":"ok","deviceKey":"dk","memberId":"m1","joinCode":"AB12CD"}',
+          201,
+        );
+      }
+      if (req.url.path.contains('/peers')) {
+        peersCallCount++;
+        return http.Response(
+          '{"peers":[{"memberId":"m2","name":"Claire","color":"#1565C0","lat":45.2,"lng":5.8,"speedKmh":40,"lastSeen":${DateTime.now().millisecondsSinceEpoch}}],"rally":null}',
+          200,
+        );
+      }
+      if (req.url.path.contains('/positions')) {
+        return http.Response('{"accepted":1}', 200);
+      }
+      return http.Response('', 404);
+    });
+    final g = GroupProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
+    await g.createSession('Marc');
+
+    final controller = StreamController<GpsSnapshot>();
+    g.startLiveSharing(positions: controller.stream, pollInterval: const Duration(milliseconds: 20));
+    await Future.delayed(const Duration(milliseconds: 60));
+
+    expect(peersCallCount, greaterThan(0));
+    expect(g.members.any((m) => m.id == 'm2' && m.name == 'Claire'), isTrue);
+
+    g.leaveGroup();
+    await controller.close();
+  });
+
+  test('leaveGroup stops the peer poll timer', () async {
+    var peersCallCount = 0;
+    final client = MockClient((req) async {
+      if (req.url.path == '/api/sessions') {
+        return http.Response(
+          '{"sessionId":"s1","ownerKey":"ok","deviceKey":"dk","memberId":"m1","joinCode":"AB12CD"}',
+          201,
+        );
+      }
+      if (req.url.path.contains('/peers')) {
+        peersCallCount++;
+        return http.Response('{"peers":[],"rally":null}', 200);
+      }
+      return http.Response('', 404);
+    });
+    final g = GroupProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
+    await g.createSession('Marc');
+    final controller = StreamController<GpsSnapshot>();
+    g.startLiveSharing(positions: controller.stream, pollInterval: const Duration(milliseconds: 20));
+    await Future.delayed(const Duration(milliseconds: 30));
+
+    g.leaveGroup();
+    final countAtLeave = peersCallCount;
+    await Future.delayed(const Duration(milliseconds: 60));
+
+    expect(peersCallCount, countAtLeave);
+    await controller.close();
   });
 }

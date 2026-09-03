@@ -1,5 +1,8 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
+import '../services/location_service.dart';
+import '../services/position_uplink_service.dart';
 import '../services/tracker_api_client.dart';
 
 // ── Membre du groupe ─────────────────────────────────────────
@@ -67,6 +70,9 @@ class GroupProvider extends ChangeNotifier {
 
   LatLng? _rallyPoint;
   LatLng? get rallyPoint => _rallyPoint;
+
+  Timer? _pollTimer;
+  PositionUplinkService? _uplink;
 
   // ── Créer une session groupe ──────────────────────────────
   Future<bool> createSession(String myName) async {
@@ -141,6 +147,41 @@ class GroupProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Partager les positions en direct ─────────────────────
+  void startLiveSharing({
+    required Stream<GpsSnapshot> positions,
+    Duration pollInterval = const Duration(seconds: 3),
+  }) {
+    final sid = _hubSessionId, dk = _deviceKey, mid = _myMemberId;
+    if (sid == null || dk == null || mid == null) return;
+
+    _uplink?.stop();
+    _uplink = PositionUplinkService(sendPositions: _tracker.sendPositions)
+      ..start(positions: positions, sessionId: sid, deviceKey: dk, memberId: mid, interval: pollInterval);
+
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(pollInterval, (_) async {
+      if (!_groupActive) return;
+      final peers = await _tracker.fetchPeers(sessionId: sid, deviceKey: dk, memberId: mid);
+      for (final peer in peers) {
+        final idx = _members.indexWhere((m) => m.id == peer.memberId);
+        if (idx >= 0) {
+          _members[idx].position   = peer.position;
+          _members[idx].speedKmh   = peer.speedKmh;
+          _members[idx].lastUpdate = peer.lastSeen;
+          _members[idx].isOnline   = true;
+        } else {
+          _members.add(GroupMember(
+            id: peer.memberId, name: peer.name, color: peer.color,
+            position: peer.position, speedKmh: peer.speedKmh,
+            lastUpdate: peer.lastSeen, isOnline: true,
+          ));
+        }
+      }
+      notifyListeners();
+    });
+  }
+
   // ── Quitter le groupe ─────────────────────────────────────
   // Le créateur qui quitte éteint le groupe pour tout le monde — spec §8 :
   // "L'extinction du groupe purge tout, immédiatement" (critère de réussite
@@ -148,6 +189,10 @@ class GroupProvider extends ChangeNotifier {
   // autres. Le distinguo tient à _ownerKey : seul le créateur en reçoit un
   // à la création (joinGroupSession n'en renvoie pas).
   void leaveGroup() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    _uplink?.stop();
+    _uplink = null;
     final sid = _hubSessionId, dk = _deviceKey, mid = _myMemberId, ok = _ownerKey;
     if (sid != null && ok != null) {
       _tracker.endSession(sessionId: sid, ownerKey: ok);
