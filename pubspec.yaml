@@ -43,6 +43,10 @@ dependencies:
   shared_preferences: ^2.2.0   # Préférences utilisateur
   sqflite: ^2.3.0              # SQLite local
 
+  # ── Enregistrement de sorties (lot 1) ───────────────
+  flutter_foreground_task: ^8.10.0   # Service d'arrière-plan + notification
+  sensors_plus: ^4.0.2               # Accéléromètre (pause auto, lot 4 choc)
+
   # ── UI ───────────────────────────────────────────────
   wakelock_plus: ^1.1.0        # Écran actif en navigation
 
@@ -55,6 +59,7 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  sqflite_common_ffi: ^2.3.0   # sqflite hors appareil, pour les tests
 
 flutter:
   uses-material-design: true

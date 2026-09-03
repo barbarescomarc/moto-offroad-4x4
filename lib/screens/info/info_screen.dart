@@ -3,7 +3,9 @@ import '../../app/theme.dart';
 import '../../services/location_service.dart';
 
 class InfoScreen extends StatelessWidget {
-  const InfoScreen({super.key});
+  final bool embedded;
+
+  const InfoScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
@@ -12,45 +14,51 @@ class InfoScreen extends StatelessWidget {
         ? '${snap.position.latitude.toStringAsFixed(4)}°N  ${snap.position.longitude.toStringAsFixed(4)}°E'
         : 'GPS non disponible';
 
+    final content = ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _positionCard(coords),
+        const SizedBox(height: 16),
+        _infoCard(
+          icon: Icons.two_wheeler,
+          color: AppColors.orange,
+          title: 'OFFROAD — RÉGLEMENTATION FRANCE',
+          items: _offroadRules,
+        ),
+        const SizedBox(height: 16),
+        _infoCard(
+          icon: Icons.night_shelter_outlined,
+          color: AppColors.blue,
+          title: 'BIVOUAC SAUVAGE — CE QUE DIT LA LOI',
+          items: _bivouacRules,
+        ),
+        const SizedBox(height: 16),
+        _infoCard(
+          icon: Icons.warning_amber_rounded,
+          color: AppColors.statusOrange,
+          title: 'ZONES À RISQUE EN FRANCE',
+          items: _dangerZones,
+        ),
+        const SizedBox(height: 16),
+        _infoCard(
+          icon: Icons.eco_outlined,
+          color: AppColors.statusGreen,
+          title: 'BONS RÉFLEXES TERRAINS',
+          items: _goodPractices,
+        ),
+        const SizedBox(height: 16),
+        _emergencyCard(),
+      ],
+    );
+
+    if (embedded) {
+      return content;
+    }
+
     return Scaffold(
       backgroundColor: AppColors.bgDark,
       appBar: AppBar(title: const Text('ℹ️  INFO TERRAIN')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          _positionCard(coords),
-          const SizedBox(height: 16),
-          _infoCard(
-            icon: Icons.two_wheeler,
-            color: AppColors.orange,
-            title: 'OFFROAD — RÉGLEMENTATION FRANCE',
-            items: _offroadRules,
-          ),
-          const SizedBox(height: 16),
-          _infoCard(
-            icon: Icons.night_shelter_outlined,
-            color: AppColors.blue,
-            title: 'BIVOUAC SAUVAGE — CE QUE DIT LA LOI',
-            items: _bivouacRules,
-          ),
-          const SizedBox(height: 16),
-          _infoCard(
-            icon: Icons.warning_amber_rounded,
-            color: AppColors.statusOrange,
-            title: 'ZONES À RISQUE EN FRANCE',
-            items: _dangerZones,
-          ),
-          const SizedBox(height: 16),
-          _infoCard(
-            icon: Icons.eco_outlined,
-            color: AppColors.statusGreen,
-            title: 'BONS RÉFLEXES TERRAINS',
-            items: _goodPractices,
-          ),
-          const SizedBox(height: 16),
-          _emergencyCard(),
-        ],
-      ),
+      body: content,
     );
   }
 

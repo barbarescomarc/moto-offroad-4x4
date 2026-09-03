@@ -6,19 +6,22 @@ import '../screens/solo/solo_screen.dart';
 import '../screens/fuel/fuel_screen.dart';
 import '../screens/group/group_screen.dart';
 import '../screens/weather/weather_screen.dart';
-import '../screens/info/info_screen.dart';
+import '../screens/rides/rides_screen.dart';
+import '../screens/rides/ride_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
+import '../screens/settings/vibration_calibration_screen.dart';
 
 // ── Routes nommées ───────────────────────────────────────────
 class AppRoutes {
-  static const String map      = '/';
-  static const String fuel     = '/fuel';
-  static const String info     = '/info';
-  static const String weather  = '/weather';
-  static const String settings = '/settings';
-  static const String sos      = '/sos';
-  static const String solo     = '/solo';
-  static const String group    = '/group';
+  static const String map         = '/';
+  static const String fuel        = '/fuel';
+  static const String rides       = '/rides';
+  static const String weather     = '/weather';
+  static const String settings    = '/settings';
+  static const String calibration = '/calibration';
+  static const String sos         = '/sos';
+  static const String solo        = '/solo';
+  static const String group       = '/group';
 }
 
 // ── Router GoRouter ──────────────────────────────────────────
@@ -38,8 +41,16 @@ final GoRouter appRouter = GoRouter(
           pageBuilder: (_, __) => const NoTransitionPage(child: FuelScreen()),
         ),
         GoRoute(
-          path: AppRoutes.info,
-          pageBuilder: (_, __) => const NoTransitionPage(child: InfoScreen()),
+          path: AppRoutes.rides,
+          pageBuilder: (_, __) => const NoTransitionPage(child: RidesScreen()),
+          routes: [
+            GoRoute(
+              path: ':id',
+              pageBuilder: (_, state) => MaterialPage(
+                child: RideDetailScreen(rideId: state.pathParameters['id']!),
+              ),
+            ),
+          ],
         ),
         GoRoute(
           path: AppRoutes.weather,
@@ -52,6 +63,11 @@ final GoRouter appRouter = GoRouter(
       ],
     ),
     // Modals (hors shell)
+    GoRoute(
+      path: AppRoutes.calibration,
+      pageBuilder: (_, __) => const MaterialPage(
+          fullscreenDialog: true, child: VibrationCalibrationScreen()),
+    ),
     GoRoute(
       path: AppRoutes.sos,
       pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SosScreen()),
@@ -74,10 +90,10 @@ class MainShell extends StatelessWidget {
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
+    if (location.startsWith(AppRoutes.rides)) return 2;
     switch (location) {
       case AppRoutes.map:      return 0;
       case AppRoutes.fuel:     return 1;
-      case AppRoutes.info:     return 2;
       case AppRoutes.weather:  return 3;
       case AppRoutes.settings: return 4;
       default:                 return 0;
@@ -94,7 +110,7 @@ class MainShell extends StatelessWidget {
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.map_outlined),              activeIcon: Icon(Icons.map),                 label: 'Carte'),
           BottomNavigationBarItem(icon: Icon(Icons.local_gas_station_outlined), activeIcon: Icon(Icons.local_gas_station),   label: 'Carbu'),
-          BottomNavigationBarItem(icon: Icon(Icons.info_outline),              activeIcon: Icon(Icons.info),                label: 'Info'),
+          BottomNavigationBarItem(icon: Icon(Icons.route_outlined),            activeIcon: Icon(Icons.route),               label: 'Sorties'),
           BottomNavigationBarItem(icon: Icon(Icons.cloud_outlined),            activeIcon: Icon(Icons.cloud),               label: 'Météo'),
           BottomNavigationBarItem(icon: Icon(Icons.settings_outlined),         activeIcon: Icon(Icons.settings),            label: 'Réglages'),
         ],
@@ -106,7 +122,7 @@ class MainShell extends StatelessWidget {
     switch (index) {
       case 0: context.go(AppRoutes.map);      break;
       case 1: context.go(AppRoutes.fuel);     break;
-      case 2: context.go(AppRoutes.info);     break;
+      case 2: context.go(AppRoutes.rides);    break;
       case 3: context.go(AppRoutes.weather);  break;
       case 4: context.go(AppRoutes.settings); break;
     }

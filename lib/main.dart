@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'app/theme.dart';
 import 'app/router.dart';
@@ -12,6 +11,11 @@ import 'providers/group_provider.dart';
 import 'providers/fuel_provider.dart';
 import 'providers/solo_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/recording_provider.dart';
+import 'providers/rides_provider.dart';
+import 'services/ride_database.dart';
+import 'services/ride_repository.dart';
+import 'services/ride_recording_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,29 +49,45 @@ void main() async {
     ),
   );
 
-  // Maintenir l'écran allumé par défaut (navigation active)
-  WakelockPlus.enable();
+  // Base locale des sorties
+  final rideRepository = RideRepository(await RideDatabase.open());
 
-  runApp(const MotoOffroadApp());
+  runApp(MotoOffroadApp(rideRepository: rideRepository));
 }
 
 class MotoOffroadApp extends StatelessWidget {
-  const MotoOffroadApp({super.key});
+  const MotoOffroadApp({super.key, required this.rideRepository});
+
+  final RideRepository rideRepository;
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
+        Provider<RideRepository>.value(value: rideRepository),
         ChangeNotifierProvider(create: (_) => MapProvider()),
         ChangeNotifierProvider(create: (_) => TraceProvider()),
         ChangeNotifierProvider(create: (_) => GroupProvider()),
         ChangeNotifierProvider(create: (_) => FuelProvider()),
-        ChangeNotifierProvider(create: (_) => SoloProvider()),
+        ChangeNotifierProvider(create: (_) {
+          final s = SoloProvider();
+          s.loadContacts();
+          return s;
+        }),
         ChangeNotifierProvider(create: (_) {
           final s = SettingsProvider();
           s.load(); // chargement async des préférences persistées
           return s;
         }),
+        ChangeNotifierProvider(
+          create: (_) => RecordingProvider(
+            repository: rideRepository,
+            service:    RideRecordingService(),
+          ),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => RidesProvider(repository: rideRepository),
+        ),
       ],
       child: MaterialApp.router(
         title: 'Moto Offroad 4x4',

@@ -1,7 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:uuid/uuid.dart';
+import '../models/ride.dart';
 import '../models/trace.dart';
 import '../services/gpx_service.dart';
+import '../services/ride_repository.dart';
 
 // ── Provider — Gestion de la trace active ────────────────────
 class TraceProvider extends ChangeNotifier {
@@ -19,7 +22,7 @@ class TraceProvider extends ChangeNotifier {
   bool        get hasTrace        => _activeTrace != null;
 
   // ── Import depuis un fichier GPX ─────────────────────────
-  Future<bool> importFromFile(String filePath) async {
+  Future<bool> importFromFile(String filePath, {RideRepository? repository}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -33,13 +36,14 @@ class TraceProvider extends ChangeNotifier {
     }
     _activeTrace = trace;
     _currentPointIndex = 0;
+    if (repository != null) await _persist(trace, repository);
     _isLoading = false;
     notifyListeners();
     return true;
   }
 
   // ── Import depuis une URL ────────────────────────────────
-  Future<bool> importFromUrl(String url) async {
+  Future<bool> importFromUrl(String url, {RideRepository? repository}) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -53,6 +57,7 @@ class TraceProvider extends ChangeNotifier {
     }
     _activeTrace = trace;
     _currentPointIndex = 0;
+    if (repository != null) await _persist(trace, repository);
     _isLoading = false;
     notifyListeners();
     return true;
@@ -81,6 +86,38 @@ class TraceProvider extends ChangeNotifier {
     _currentPointIndex = 0;
     _error = null;
     notifyListeners();
+  }
+
+  // ── Sauvegarde d'une trace importée ──────────────────────
+  // Une trace importée devient une sortie d'origine "imported" : elle
+  // survit à la fermeture de l'app et devient éditable au lot 2.
+  Future<void> _persist(TraceModel trace, RideRepository repo) async {
+    final rideId = const Uuid().v4();
+    final started = trace.date ?? DateTime.now();
+    final points = <RidePoint>[];
+    for (int i = 0; i < trace.points.length; i++) {
+      final p = trace.points[i];
+      points.add(RidePoint(
+        rideId:    rideId,
+        seq:       i,
+        segment:   0,
+        lat:       p.position.latitude,
+        lng:       p.position.longitude,
+        altitude:  p.elevation,
+        speedKmh:  p.speed ?? 0,
+        timestamp: p.time ?? started,
+      ));
+    }
+    await repo.insertRide(Ride(
+      id:        rideId,
+      name:      trace.name,
+      startedAt: started,
+      endedAt:   started,
+      source:    RideSource.imported,
+      status:    RideStatus.finished,
+      stats:     RideStats.fromPoints(points),
+    ));
+    await repo.appendPoints(points);
   }
 }
 

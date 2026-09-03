@@ -197,7 +197,7 @@ class _SoloScreenState extends State<SoloScreen> {
             if (!solo.soloActive)
               IconButton(
                 icon: const Icon(Icons.delete_outline, color: AppColors.textMuted, size: 20),
-                onPressed: () => solo.removeContact(contact.id),
+                onPressed: () async => await solo.removeContact(contact.id),
               ),
           ],
         ),
@@ -351,9 +351,9 @@ class _SoloScreenState extends State<SoloScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (_nameCtrl.text.isNotEmpty && _phoneCtrl.text.isNotEmpty) {
-                solo.addContact(
+                await solo.addContact(
                   name:     _nameCtrl.text,
                   phone:    _phoneCtrl.text,
                   relation: _relationCtrl.text.isNotEmpty ? _relationCtrl.text : 'Contact',

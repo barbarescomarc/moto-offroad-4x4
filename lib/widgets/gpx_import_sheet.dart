@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import '../app/theme.dart';
 import '../providers/trace_provider.dart';
+import '../services/ride_repository.dart';
 
 /// Bottom sheet — Import d'un fichier GPX
 class GpxImportSheet extends StatefulWidget {
@@ -32,7 +33,8 @@ class _GpxImportSheetState extends State<GpxImportSheet> {
         return;
       }
       final trace = context.read<TraceProvider>();
-      final ok = await trace.importFromFile(result.files.single.path!);
+      final repo = context.read<RideRepository>();
+      final ok = await trace.importFromFile(result.files.single.path!, repository: repo);
       if (mounted) {
         if (ok) Navigator.pop(context);
         else setState(() { _loading = false; _error = trace.error; });
@@ -48,7 +50,8 @@ class _GpxImportSheetState extends State<GpxImportSheet> {
     setState(() { _loading = true; _error = null; });
 
     final trace = context.read<TraceProvider>();
-    final ok = await trace.importFromUrl(url);
+    final repo = context.read<RideRepository>();
+    final ok = await trace.importFromUrl(url, repository: repo);
     if (mounted) {
       if (ok) Navigator.pop(context);
       else setState(() { _loading = false; _error = trace.error; });
