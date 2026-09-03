@@ -19,6 +19,10 @@ class SettingsProvider extends ChangeNotifier {
   static const _kAutoReplyPos  = 'call_auto_reply_position';
   static const _kAutoReplyAll  = 'call_auto_reply_all';
   static const _kAutoReplyText = 'call_auto_reply_text';
+  static const _kGuidanceAvoidHighways = 'guidance_avoid_highways';
+  static const _kGuidanceAvoidTolls    = 'guidance_avoid_tolls';
+  static const _kGuidanceAvoidFerries  = 'guidance_avoid_ferries';
+  static const _kGuidanceVoiceMuted    = 'guidance_voice_muted';
 
   // Message envoyé seul, sans que le pilote ait à toucher l'écran.
   static const String defaultAutoReplyMessage = 'Je roule, je ne peux pas répondre';
@@ -45,6 +49,10 @@ class SettingsProvider extends ChangeNotifier {
   bool _autoReplyAttachPosition = true;
   bool _autoReplyAllCallers     = false;
   String _autoReplyMessage      = defaultAutoReplyMessage;
+  bool _guidanceAvoidHighways = false;
+  bool _guidanceAvoidTolls    = false;
+  bool _guidanceAvoidFerries  = false;
+  bool _guidanceVoiceMuted    = false;
 
   SkillLevel  get skillLevel => _skillLevel;
   MotoPreset? get moto       => _moto;
@@ -61,6 +69,10 @@ class SettingsProvider extends ChangeNotifier {
   bool   get autoReplyAttachPosition => _autoReplyAttachPosition;
   bool   get autoReplyAllCallers     => _autoReplyAllCallers;
   String get autoReplyMessage        => _autoReplyMessage;
+  bool get guidanceAvoidHighways => _guidanceAvoidHighways;
+  bool get guidanceAvoidTolls    => _guidanceAvoidTolls;
+  bool get guidanceAvoidFerries  => _guidanceAvoidFerries;
+  bool get guidanceVoiceMuted    => _guidanceVoiceMuted;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -84,6 +96,10 @@ class SettingsProvider extends ChangeNotifier {
     _autoReplyAttachPosition = prefs.getBool(_kAutoReplyPos) ?? true;
     _autoReplyAllCallers     = prefs.getBool(_kAutoReplyAll) ?? false;
     _autoReplyMessage        = prefs.getString(_kAutoReplyText) ?? defaultAutoReplyMessage;
+    _guidanceAvoidHighways = prefs.getBool(_kGuidanceAvoidHighways) ?? false;
+    _guidanceAvoidTolls    = prefs.getBool(_kGuidanceAvoidTolls)    ?? false;
+    _guidanceAvoidFerries  = prefs.getBool(_kGuidanceAvoidFerries)  ?? false;
+    _guidanceVoiceMuted    = prefs.getBool(_kGuidanceVoiceMuted)    ?? false;
     notifyListeners();
   }
 
@@ -177,6 +193,31 @@ class SettingsProvider extends ChangeNotifier {
     final cleaned = v.trim();
     _autoReplyMessage = cleaned.isEmpty ? defaultAutoReplyMessage : cleaned;
     (await SharedPreferences.getInstance()).setString(_kAutoReplyText, _autoReplyMessage);
+    notifyListeners();
+  }
+
+  // ── Réglages de guidage ──────────────────────────────────
+  Future<void> setGuidanceAvoidHighways(bool v) async {
+    _guidanceAvoidHighways = v;
+    (await SharedPreferences.getInstance()).setBool(_kGuidanceAvoidHighways, v);
+    notifyListeners();
+  }
+
+  Future<void> setGuidanceAvoidTolls(bool v) async {
+    _guidanceAvoidTolls = v;
+    (await SharedPreferences.getInstance()).setBool(_kGuidanceAvoidTolls, v);
+    notifyListeners();
+  }
+
+  Future<void> setGuidanceAvoidFerries(bool v) async {
+    _guidanceAvoidFerries = v;
+    (await SharedPreferences.getInstance()).setBool(_kGuidanceAvoidFerries, v);
+    notifyListeners();
+  }
+
+  Future<void> setGuidanceVoiceMuted(bool v) async {
+    _guidanceVoiceMuted = v;
+    (await SharedPreferences.getInstance()).setBool(_kGuidanceVoiceMuted, v);
     notifyListeners();
   }
 }
