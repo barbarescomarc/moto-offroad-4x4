@@ -158,4 +158,36 @@ void main() {
     expect(p.hasUnsavedPoints, isFalse);
     expect((await repoKo.pointsOf(p.currentRide!.id)).length, 12);
   });
+
+  // Les statistiques du bandeau sont accumulées point par point pour éviter un
+  // recalcul complet à chaque rafraîchissement. Ce test les tient alignées sur
+  // RideStats.fromPoints, qui reste la référence : deux implémentations de la
+  // même règle divergent tôt ou tard si rien ne les compare.
+  test('les statistiques en direct égalent le calcul de référence, pauses comprises',
+      () async {
+    await provider.startRide(name: 'S', config: const RecorderConfig());
+
+    // Roulage, pause manuelle (nouveau segment à la reprise), puis roulage.
+    for (int s = 0; s < 15; s++) {
+      provider.onGpsSample(_gps(40, s));
+    }
+    await provider.togglePause();
+    await provider.togglePause();
+    for (int s = 20; s < 40; s++) {
+      provider.onGpsSample(_gps(55, s));
+    }
+    await provider.flush();
+
+    final points = await repo.pointsOf(provider.currentRide!.id);
+    final reference = RideStats.fromPoints(points);
+    final live = provider.liveStats;
+
+    expect(points.map((p) => p.segment).toSet().length, greaterThan(1),
+        reason: 'le scénario doit couvrir plusieurs segments');
+    expect(live.distanceMeters, closeTo(reference.distanceMeters, 0.001));
+    expect(live.movingTime, reference.movingTime);
+    expect(live.totalTime, reference.totalTime);
+    expect(live.maxSpeedKmh, reference.maxSpeedKmh);
+    expect(live.avgSpeedKmh, closeTo(reference.avgSpeedKmh, 0.001));
+  });
 }

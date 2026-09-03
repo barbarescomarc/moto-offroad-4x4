@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:uuid/uuid.dart';
 import '../models/ride.dart';
 import '../services/location_service.dart';
@@ -52,7 +53,59 @@ class RecordingProvider extends ChangeNotifier {
   // Statistiques recalculées sur les points déjà écrits : la liste d'une
   // sortie de 4 h reste en mémoire, mais le calcul est linéaire et n'a lieu
   // qu'à l'affichage.
-  RideStats get liveStats => RideStats.fromPoints(_written);
+  // Statistiques tenues à jour point par point. Les recalculer sur toute la
+  // liste à chaque rafraîchissement coûtait ~15 ms pour 60 000 points sur un
+  // ordinateur de bureau — bien plus sur un téléphone posé au soleil sur un
+  // guidon, et à chaque point GPS. On accumule donc au fil de l'eau.
+  RidePoint? _lastPoint;
+  double _distanceMeters = 0;
+  int _movingSeconds = 0;
+  double _maxSpeedKmh = 0;
+  DateTime? _firstTs;
+  DateTime? _lastTs;
+  int _statsPointCount = 0;
+
+  static const _calc = Distance();
+
+  // Mêmes règles que RideStats.fromPoints : distance et temps de roulage ne
+  // s'accumulent qu'à l'intérieur d'un segment, la vitesse maximale sur tous
+  // les points. Deux segments ne sont jamais reliés.
+  void _accumulate(RidePoint p) {
+    _statsPointCount++;
+    _firstTs ??= p.timestamp;
+    _lastTs = p.timestamp;
+    if (p.speedKmh > _maxSpeedKmh) _maxSpeedKmh = p.speedKmh;
+
+    final prev = _lastPoint;
+    if (prev != null && prev.segment == p.segment) {
+      _distanceMeters += _calc(prev.position, p.position);
+      _movingSeconds += p.timestamp.difference(prev.timestamp).inSeconds;
+    }
+    _lastPoint = p;
+  }
+
+  void _resetStats() {
+    _lastPoint = null;
+    _distanceMeters = 0;
+    _movingSeconds = 0;
+    _maxSpeedKmh = 0;
+    _firstTs = null;
+    _lastTs = null;
+    _statsPointCount = 0;
+  }
+
+  RideStats get liveStats {
+    if (_statsPointCount < 2) return RideStats.empty;
+    return RideStats(
+      distanceMeters: _distanceMeters,
+      totalTime:      _lastTs!.difference(_firstTs!),
+      movingTime:     Duration(seconds: _movingSeconds),
+      maxSpeedKmh:    _maxSpeedKmh,
+      avgSpeedKmh:    _movingSeconds == 0
+          ? 0.0
+          : (_distanceMeters / _movingSeconds) * 3.6,
+    );
+  }
 
   // ── Démarrage ────────────────────────────────────────────
   Future<void> startRide({
@@ -72,6 +125,7 @@ class RecordingProvider extends ChangeNotifier {
     _currentRide = ride;
     _written.clear();
     _unsaved.clear();
+    _resetStats();
     _meter.reset();
     _slowSince = null;
     _reminderShown = false;
@@ -159,6 +213,9 @@ class RecordingProvider extends ChangeNotifier {
     if (fresh.isNotEmpty) {
       _written.addAll(fresh);
       _unsaved.addAll(fresh);
+      for (final p in fresh) {
+        _accumulate(p);
+      }
     }
     if (_unsaved.isEmpty) return Future.value();
 
@@ -196,7 +253,7 @@ class RecordingProvider extends ChangeNotifier {
     final finished = ride.copyWith(
       status:  RideStatus.finished,
       endedAt: DateTime.now(),
-      stats:   RideStats.fromPoints(_written),
+      stats:   liveStats,
     );
     await _repo.updateRide(finished);
     await _service?.stop();
