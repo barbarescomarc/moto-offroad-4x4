@@ -98,4 +98,52 @@ void main() {
     await s.setAutoReplyMessage('   ');
     expect(s.autoReplyMessage, 'Je roule, je ne peux pas répondre');
   });
+
+  test('pilot email and newsletter opt-in persist', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    expect(s.pilotEmail, '');
+    expect(s.pilotNewsletterOptIn, false);
+
+    await s.setPilotEmail('marc@example.test');
+    await s.setPilotNewsletterOptIn(true);
+
+    final reloaded = SettingsProvider();
+    await reloaded.load();
+    expect(reloaded.pilotEmail, 'marc@example.test');
+    expect(reloaded.pilotNewsletterOptIn, true);
+  });
+
+  test('fall detection settings default and persist', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    expect(s.fallDetectionEnabled, true);
+    expect(s.fallCountdownSeconds, 30);
+    expect(s.alertChannelPhone, true);
+    expect(s.alertChannelServer, true);
+
+    await s.setFallDetectionEnabled(false);
+    await s.setFallCountdownSeconds(60);
+    await s.setAlertChannelPhone(false);
+    await s.setAlertChannelServer(false);
+
+    final reloaded = SettingsProvider();
+    await reloaded.load();
+    expect(reloaded.fallDetectionEnabled, false);
+    expect(reloaded.fallCountdownSeconds, 60);
+    expect(reloaded.alertChannelPhone, false);
+    expect(reloaded.alertChannelServer, false);
+  });
+
+  test('fall countdown seconds is clamped to 15-120', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    await s.setFallCountdownSeconds(5);
+    expect(s.fallCountdownSeconds, 15);
+    await s.setFallCountdownSeconds(999);
+    expect(s.fallCountdownSeconds, 120);
+  });
 }

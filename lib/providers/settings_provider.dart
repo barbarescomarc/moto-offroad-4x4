@@ -19,6 +19,12 @@ class SettingsProvider extends ChangeNotifier {
   static const _kAutoReplyPos  = 'call_auto_reply_position';
   static const _kAutoReplyAll  = 'call_auto_reply_all';
   static const _kAutoReplyText = 'call_auto_reply_text';
+  static const _kPilotEmail          = 'pilot_email';
+  static const _kPilotNewsletter     = 'pilot_newsletter_opt_in';
+  static const _kFallEnabled         = 'fall_detection_enabled';
+  static const _kFallCountdown       = 'fall_countdown_seconds';
+  static const _kAlertChannelPhone   = 'alert_channel_phone';
+  static const _kAlertChannelServer  = 'alert_channel_server';
 
   // Message envoyé seul, sans que le pilote ait à toucher l'écran.
   static const String defaultAutoReplyMessage = 'Je roule, je ne peux pas répondre';
@@ -45,6 +51,12 @@ class SettingsProvider extends ChangeNotifier {
   bool _autoReplyAttachPosition = true;
   bool _autoReplyAllCallers     = false;
   String _autoReplyMessage      = defaultAutoReplyMessage;
+  String _pilotEmail          = '';
+  bool   _pilotNewsletterOptIn = false;
+  bool   _fallDetectionEnabled = true;
+  int    _fallCountdownSeconds = 30;
+  bool   _alertChannelPhone    = true;
+  bool   _alertChannelServer   = true;
 
   SkillLevel  get skillLevel => _skillLevel;
   MotoPreset? get moto       => _moto;
@@ -61,6 +73,12 @@ class SettingsProvider extends ChangeNotifier {
   bool   get autoReplyAttachPosition => _autoReplyAttachPosition;
   bool   get autoReplyAllCallers     => _autoReplyAllCallers;
   String get autoReplyMessage        => _autoReplyMessage;
+  String get pilotEmail           => _pilotEmail;
+  bool   get pilotNewsletterOptIn => _pilotNewsletterOptIn;
+  bool   get fallDetectionEnabled => _fallDetectionEnabled;
+  int    get fallCountdownSeconds => _fallCountdownSeconds;
+  bool   get alertChannelPhone    => _alertChannelPhone;
+  bool   get alertChannelServer   => _alertChannelServer;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -84,6 +102,12 @@ class SettingsProvider extends ChangeNotifier {
     _autoReplyAttachPosition = prefs.getBool(_kAutoReplyPos) ?? true;
     _autoReplyAllCallers     = prefs.getBool(_kAutoReplyAll) ?? false;
     _autoReplyMessage        = prefs.getString(_kAutoReplyText) ?? defaultAutoReplyMessage;
+    _pilotEmail           = prefs.getString(_kPilotEmail) ?? '';
+    _pilotNewsletterOptIn = prefs.getBool(_kPilotNewsletter) ?? false;
+    _fallDetectionEnabled = prefs.getBool(_kFallEnabled) ?? true;
+    _fallCountdownSeconds = (prefs.getInt(_kFallCountdown) ?? 30).clamp(15, 120);
+    _alertChannelPhone    = prefs.getBool(_kAlertChannelPhone) ?? true;
+    _alertChannelServer   = prefs.getBool(_kAlertChannelServer) ?? true;
     notifyListeners();
   }
 
@@ -177,6 +201,43 @@ class SettingsProvider extends ChangeNotifier {
     final cleaned = v.trim();
     _autoReplyMessage = cleaned.isEmpty ? defaultAutoReplyMessage : cleaned;
     (await SharedPreferences.getInstance()).setString(_kAutoReplyText, _autoReplyMessage);
+    notifyListeners();
+  }
+
+  // ── Réglages de pilotage d'alerte de chute ─────────────
+  Future<void> setPilotEmail(String v) async {
+    _pilotEmail = v.trim();
+    (await SharedPreferences.getInstance()).setString(_kPilotEmail, _pilotEmail);
+    notifyListeners();
+  }
+
+  Future<void> setPilotNewsletterOptIn(bool v) async {
+    _pilotNewsletterOptIn = v;
+    (await SharedPreferences.getInstance()).setBool(_kPilotNewsletter, v);
+    notifyListeners();
+  }
+
+  Future<void> setFallDetectionEnabled(bool v) async {
+    _fallDetectionEnabled = v;
+    (await SharedPreferences.getInstance()).setBool(_kFallEnabled, v);
+    notifyListeners();
+  }
+
+  Future<void> setFallCountdownSeconds(int v) async {
+    _fallCountdownSeconds = v.clamp(15, 120);
+    (await SharedPreferences.getInstance()).setInt(_kFallCountdown, _fallCountdownSeconds);
+    notifyListeners();
+  }
+
+  Future<void> setAlertChannelPhone(bool v) async {
+    _alertChannelPhone = v;
+    (await SharedPreferences.getInstance()).setBool(_kAlertChannelPhone, v);
+    notifyListeners();
+  }
+
+  Future<void> setAlertChannelServer(bool v) async {
+    _alertChannelServer = v;
+    (await SharedPreferences.getInstance()).setBool(_kAlertChannelServer, v);
     notifyListeners();
   }
 }
