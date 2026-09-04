@@ -2319,6 +2319,7 @@ class FallDetector {
   StreamSubscription<GpsSnapshot>? _positionSub;
   Timer? _windowTimer;
   List<double>? _originVector;
+  List<double>? _lastSample;
   void Function()? _onFallDetected;
 
   void start({required void Function() onFallDetected}) {
@@ -2327,11 +2328,17 @@ class FallDetector {
 
     _accelSub = _accelerometer.listen((sample) {
       final magnitude = _magnitude(sample);
+      final previousSample = _lastSample;
+      _lastSample = sample;
 
       if (_originVector == null) {
-        // Pas en observation : un choc démarre la fenêtre.
+        // Pas en observation : un choc démarre la fenêtre. L'orientation de
+        // référence est celle d'AVANT le choc (le dernier échantillon connu),
+        // pas le choc lui-même — le choc est justement le moment où
+        // l'orientation change brutalement, donc s'en servir comme référence
+        // ferait toujours passer l'instant suivant pour une inclinaison.
         if (magnitude >= shockThreshold()) {
-          _originVector = sample;
+          _originVector = previousSample ?? sample;
           _windowTimer?.cancel();
           _windowTimer = Timer(stopWindow, () {
             _onFallDetected?.call();
