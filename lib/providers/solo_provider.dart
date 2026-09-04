@@ -127,14 +127,19 @@ class SoloProvider extends ChangeNotifier {
   }
 
   // ── Activer le mode Solo ──────────────────────────────────
-  Future<bool> activate(List<String> contactIds) async {
+  Future<bool> activate(List<String> contactIds, {required String pilotEmail}) async {
     if (_contacts.isEmpty) return false;
+    if (pilotEmail.isEmpty) return false;
+
+    final selected = _contacts.where((c) => contactIds.contains(c.id)).toList();
+    if (selected.isEmpty || selected.any((c) => c.email.isEmpty)) return false;
 
     final created = await _tracker.createSoloSession(
       name: 'Pilote',
       immobileAfterSec: _immobilityThresholdMin * 60,
-      pilotEmail: '', // STOPGAP: Task 13 to wire real values from SettingsProvider
-      contactEmails: const [], // STOPGAP: Task 13 to wire real values from _contacts
+      deadmanAfterSec: _deadmanThresholdMin * 60,
+      pilotEmail: pilotEmail,
+      contactEmails: selected.map((c) => c.email).toList(),
     );
     if (created == null || created.watchToken == null) return false;
 

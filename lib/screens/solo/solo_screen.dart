@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app/router.dart';
 import '../../app/theme.dart';
 import '../../providers/solo_provider.dart';
+import '../../providers/settings_provider.dart';
 
 class SoloScreen extends StatefulWidget {
   const SoloScreen({super.key});
@@ -355,7 +356,10 @@ class _SoloScreenState extends State<SoloScreen> {
           child: ElevatedButton.icon(
             onPressed: canActivate
                 ? () async {
-                    final ok = await solo.activate(_selectedContactIds.toList());
+                    final ok = await solo.activate(
+                      _selectedContactIds.toList(),
+                      pilotEmail: context.read<SettingsProvider>().pilotEmail,
+                    );
                     if (!ok && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text(
