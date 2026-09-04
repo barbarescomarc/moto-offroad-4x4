@@ -158,11 +158,15 @@ class _FallCountdownScreenState extends State<FallCountdownScreen> {
 
   // ── Confirmation ─────────────────────────────────────────────
   //
-  // Dernière chose vue avant que les secours n'arrivent : elle doit rassurer,
-  // pas juste accuser réception. On dit précisément qui a été prévenu, et on
-  // laisse la personne fermer l'écran à son rythme (l'auto-fermeture à 5s
-  // n'est qu'un filet de sécurité si elle ne peut pas interagir).
+  // Dernière chose vue avant que de l'aide n'arrive : elle doit dire
+  // précisément ce qui s'est réellement passé (SMS aux contacts, e-mail via
+  // le serveur de suivi — jamais "les secours", qu'aucune intégration de
+  // cette appli ne contacte), et laisser la personne fermer l'écran à son
+  // rythme (l'auto-fermeture à 5s n'est qu'un filet de sécurité si elle ne
+  // peut pas interagir). Le seul cas où rien n'est parti doit se lire comme
+  // un échec, pas comme une réussite calme.
   Widget _confirmation() {
+    final allFailed = _contactsNotified == 0 && !_serverNotified;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: _dismissConfirmation,
@@ -172,15 +176,17 @@ class _FallCountdownScreenState extends State<FallCountdownScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.check_circle, color: AppColors.statusGreen, size: 80),
+              Icon(allFailed ? Icons.error_outline : Icons.check_circle,
+                color: allFailed ? AppColors.red : AppColors.statusGreen, size: 80),
               const SizedBox(height: 24),
-              const Text('Alerte envoyée', style: TextStyle(
+              Text(allFailed ? 'Alerte non envoyée' : 'Alerte envoyée', style: const TextStyle(
                 fontFamily: 'Rajdhani', fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white)),
               const SizedBox(height: 12),
               Text(_confirmationDetail(), textAlign: TextAlign.center, style: const TextStyle(
                 color: AppColors.textSecondary, fontSize: 14, height: 1.4)),
               const SizedBox(height: 8),
-              const Text("Restez calme, de l'aide arrive.", textAlign: TextAlign.center, style: TextStyle(
+              Text(allFailed ? 'Appelez les secours si vous le pouvez.' : "Restez calme, de l'aide arrive.",
+                textAlign: TextAlign.center, style: const TextStyle(
                 color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
             ],
           ),
@@ -195,14 +201,14 @@ class _FallCountdownScreenState extends State<FallCountdownScreen> {
         ? 'Votre contact de confiance a été prévenu'
         : 'Vos $_contactsNotified contacts de confiance ont été prévenus';
     if (contactsNotified && _serverNotified) {
-      return '$contactsLabel et les secours ont été prévenus de votre position.';
+      return '$contactsLabel par SMS, et un e-mail avec votre position est parti à vos contacts de confiance.';
     }
     if (contactsNotified) {
-      return '$contactsLabel de votre position.';
+      return '$contactsLabel par SMS, avec votre position.';
     }
     if (_serverNotified) {
-      return 'Les secours ont été prévenus de votre position.';
+      return 'Un e-mail avec votre position a été envoyé à vos contacts de confiance.';
     }
-    return 'Votre position a été enregistrée.';
+    return "Aucun contact n'a pu être prévenu — vérifiez votre réseau et appelez quelqu'un si vous le pouvez.";
   }
 }

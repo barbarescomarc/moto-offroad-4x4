@@ -37,6 +37,14 @@ import 'services/vibration_calibration.dart';
 SettingsProvider? _fallSettingsRef;
 SoloProvider? _fallSoloRef;
 
+// Garde de ré-entrance : un second choc qualifiant pendant qu'un écran
+// d'alerte est déjà affiché (ou en cours d'ouverture) ne doit pas empiler un
+// second FallCountdownScreen ni redéclencher un SMS aux contacts de
+// confiance. Simple drapeau top-level (pas un Provider) : posé juste avant
+// le push, relâché par `.whenComplete()` quand la route est dépilée, que le
+// compte à rebours ait été annulé ou soit allé à son terme.
+bool _fallAlertInFlight = false;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -283,8 +291,13 @@ class _FallDetectionHostState extends State<_FallDetectionHost> {
       );
       VibrationCalibration.load().then((cal) => _lastCalibration = cal);
       _detector!.start(onFallDetected: () {
+        if (_fallAlertInFlight) return;
         final ctx = rootNavigatorKey.currentContext;
-        if (ctx != null) GoRouter.of(ctx).push(AppRoutes.fallCountdown);
+        if (ctx == null) return;
+        _fallAlertInFlight = true;
+        GoRouter.of(ctx).push(AppRoutes.fallCountdown).whenComplete(() {
+          _fallAlertInFlight = false;
+        });
       });
     } else if (!shouldRun && _running) {
       _running = false;

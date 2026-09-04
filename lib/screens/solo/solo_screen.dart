@@ -342,6 +342,14 @@ class _SoloScreenState extends State<SoloScreen> {
     final hasSelected = _selectedContactIds.isNotEmpty;
     final canActivate = hasContacts && hasSelected;
 
+    final pilotEmail = context.watch<SettingsProvider>().pilotEmail;
+    final pilotEmailMissing = pilotEmail.trim().isEmpty;
+    final selectedContactMissingEmail = solo.contacts
+        .where((c) => _selectedContactIds.contains(c.id))
+        .any((c) => c.email.trim().isEmpty);
+
+    final blocked = !canActivate || pilotEmailMissing || selectedContactMissingEmail;
+
     return Column(
       children: [
         if (!canActivate && hasContacts)
@@ -350,15 +358,29 @@ class _SoloScreenState extends State<SoloScreen> {
             child: Text('Sélectionnez au moins un contact à notifier',
               style: TextStyle(color: AppColors.textMuted, fontSize: 12), textAlign: TextAlign.center),
           ),
+        if (canActivate && pilotEmailMissing)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text('Renseignez votre e-mail dans Réglages pour activer le mode Solo.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12), textAlign: TextAlign.center),
+          ),
+        if (canActivate && !pilotEmailMissing && selectedContactMissingEmail)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              "Un contact sélectionné n'a pas d'e-mail — retirez-le puis rajoutez-le avec une adresse e-mail.",
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12), textAlign: TextAlign.center),
+          ),
         SizedBox(
           width: double.infinity,
           height: 56,
           child: ElevatedButton.icon(
-            onPressed: canActivate
-                ? () async {
+            onPressed: blocked
+                ? null
+                : () async {
                     final ok = await solo.activate(
                       _selectedContactIds.toList(),
-                      pilotEmail: context.read<SettingsProvider>().pilotEmail,
+                      pilotEmail: pilotEmail,
                     );
                     if (!ok && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -366,8 +388,7 @@ class _SoloScreenState extends State<SoloScreen> {
                           'Impossible de joindre le serveur de suivi — réessayez.')),
                       );
                     }
-                  }
-                : null,
+                  },
             icon: const Icon(Icons.shield, size: 22),
             label: const Text('PARTIR EN MODE SOLO SÉCURISÉ',
               style: TextStyle(fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700)),
