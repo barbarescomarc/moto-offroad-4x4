@@ -16,6 +16,7 @@ class SoloScreen extends StatefulWidget {
 class _SoloScreenState extends State<SoloScreen> {
   final _nameCtrl     = TextEditingController();
   final _phoneCtrl    = TextEditingController();
+  final _emailCtrl    = TextEditingController();
   final _relationCtrl = TextEditingController();
   Set<String> _selectedContactIds = {};
 
@@ -23,6 +24,7 @@ class _SoloScreenState extends State<SoloScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
+    _emailCtrl.dispose();
     _relationCtrl.dispose();
     super.dispose();
   }
@@ -381,6 +383,13 @@ class _SoloScreenState extends State<SoloScreen> {
             ),
             const SizedBox(height: 8),
             TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'E-mail'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            TextField(
               controller: _relationCtrl,
               decoration: const InputDecoration(labelText: 'Relation (ex: Conjointe)'),
               style: const TextStyle(color: Colors.white),
@@ -395,10 +404,12 @@ class _SoloScreenState extends State<SoloScreen> {
                 await solo.addContact(
                   name:     _nameCtrl.text,
                   phone:    _phoneCtrl.text,
+                  email:    _emailCtrl.text.isNotEmpty ? _emailCtrl.text : '',
                   relation: _relationCtrl.text.isNotEmpty ? _relationCtrl.text : 'Contact',
                 );
                 _nameCtrl.clear();
                 _phoneCtrl.clear();
+                _emailCtrl.clear();
                 _relationCtrl.clear();
                 Navigator.pop(ctx);
               }

@@ -9,6 +9,7 @@ class TrustedContact {
   final String id;
   final String name;
   final String phone;
+  final String email;
   final String relation;
   bool isNotified;
 
@@ -16,23 +17,27 @@ class TrustedContact {
     required this.id,
     required this.name,
     required this.phone,
+    required this.email,
     required this.relation,
     this.isNotified = false,
   });
 
-  // Conversion vers JSON pour la persistance
   Map<String, dynamic> toJson() => {
     'id': id,
     'name': name,
     'phone': phone,
+    'email': email,
     'relation': relation,
   };
 
-  // Construction depuis JSON
+  // Les contacts enregistrés avant ce lot n'ont pas d'e-mail en stockage —
+  // '' plutôt qu'un champ nullable, pour que le reste du code n'ait qu'un
+  // seul cas à traiter (« vide » = à compléter), pas deux (null vs vide).
   factory TrustedContact.fromJson(Map<String, dynamic> j) => TrustedContact(
     id:       j['id'] as String,
     name:     j['name'] as String,
     phone:    j['phone'] as String,
+    email:    j['email'] as String? ?? '',
     relation: j['relation'] as String,
   );
 }
@@ -68,6 +73,9 @@ class SoloProvider extends ChangeNotifier {
   int _immobilityThresholdMin = 30;   // alerte si immobile > N min
   int get immobilityThresholdMin => _immobilityThresholdMin;
 
+  int _deadmanThresholdMin = 15;   // alerte si silence total > N min
+  int get deadmanThresholdMin => _deadmanThresholdMin;
+
   DateTime? _sessionStart;
   DateTime? get sessionStart => _sessionStart;
 
@@ -97,6 +105,7 @@ class SoloProvider extends ChangeNotifier {
   Future<void> addContact({
     required String name,
     required String phone,
+    required String email,
     required String relation,
   }) async {
     if (_contacts.length >= 3) return; // max 3 contacts
@@ -104,6 +113,7 @@ class SoloProvider extends ChangeNotifier {
       id:       _uuid.v4(),
       name:     name,
       phone:    phone,
+      email:    email,
       relation: relation,
     ));
     await _saveContacts();
@@ -165,6 +175,11 @@ class SoloProvider extends ChangeNotifier {
 
   void setImmobilityThreshold(int minutes) {
     _immobilityThresholdMin = minutes;
+    notifyListeners();
+  }
+
+  void setDeadmanThreshold(int minutes) {
+    _deadmanThresholdMin = minutes;
     notifyListeners();
   }
 }
