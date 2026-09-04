@@ -103,4 +103,67 @@ void main() {
     expect(capturedText, isNotNull);
     expect(capturedText, isNot(contains('maps.google.com')));
   });
+
+  test('a failed SMS send is not counted as a notified contact', () async {
+    final service = FallAlertService(
+      sendSms: (phone, text) async => phone == '0600000000' ? false : true,
+      sendServerAlert: ({required kind}) async => true,
+      phoneChannelEnabled: () => true,
+      serverChannelEnabled: () => false,
+      trustedContacts: () => [
+        TrustedContact(id: '1', name: 'Claire', phone: '0600000000', email: 'c@x.test', relation: 'Sœur'),
+        TrustedContact(id: '2', name: 'Jean', phone: '0600000001', email: 'j@x.test', relation: 'Ami'),
+      ],
+      positionProvider: () async => _snap(),
+    );
+
+    final result = await service.sendFallAlert(kind: 'fall');
+
+    expect(result.contactsNotified, 1);
+  });
+
+  test('phone channel enabled but no trusted contacts notifies zero contacts', () async {
+    final service = FallAlertService(
+      sendSms: (_, __) async => true,
+      sendServerAlert: ({required kind}) async => true,
+      phoneChannelEnabled: () => true,
+      serverChannelEnabled: () => false,
+      trustedContacts: () => [],
+      positionProvider: () async => _snap(),
+    );
+
+    final result = await service.sendFallAlert(kind: 'fall');
+
+    expect(result.contactsNotified, 0);
+  });
+
+  test('server channel enabled but the send fails reports serverNotified false', () async {
+    final service = FallAlertService(
+      sendSms: (_, __) async => true,
+      sendServerAlert: ({required kind}) async => false,
+      phoneChannelEnabled: () => false,
+      serverChannelEnabled: () => true,
+      trustedContacts: () => [],
+      positionProvider: () async => _snap(),
+    );
+
+    final result = await service.sendFallAlert(kind: 'fall');
+
+    expect(result.serverNotified, isFalse);
+  });
+
+  test('server channel disabled means the server alert is never attempted', () async {
+    final service = FallAlertService(
+      sendSms: (_, __) async => true,
+      sendServerAlert: ({required kind}) async => true,
+      phoneChannelEnabled: () => false,
+      serverChannelEnabled: () => false,
+      trustedContacts: () => [],
+      positionProvider: () async => _snap(),
+    );
+
+    final result = await service.sendFallAlert(kind: 'fall');
+
+    expect(result.serverNotified, isFalse);
+  });
 }

@@ -19,8 +19,8 @@ class _FallCountdownScreenState extends State<FallCountdownScreen> {
   Timer? _autoClose;
   late int _remaining;
   bool _sent = false;
-  bool _phoneChannelUsed = false;
-  bool _serverChannelUsed = false;
+  int _contactsNotified = 0;
+  bool _serverNotified = false;
 
   @override
   void initState() {
@@ -49,11 +49,10 @@ class _FallCountdownScreenState extends State<FallCountdownScreen> {
 
   Future<void> _trigger() async {
     _alarm?.cancel();
-    final settings = context.read<SettingsProvider>();
     final service = context.read<FallAlertService>();
-    _phoneChannelUsed = settings.alertChannelPhone;
-    _serverChannelUsed = settings.alertChannelServer;
-    await service.sendFallAlert(kind: 'fall');
+    final result = await service.sendFallAlert(kind: 'fall');
+    _contactsNotified = result.contactsNotified;
+    _serverNotified = result.serverNotified;
     if (!mounted) return;
     setState(() => _sent = true);
     // Filet de sécurité, pas la sortie normale : une personne sonnée ne doit
@@ -191,13 +190,17 @@ class _FallCountdownScreenState extends State<FallCountdownScreen> {
   }
 
   String _confirmationDetail() {
-    if (_phoneChannelUsed && _serverChannelUsed) {
-      return 'Vos contacts de confiance et les secours ont été prévenus de votre position.';
+    final contactsNotified = _contactsNotified > 0;
+    final contactsLabel = _contactsNotified == 1
+        ? 'Votre contact de confiance a été prévenu'
+        : 'Vos $_contactsNotified contacts de confiance ont été prévenus';
+    if (contactsNotified && _serverNotified) {
+      return '$contactsLabel et les secours ont été prévenus de votre position.';
     }
-    if (_phoneChannelUsed) {
-      return 'Vos contacts de confiance ont été prévenus de votre position.';
+    if (contactsNotified) {
+      return '$contactsLabel de votre position.';
     }
-    if (_serverChannelUsed) {
+    if (_serverNotified) {
       return 'Les secours ont été prévenus de votre position.';
     }
     return 'Votre position a été enregistrée.';
