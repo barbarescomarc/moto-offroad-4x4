@@ -2301,7 +2301,7 @@ class FallDetector {
   FallDetector({
     required Stream<List<double>> accelerometer,
     required Stream<GpsSnapshot> positions,
-    required double Function() shockThreshold,
+    required this.shockThreshold,
     this.stopWindow = const Duration(seconds: 20),
     this.stopSpeedKmh = 3.0,
     this.tiltMaxDeg = 5.0,
