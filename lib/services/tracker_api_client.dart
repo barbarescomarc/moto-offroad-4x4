@@ -77,7 +77,17 @@ class TrackerApiClient {
   Future<SessionCreated?> createSoloSession({
     required String name,
     required int immobileAfterSec,
-  }) => _createSession({'kind': 'solo', 'name': name, 'immobileAfterSec': immobileAfterSec});
+    required String pilotEmail,
+    required List<String> contactEmails,
+    int? deadmanAfterSec,
+  }) {
+    final body = <String, dynamic>{
+      'kind': 'solo', 'name': name, 'immobileAfterSec': immobileAfterSec,
+      'pilotEmail': pilotEmail, 'contactEmails': contactEmails,
+    };
+    if (deadmanAfterSec != null) body['deadmanAfterSec'] = deadmanAfterSec;
+    return _createSession(body);
+  }
 
   Future<SessionCreated?> createGroupSession({required String name}) =>
       _createSession({'kind': 'group', 'name': name});
@@ -241,6 +251,24 @@ class TrackerApiClient {
         _uri('/api/sessions/$sessionId/end'),
         headers: {'content-type': 'application/json'},
         body: jsonEncode({'ownerKey': ownerKey}),
+      );
+      return res.statusCode ~/ 100 == 2;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> sendAlert({
+    required String sessionId,
+    required String deviceKey,
+    required String memberId,
+    required String kind,
+  }) async {
+    try {
+      final res = await _client.post(
+        _uri('/api/sessions/$sessionId/alert'),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({'deviceKey': deviceKey, 'memberId': memberId, 'kind': kind}),
       );
       return res.statusCode ~/ 100 == 2;
     } catch (_) {

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -16,7 +17,10 @@ void main() {
         );
       });
       final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
-      final result = await api.createSoloSession(name: 'Marc', immobileAfterSec: 1800);
+      final result = await api.createSoloSession(
+        name: 'Marc', immobileAfterSec: 1800,
+        pilotEmail: 'marc@example.test', contactEmails: ['claire@example.test'],
+      );
       expect(result, isNotNull);
       expect(result!.watchToken, 'tok');
       expect(result.sessionId, 's1');
@@ -25,15 +29,40 @@ void main() {
     test('returns null on network failure', () async {
       final client = MockClient((_) async => throw Exception('offline'));
       final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
-      final result = await api.createSoloSession(name: 'Marc', immobileAfterSec: 1800);
+      final result = await api.createSoloSession(
+        name: 'Marc', immobileAfterSec: 1800,
+        pilotEmail: 'marc@example.test', contactEmails: ['claire@example.test'],
+      );
       expect(result, isNull);
     });
 
     test('returns null on a non-2xx response', () async {
       final client = MockClient((_) async => http.Response('{}', 400));
       final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
-      final result = await api.createSoloSession(name: 'Marc', immobileAfterSec: 1800);
+      final result = await api.createSoloSession(
+        name: 'Marc', immobileAfterSec: 1800,
+        pilotEmail: 'marc@example.test', contactEmails: ['claire@example.test'],
+      );
       expect(result, isNull);
+    });
+
+    test('createSoloSession sends pilotEmail, contactEmails, and deadmanAfterSec', () async {
+      Map<String, dynamic>? capturedBody;
+      final client = MockClient((req) async {
+        capturedBody = jsonDecode(req.body) as Map<String, dynamic>;
+        return http.Response(
+          '{"sessionId":"s1","ownerKey":"ok","deviceKey":"dk","memberId":"m1","watchToken":"tok"}',
+          201,
+        );
+      });
+      final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
+      await api.createSoloSession(
+        name: 'Marc', immobileAfterSec: 1800, deadmanAfterSec: 600,
+        pilotEmail: 'marc@example.test', contactEmails: ['claire@example.test', 'jean@example.test'],
+      );
+      expect(capturedBody!['pilotEmail'], 'marc@example.test');
+      expect(capturedBody!['contactEmails'], ['claire@example.test', 'jean@example.test']);
+      expect(capturedBody!['deadmanAfterSec'], 600);
     });
   });
 
@@ -97,6 +126,27 @@ void main() {
       expect(result.peers, isEmpty);
       expect(result.rally, isNull);
       expect(result.ok, isFalse);
+    });
+  });
+
+  group('sendAlert', () {
+    test('returns true on success', () async {
+      final client = MockClient((req) async {
+        expect(req.url.path, '/api/sessions/s1/alert');
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        expect(body['kind'], 'fall');
+        return http.Response('{}', 200);
+      });
+      final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
+      final ok = await api.sendAlert(sessionId: 's1', deviceKey: 'dk', memberId: 'm1', kind: 'fall');
+      expect(ok, isTrue);
+    });
+
+    test('returns false on network failure without throwing', () async {
+      final client = MockClient((_) async => throw Exception('offline'));
+      final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
+      final ok = await api.sendAlert(sessionId: 's1', deviceKey: 'dk', memberId: 'm1', kind: 'sos');
+      expect(ok, isFalse);
     });
   });
 }

@@ -133,6 +133,8 @@ class SoloProvider extends ChangeNotifier {
     final created = await _tracker.createSoloSession(
       name: 'Pilote',
       immobileAfterSec: _immobilityThresholdMin * 60,
+      pilotEmail: '', // STOPGAP: Task 13 to wire real values from SettingsProvider
+      contactEmails: const [], // STOPGAP: Task 13 to wire real values from _contacts
     );
     if (created == null || created.watchToken == null) return false;
 
