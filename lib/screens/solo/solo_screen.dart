@@ -73,6 +73,12 @@ class _SoloScreenState extends State<SoloScreen> {
               _immobilitySlider(solo),
               const SizedBox(height: 24),
 
+              // ── Seuil homme-mort ─────────────────────────
+              _sectionTitle('ALERTE SILENCE TOTAL'),
+              const SizedBox(height: 8),
+              _deadmanSlider(solo),
+              const SizedBox(height: 24),
+
               // ── Bouton activer / désactiver ─────────────
               solo.soloActive
                   ? _deactivateBtn(solo)
@@ -297,6 +303,39 @@ class _SoloScreenState extends State<SoloScreen> {
     );
   }
 
+  Widget _deadmanSlider(SoloProvider solo) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF2A2A3E)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Alerte si aucune position reçue depuis', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              Text('${solo.deadmanThresholdMin} min',
+                style: const TextStyle(color: AppColors.orange, fontWeight: FontWeight.w700,
+                  fontFamily: 'Rajdhani', fontSize: 18)),
+            ],
+          ),
+          Slider(
+            value: solo.deadmanThresholdMin.toDouble(),
+            min: 10, max: 30, divisions: 4,
+            activeColor: AppColors.orange,
+            onChanged: (v) => solo.setDeadmanThreshold(v.round()),
+          ),
+          const Text('Couvre le téléphone détruit, déchargé ou hors réseau — le serveur alerte même si l\'application ne répond plus.',
+            style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+        ],
+      ),
+    );
+  }
+
   Widget _activateBtn(SoloProvider solo) {
     final hasContacts = solo.contacts.isNotEmpty;
     final hasSelected = _selectedContactIds.isNotEmpty;
@@ -400,11 +439,11 @@ class _SoloScreenState extends State<SoloScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () async {
-              if (_nameCtrl.text.isNotEmpty && _phoneCtrl.text.isNotEmpty) {
+              if (_nameCtrl.text.isNotEmpty && _phoneCtrl.text.isNotEmpty && _emailCtrl.text.contains('@')) {
                 await solo.addContact(
                   name:     _nameCtrl.text,
                   phone:    _phoneCtrl.text,
-                  email:    _emailCtrl.text.isNotEmpty ? _emailCtrl.text : '',
+                  email:    _emailCtrl.text.trim(),
                   relation: _relationCtrl.text.isNotEmpty ? _relationCtrl.text : 'Contact',
                 );
                 _nameCtrl.clear();
