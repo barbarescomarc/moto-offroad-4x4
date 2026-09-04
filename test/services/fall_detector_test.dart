@@ -10,26 +10,31 @@ GpsSnapshot _snap(double speedKmh) => GpsSnapshot(
 );
 
 void main() {
-  test('a shock followed by full stillness and no tilt for the whole window fires the callback', () async {
+  test('a shock followed by settling into a new orientation that holds fires the callback', () async {
     final accel = StreamController<List<double>>();
     final positions = StreamController<GpsSnapshot>();
     var fired = false;
     final detector = FallDetector(
       accelerometer: accel.stream, positions: positions.stream,
       shockThreshold: () => 10.0,
-      stopWindow: const Duration(milliseconds: 60),
+      stopWindow: const Duration(milliseconds: 80),
+      settleDelay: const Duration(milliseconds: 20),
       stopSpeedKmh: 3.0, tiltMaxDeg: 5.0,
     );
     detector.start(onFallDetected: () => fired = true);
 
-    accel.add([0, 0, 9.8]);       // repos, sous le seuil
+    accel.add([0, 0, 9.8]);        // repos avant le choc, orientation verticale
     await Future.delayed(const Duration(milliseconds: 5));
-    accel.add([15, 0, 0]);        // choc : magnitude 15 > seuil 10
+    accel.add([15, 0, 0]);         // choc : fenêtre de 80ms et délai de stabilisation de 20ms démarrent
     await Future.delayed(const Duration(milliseconds: 5));
-    positions.add(_snap(1.0));    // arrêt : sous 3 km/h
-    accel.add([0, 0, 9.8]);       // même orientation que l'origine du choc
+    accel.add([9.8, 4, 2]);        // encore en mouvement juste après l'impact
+    await Future.delayed(const Duration(milliseconds: 5));
+    accel.add([0, 9.8, 0]);        // position d'arrivée atteinte, marge confortable avant la fin du délai de stabilisation
+    await Future.delayed(const Duration(milliseconds: 15)); // le délai de stabilisation (nominal t=25) expire ici : origine = [0, 9.8, 0]
+    positions.add(_snap(1.0));     // arrêt : sous 3 km/h
+    accel.add([0, 9.8, 0]);        // même orientation que la position d'arrivée, marge apres l'expiration : ça tient
 
-    await Future.delayed(const Duration(milliseconds: 80)); // laisse la fenêtre de 60ms s'écouler
+    await Future.delayed(const Duration(milliseconds: 60)); // laisse le reste de la fenêtre s'écouler
 
     expect(fired, isTrue);
     detector.stop();
@@ -59,25 +64,29 @@ void main() {
     await positions.close();
   });
 
-  test('a tilt change during the window cancels the detection', () async {
+  test('continued movement after settling cancels the detection', () async {
     final accel = StreamController<List<double>>();
     final positions = StreamController<GpsSnapshot>();
     var fired = false;
     final detector = FallDetector(
       accelerometer: accel.stream, positions: positions.stream,
       shockThreshold: () => 10.0,
-      stopWindow: const Duration(milliseconds: 60),
-      tiltMaxDeg: 5.0,
+      stopWindow: const Duration(milliseconds: 80),
+      settleDelay: const Duration(milliseconds: 20),
+      stopSpeedKmh: 3.0, tiltMaxDeg: 5.0,
     );
     detector.start(onFallDetected: () => fired = true);
 
-    accel.add([0, 0, 9.8]);   // origine du choc : vertical
+    accel.add([0, 0, 9.8]);        // repos avant le choc
     await Future.delayed(const Duration(milliseconds: 5));
-    accel.add([15, 0, 0]);    // choc (magnitude 15, la direction sert d'origine de tilt)
+    accel.add([15, 0, 0]);         // choc
     await Future.delayed(const Duration(milliseconds: 10));
-    positions.add(_snap(1.0)); // immobile
-    accel.add([0, 15, 0]);     // orientation totalement différente : > 5° de l'origine
-    await Future.delayed(const Duration(milliseconds: 80));
+    accel.add([0, 9.8, 0]);        // position d'arrivée, avant la fin du délai de stabilisation
+    await Future.delayed(const Duration(milliseconds: 15)); // le délai de stabilisation expire ici : origine = [0, 9.8, 0]
+    positions.add(_snap(1.0));     // arrêt : sous 3 km/h, ne doit pas annuler
+    accel.add([9.8, 0, 0]);        // mouvement après stabilisation : orientation différente de l'origine (~90°)
+
+    await Future.delayed(const Duration(milliseconds: 60));
 
     expect(fired, isFalse);
     detector.stop();
