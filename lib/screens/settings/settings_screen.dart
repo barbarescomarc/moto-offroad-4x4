@@ -7,6 +7,7 @@ import '../../models/moto_preset.dart';
 import '../../models/rider_profile.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/fuel_provider.dart';
+import '../../services/alert_channel_unlock.dart';
 import '../../widgets/glass_control.dart';
 import '../../widgets/update_tile.dart';
 import '../info/info_screen.dart';
@@ -22,6 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs;
   late final TextEditingController _nameCtrl;
+  late final TextEditingController _pilotEmailCtrl;
 
   @override
   void initState() {
@@ -30,12 +32,16 @@ class _SettingsScreenState extends State<SettingsScreen>
     _nameCtrl = TextEditingController(
       text: context.read<SettingsProvider>().riderName,
     );
+    _pilotEmailCtrl = TextEditingController(
+      text: context.read<SettingsProvider>().pilotEmail,
+    );
   }
 
   @override
   void dispose() {
     _tabs.dispose();
     _nameCtrl.dispose();
+    _pilotEmailCtrl.dispose();
     super.dispose();
   }
 
@@ -56,6 +62,8 @@ class _SettingsScreenState extends State<SettingsScreen>
             GlassPanel(child: _motoSection()),
             const SizedBox(height: 16),
             GlassPanel(child: _recordingSection(context)),
+            const SizedBox(height: 16),
+            GlassPanel(child: _fallDetectionSection(context)),
             const SizedBox(height: 16),
             GlassPanel(child: _appSection()),
             const SizedBox(height: 16),
@@ -82,6 +90,27 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
           onSubmitted:      (v) => _saveName(v),
           onEditingComplete: ()  => _saveName(_nameCtrl.text),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _pilotEmailCtrl,
+          keyboardType: TextInputType.emailAddress,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            labelText: 'E-mail (obligatoire pour le mode Solo)',
+            prefixIcon: Icon(Icons.email_outlined, color: AppColors.textMuted),
+          ),
+          onChanged: (v) => context.read<SettingsProvider>().setPilotEmail(v),
+        ),
+        const SizedBox(height: 8),
+        CheckboxListTile(
+          value: context.watch<SettingsProvider>().pilotNewsletterOptIn,
+          onChanged: (v) => context.read<SettingsProvider>().setPilotNewsletterOptIn(v ?? false),
+          title: const Text('Recevoir les nouvelles de MOTO OFFROAD 4X4',
+            style: TextStyle(color: Colors.white, fontSize: 13)),
+          controlAffinity: ListTileControlAffinity.leading,
+          activeColor: AppColors.orange,
+          contentPadding: EdgeInsets.zero,
         ),
       ],
     );
@@ -376,6 +405,81 @@ class _SettingsScreenState extends State<SettingsScreen>
           trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
           onTap: () => context.push(AppRoutes.solo),
         ),
+      ],
+    );
+  }
+
+  // ── Section Détection de chute ───────────────────────────────
+  Widget _fallDetectionSection(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final unlock = context.read<AlertChannelUnlock>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('DÉTECTION DE CHUTE'),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          value: settings.fallDetectionEnabled,
+          onChanged: (v) => settings.setFallDetectionEnabled(v),
+          title: const Text('Activer la détection de chute', style: TextStyle(color: Colors.white, fontSize: 14)),
+          activeColor: AppColors.orange,
+          contentPadding: EdgeInsets.zero,
+        ),
+        if (settings.fallDetectionEnabled) ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Compte à rebours avant alerte', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              Text('${settings.fallCountdownSeconds} s', style: const TextStyle(
+                color: AppColors.orange, fontWeight: FontWeight.w700, fontFamily: 'Rajdhani', fontSize: 16)),
+            ],
+          ),
+          Slider(
+            value: settings.fallCountdownSeconds.toDouble(),
+            min: 15, max: 120, divisions: 21,
+            activeColor: AppColors.orange,
+            onChanged: (v) => settings.setFallCountdownSeconds(v.round()),
+          ),
+          const SizedBox(height: 8),
+          const Text('CANAUX D\'ALERTE', style: TextStyle(
+            fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5)),
+          SwitchListTile(
+            value: settings.alertChannelPhone,
+            onChanged: (v) => settings.setAlertChannelPhone(v),
+            title: const Text('SMS depuis le téléphone', style: TextStyle(color: Colors.white, fontSize: 14)),
+            activeColor: AppColors.statusGreen,
+            contentPadding: EdgeInsets.zero,
+          ),
+          SwitchListTile(
+            value: settings.alertChannelServer,
+            onChanged: (v) => settings.setAlertChannelServer(v),
+            title: const Text('E-mail depuis le serveur', style: TextStyle(color: Colors.white, fontSize: 14)),
+            activeColor: AppColors.statusGreen,
+            contentPadding: EdgeInsets.zero,
+          ),
+          IgnorePointer(
+            child: SwitchListTile(
+              value: unlock.isUnlocked('sms_gateway'),
+              onChanged: null,
+              secondary: const Icon(Icons.lock_outline, color: AppColors.textMuted, size: 18),
+              title: const Text('SMS via passerelle', style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+              subtitle: const Text('Abonnement bientôt disponible',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+          IgnorePointer(
+            child: SwitchListTile(
+              value: unlock.isUnlocked('voice_call'),
+              onChanged: null,
+              secondary: const Icon(Icons.lock_outline, color: AppColors.textMuted, size: 18),
+              title: const Text('Appel vocal automatique', style: TextStyle(color: AppColors.textMuted, fontSize: 14)),
+              subtitle: const Text('Abonnement bientôt disponible',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
+              contentPadding: EdgeInsets.zero,
+            ),
+          ),
+        ],
       ],
     );
   }
