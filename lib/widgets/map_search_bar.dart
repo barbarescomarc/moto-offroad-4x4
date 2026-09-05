@@ -15,12 +15,16 @@ class MapSearchBar extends StatefulWidget {
   // Appelé après qu'un résultat a été choisi — permet à un appelant qui
   // affiche cette barre dans une feuille modale de la refermer lui-même.
   final VoidCallback? onResultSelected;
+  // Appelé quand l'utilisateur choisit de se faire guider vers un résultat,
+  // plutôt que de simplement centrer la carte dessus.
+  final ValueChanged<LatLng>? onGuide;
 
   const MapSearchBar({
     super.key,
     required this.mapController,
     this.startVisible = false,
     this.onResultSelected,
+    this.onGuide,
   });
 
   @override
@@ -197,6 +201,16 @@ class _MapSearchBarState extends State<MapSearchBar> {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(color: Colors.white, fontSize: 12),
             ),
+            trailing: widget.onGuide == null
+                ? null
+                : IconButton(
+                    icon: const Icon(Icons.directions, color: AppColors.orange, size: 18),
+                    onPressed: () {
+                      widget.onGuide!(r.position);
+                      _toggle();
+                      widget.onResultSelected?.call();
+                    },
+                  ),
             onTap: () => _goTo(r),
           );
         },

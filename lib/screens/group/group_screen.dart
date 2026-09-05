@@ -305,6 +305,15 @@ class GroupScreen extends StatelessWidget {
                   color: m.isSharing ? AppColors.statusGreen : AppColors.textMuted)),
             ],
           )),
+          // Désactivé tant que le hub de positions Hetzner (lot A/D de la
+          // spec suivi-sécurité) n'existe pas — la position d'un membre du
+          // groupe n'est pas encore une vraie destination guidable.
+          IconButton(
+            icon: const Icon(Icons.directions, color: Colors.white24, size: 20),
+            tooltip: 'Nécessite le hub de positions du groupe (à venir)',
+            onPressed: null,
+          ),
+          const SizedBox(width: 4),
           Container(
             width: 8, height: 8,
             decoration: BoxDecoration(

@@ -634,7 +634,7 @@ git commit -m "feat: derivation d'itineraire hors-ligne depuis une trace GPX"
 
 **Interfaces:**
 - Consumes: `RouteResult`/`RouteStep`/`ManeuverType` (Task 2), `ApiKeys.openRouteServiceApiKey` (Task 1).
-- Produces: `enum RoutingProfile { drivingCar, cyclingMountain }`, `enum AvoidFeature { highways, tollways, ferries }`, `class RoutingException`, `RoutingService.fetchRoute({origin, destination, profile, avoid}) → Future<RouteResult>` (lève `RoutingException` en cas d'échec) — consommés par les tâches 10, 15, 17.
+- Produces: `enum RoutingProfile { drivingCar, cyclingMountain }`, `enum AvoidFeature { highways, tollways, ferries }`, `class RoutingException`, `RoutingService.fetchRoute({origin, destination, profile, avoid}) → Future<RouteResult>` (lève `RoutingException` en cas d'échec) — consommés par les tâches 10 et 13.
 
 - [ ] **Step 1: Écrire les tests**
 
@@ -1547,7 +1547,7 @@ git commit -m "refactor: service d'arriere-plan partage entre enregistrement et 
 - Modify: `test/providers/settings_provider_test.dart`
 
 **Interfaces:**
-- Produces: `SettingsProvider.guidanceAvoidHighways/Tolls/Ferries` (`bool`), `.guidanceVoiceMuted` (`bool`), et les setters correspondants — consommés par les tâches 10, 16.
+- Produces: `SettingsProvider.guidanceAvoidHighways/Tolls/Ferries` (`bool`), `.guidanceVoiceMuted` (`bool`), et les setters correspondants — consommés par les tâches 13 et 16 (`GuidanceProvider` lui-même, Task 10, ne dépend pas de `SettingsProvider` : l'appelant lui passe déjà `avoid` résolu).
 
 - [ ] **Step 1: Ajouter les tests**
 
@@ -2837,7 +2837,24 @@ git commit -m "feat: bouton Guider sur les resultats de recherche"
 
 - [ ] **Step 1: Ajouter un bouton conditionnel et la feuille de choix**
 
-Dans le `Column` des contrôles flottants (à côté de `RadialActionMenu`, autour de la ligne 445), ajouter :
+`_buildMapControls()` (ligne 439) ne lit actuellement que `MapProvider` :
+
+```dart
+  Widget _buildMapControls() {
+    final mapProv = context.watch<MapProvider>();
+    return Column(
+```
+
+Elle n'a pas accès à `TraceProvider` — l'ajouter. Remplacer ces trois lignes par :
+
+```dart
+  Widget _buildMapControls() {
+    final mapProv = context.watch<MapProvider>();
+    final traceProv = context.watch<TraceProvider>();
+    return Column(
+```
+
+Puis, dans le même `Column`, juste après la fermeture du widget `RadialActionMenu(...)` et avant le `const SizedBox(height: 6), // Radar` qui suit (repérer la ligne `),` qui ferme `RadialActionMenu`, suivie de `const SizedBox(height: 6),` puis d'un commentaire `// Radar`), insérer :
 
 ```dart
         if (traceProv.hasTrace) ...[
@@ -2849,7 +2866,7 @@ Dans le `Column` des contrôles flottants (à côté de `RadialActionMenu`, auto
         ],
 ```
 
-(`traceProv` est déjà disponible dans `build()` via `context.watch<TraceProvider>()` — vérifier l'import existant.)
+`TraceProvider` est déjà importé en tête de fichier (`import '../../providers/trace_provider.dart';`), donc aucun nouvel import n'est nécessaire pour ce `context.watch`.
 
 Ajouter la méthode :
 
@@ -3013,15 +3030,36 @@ git commit -m "feat: reglages du guidage dans l'ecran Reglages"
 
 - [ ] **Step 1: Enregistrer les nouveaux providers dans `main.dart`**
 
-Dans le `MultiProvider` de `MotoOffroadApp.build()`, ajouter après le provider `QuickReplyProvider` :
+Dans le `MultiProvider` de `MotoOffroadApp.build()` (`lib/main.dart:94-101`), remplacer :
 
 ```dart
+          create: (_) => RidesProvider(repository: rideRepository),
+        ),
+        ChangeNotifierProvider(create: (_) {
+          final q = QuickReplyProvider();
+          q.load();
+          return q;
+        }),
+      ],
+```
+
+par :
+
+```dart
+          create: (_) => RidesProvider(repository: rideRepository),
+        ),
+        ChangeNotifierProvider(create: (_) {
+          final q = QuickReplyProvider();
+          q.load();
+          return q;
+        }),
         ChangeNotifierProvider(create: (_) {
           final f = FavoritesProvider();
           f.load();
           return f;
         }),
         ChangeNotifierProvider(create: (_) => GuidanceProvider()),
+      ],
 ```
 
 Ajouter les imports :

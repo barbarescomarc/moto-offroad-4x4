@@ -34,6 +34,15 @@
     <!-- Vibration SOS -->
     <uses-permission android:name="android.permission.VIBRATE"/>
 
+    <!-- Visibilité des paquets (Android 11+) : sans cette déclaration, le
+         moteur de synthèse vocale est invisible depuis l'application et
+         flutter_tts échoue silencieusement — le guidage vocal reste muet. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE"/>
+        </intent>
+    </queries>
+
     <application
         android:label="Moto Offroad"
         android:name="${applicationName}"

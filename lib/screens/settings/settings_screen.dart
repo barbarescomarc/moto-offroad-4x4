@@ -65,6 +65,8 @@ class _SettingsScreenState extends State<SettingsScreen>
             const SizedBox(height: 16),
             GlassPanel(child: _fallDetectionSection(context)),
             const SizedBox(height: 16),
+            GlassPanel(child: _guidanceSection(context)),
+            const SizedBox(height: 16),
             GlassPanel(child: _appSection()),
             const SizedBox(height: 16),
             GlassPanel(child: _infoSection()),
@@ -480,6 +482,40 @@ class _SettingsScreenState extends State<SettingsScreen>
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  // ── Section Guidage GPS ────────────────────────────────────
+  Widget _guidanceSection(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('GUIDAGE GPS'),
+        const SizedBox(height: 8),
+        SwitchListTile(
+          title: const Text('Éviter les autoroutes'),
+          subtitle: const Text('En mode Route.'),
+          value: settings.guidanceAvoidHighways,
+          onChanged: settings.setGuidanceAvoidHighways,
+        ),
+        SwitchListTile(
+          title: const Text('Éviter les péages'),
+          value: settings.guidanceAvoidTolls,
+          onChanged: settings.setGuidanceAvoidTolls,
+        ),
+        SwitchListTile(
+          title: const Text('Éviter les ferries'),
+          value: settings.guidanceAvoidFerries,
+          onChanged: settings.setGuidanceAvoidFerries,
+        ),
+        SwitchListTile(
+          title: const Text('Couper la voix du guidage'),
+          subtitle: const Text('Les instructions restent visibles à l\'écran.'),
+          value: settings.guidanceVoiceMuted,
+          onChanged: settings.setGuidanceVoiceMuted,
+        ),
       ],
     );
   }

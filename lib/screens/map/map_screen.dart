@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -12,7 +13,12 @@ import '../../providers/group_provider.dart';
 import '../../providers/fuel_provider.dart';
 import '../../providers/solo_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/favorites_provider.dart';
+import '../../providers/guidance_provider.dart';
+import '../../models/trace.dart';
+import '../../models/favorite_place.dart';
 import '../../services/location_service.dart';
+import '../../services/routing_service.dart';
 import '../../widgets/sos_button.dart';
 import '../../widgets/mode_switch.dart';
 import '../../widgets/stats_bar.dart';
@@ -22,6 +28,7 @@ import '../../widgets/glass_control.dart';
 import '../../widgets/map_search_bar.dart';
 import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
+import '../../widgets/guidance_banner.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -33,6 +40,13 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final _mapController = MapController();
   final _locationService = LocationService();
+
+  // Décalage gauche du bandeau de guidage quand il partage la pile avec la
+  // colonne SOS/enregistrement (paysage et plein écran) : celle-ci commence à
+  // 12 et mesure la largeur du halo du bouton SOS. Sans ce décalage elle
+  // recouvre l'icône de manœuvre et le début de l'instruction.
+  static const double _guidanceBannerLeft =
+      12 + AppSizes.sosButtonSize + 12 + 8;
 
   bool _mapReady = false;
 
@@ -133,6 +147,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (isFullscreen) ...[
             _buildFullscreenHud(),
             _buildSideControls(),
+            // Le plein écran est la position de conduite : sans le bandeau,
+            // le rider y perdait instruction, alerte de déviation et boutons
+            // couper le son / arrêter. Le HUD vitesse/cap et le bouton de
+            // sortie sont en bas, le haut est libre.
+            _buildGuidanceBanner(),
             _buildFullscreenExitBtn(),
           ] else ...[
             // ── Header ──────────────────────────────────────
@@ -193,6 +212,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             flex: 65,
             child: Stack(children: [
               Positioned.fill(child: _buildMap()),
+              _buildGuidanceBanner(),
               _buildSideControls(),
               _buildSoloBadge(),
               Positioned(
@@ -236,6 +256,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         onTap: (_, __) {
           if (mapProv.isFullscreen) mapProv.exitFullscreen();
         },
+        onLongPress: (_, point) => _showLongPressSheet(point),
         onMapEvent: (event) => _onMapEvent(event, mapProv, settings),
       ),
       children: [
@@ -364,6 +385,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // ── HEADER ────────────────────────────────────────────────
   Widget _buildHeader() {
     final traceProv = context.watch<TraceProvider>();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildHeaderBar(traceProv),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 8),
+          child: GuidanceBanner(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildHeaderBar(TraceProvider traceProv) {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 4,
@@ -442,6 +476,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // ces deux boutons ne servaient à rien.
   Widget _buildMapControls() {
     final mapProv = context.watch<MapProvider>();
+    final traceProv = context.watch<TraceProvider>();
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -473,8 +508,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               icon: Icons.shield, color: AppColors.green, angleDeg: 265,
               onSelect: () => context.push(AppRoutes.solo),
             ),
+            // Seule entrée vers la liste des favoris : sans elle, un point
+            // enregistré depuis l'appui long sur la carte n'était plus
+            // atteignable pour lancer un guidage dessus.
+            RadialMenuSegment(
+              icon: Icons.star, color: AppColors.orange, angleDeg: 302,
+              onSelect: _openFavorites,
+            ),
           ],
         ),
+        if (traceProv.hasTrace) ...[
+          const SizedBox(height: 6),
+          GestureDetector(
+            onTap: () => _showGpxGuidanceChooser(traceProv.activeTrace!),
+            child: const GlassPuck(icon: Icons.alt_route, color: AppColors.orange),
+          ),
+        ],
         const SizedBox(height: 6),
         // Radar
         _mapCtrlBtn(
@@ -705,6 +754,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
+  // ── BANDEAU DE GUIDAGE (paysage et plein écran) ───────────
+  //
+  // En portrait fenêtré le bandeau vit dans le header (voir _buildHeader) ;
+  // partout ailleurs il se pose en haut de la carte, à droite de la colonne
+  // SOS/enregistrement qui occupe le même bord.
+  Widget _buildGuidanceBanner() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 8,
+      left: _guidanceBannerLeft,
+      right: 8,
+      child: const GuidanceBanner(),
+    );
+  }
+
   // ── BADGE SOLO ────────────────────────────────────────────
   Widget _buildSoloBadge() {
     final soloActive = context.watch<SoloProvider>().soloActive;
@@ -856,6 +919,57 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
+  void _showGpxGuidanceChooser(TraceModel trace) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Text('Guidage sur la trace', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+            ),
+            ListTile(
+              leading: const Icon(Icons.notifications_active, color: AppColors.orange),
+              title: const Text('Alerte de déviation', style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Suis la trace, prévient si tu t\'en éloignes.',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _startGuidanceOnTrace(trace, GuidanceMode.gpxAlert);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.turn_right, color: AppColors.orange),
+              title: const Text('Guidage virage par virage', style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Instructions dérivées de la trace.',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _startGuidanceOnTrace(trace, GuidanceMode.gpxTurnByTurn);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _startGuidanceOnTrace(TraceModel trace, GuidanceMode mode) {
+    final guidance = context.read<GuidanceProvider>();
+    guidance.startOnTrace(trace, mode);
+    _applyVoiceMutePreference(guidance, context.read<SettingsProvider>());
+  }
+
   // Ouvre directement le champ de saisie, sans passer par l'icône repliée :
   // choisir ce segment du menu radial est déjà le geste d'ouverture.
   void _openSearchSheet() {
@@ -875,9 +989,113 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           mapController: _mapController,
           startVisible: true,
           onResultSelected: () => Navigator.of(context).pop(),
+          onGuide: _startGuidanceTo,
         ),
       ),
     );
+  }
+
+  void _showLongPressSheet(LatLng point) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.directions, color: AppColors.orange),
+              title: const Text('Guider ici', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _startGuidanceTo(point);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.star_border, color: AppColors.orange),
+              title: const Text('Ajouter aux favoris', style: TextStyle(color: Colors.white)),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _promptAddFavorite(point);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _startGuidanceTo(LatLng destination) async {
+    final origin = _locationService.lastSnapshot?.position;
+    if (origin == null) return;
+
+    final mapProv = context.read<MapProvider>();
+    final settings = context.read<SettingsProvider>();
+    final profile = mapProv.isOffroad ? RoutingProfile.cyclingMountain : RoutingProfile.drivingCar;
+    final avoid = <AvoidFeature>{
+      if (settings.guidanceAvoidHighways) AvoidFeature.highways,
+      if (settings.guidanceAvoidTolls) AvoidFeature.tollways,
+      if (settings.guidanceAvoidFerries) AvoidFeature.ferries,
+    };
+
+    final guidance = context.read<GuidanceProvider>();
+    final ok = await guidance.startToDestination(
+      origin: origin, destination: destination, profile: profile, avoid: avoid,
+    );
+
+    if (ok) {
+      _applyVoiceMutePreference(guidance, settings);
+    } else if (mounted) {
+      final error = guidance.error ?? "Impossible de calculer l'itinéraire";
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+    }
+  }
+
+  // Le guidage ne connaît pas les Réglages (frontière assumée) : c'est au
+  // démarrage, ici, qu'on lui transmet le choix persisté de couper la voix.
+  // Sans cela l'interrupteur des Réglages n'aurait aucun effet et un mute
+  // décidé en cours de route ne survivrait pas au redémarrage.
+  void _applyVoiceMutePreference(GuidanceProvider guidance, SettingsProvider settings) {
+    if (settings.guidanceVoiceMuted != guidance.isMuted) guidance.toggleMute();
+  }
+
+  Future<void> _openFavorites() async {
+    final place = await context.push<FavoritePlace>(AppRoutes.favorites);
+    if (place == null) return;
+    await _startGuidanceTo(place.position);
+  }
+
+  Future<void> _promptAddFavorite(LatLng point) async {
+    final nameCtrl = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        backgroundColor: AppColors.bgPanel,
+        title: const Text('Nom du favori', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: nameCtrl,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(hintText: 'Ex: Garage'),
+          autofocus: true,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(nameCtrl.text.trim()),
+            child: const Text('Ajouter'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.isEmpty) return;
+    if (!mounted) return;
+    await context.read<FavoritesProvider>().add(name, point);
   }
 
   void _showLayerSelector() {

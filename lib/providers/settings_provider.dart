@@ -25,6 +25,10 @@ class SettingsProvider extends ChangeNotifier {
   static const _kFallCountdown       = 'fall_countdown_seconds';
   static const _kAlertChannelPhone   = 'alert_channel_phone';
   static const _kAlertChannelServer  = 'alert_channel_server';
+  static const _kGuidanceAvoidHighways = 'guidance_avoid_highways';
+  static const _kGuidanceAvoidTolls    = 'guidance_avoid_tolls';
+  static const _kGuidanceAvoidFerries  = 'guidance_avoid_ferries';
+  static const _kGuidanceVoiceMuted    = 'guidance_voice_muted';
 
   // Message envoyé seul, sans que le pilote ait à toucher l'écran.
   static const String defaultAutoReplyMessage = 'Je roule, je ne peux pas répondre';
@@ -57,6 +61,10 @@ class SettingsProvider extends ChangeNotifier {
   int    _fallCountdownSeconds = 30;
   bool   _alertChannelPhone    = true;
   bool   _alertChannelServer   = true;
+  bool _guidanceAvoidHighways = false;
+  bool _guidanceAvoidTolls    = false;
+  bool _guidanceAvoidFerries  = false;
+  bool _guidanceVoiceMuted    = false;
 
   SkillLevel  get skillLevel => _skillLevel;
   MotoPreset? get moto       => _moto;
@@ -79,6 +87,10 @@ class SettingsProvider extends ChangeNotifier {
   int    get fallCountdownSeconds => _fallCountdownSeconds;
   bool   get alertChannelPhone    => _alertChannelPhone;
   bool   get alertChannelServer   => _alertChannelServer;
+  bool get guidanceAvoidHighways => _guidanceAvoidHighways;
+  bool get guidanceAvoidTolls    => _guidanceAvoidTolls;
+  bool get guidanceAvoidFerries  => _guidanceAvoidFerries;
+  bool get guidanceVoiceMuted    => _guidanceVoiceMuted;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -108,6 +120,10 @@ class SettingsProvider extends ChangeNotifier {
     _fallCountdownSeconds = (prefs.getInt(_kFallCountdown) ?? 30).clamp(15, 120);
     _alertChannelPhone    = prefs.getBool(_kAlertChannelPhone) ?? true;
     _alertChannelServer   = prefs.getBool(_kAlertChannelServer) ?? true;
+    _guidanceAvoidHighways = prefs.getBool(_kGuidanceAvoidHighways) ?? false;
+    _guidanceAvoidTolls    = prefs.getBool(_kGuidanceAvoidTolls)    ?? false;
+    _guidanceAvoidFerries  = prefs.getBool(_kGuidanceAvoidFerries)  ?? false;
+    _guidanceVoiceMuted    = prefs.getBool(_kGuidanceVoiceMuted)    ?? false;
     notifyListeners();
   }
 
@@ -238,6 +254,31 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setAlertChannelServer(bool v) async {
     _alertChannelServer = v;
     (await SharedPreferences.getInstance()).setBool(_kAlertChannelServer, v);
+    notifyListeners();
+  }
+
+  // ── Réglages de guidage ──────────────────────────────────
+  Future<void> setGuidanceAvoidHighways(bool v) async {
+    _guidanceAvoidHighways = v;
+    (await SharedPreferences.getInstance()).setBool(_kGuidanceAvoidHighways, v);
+    notifyListeners();
+  }
+
+  Future<void> setGuidanceAvoidTolls(bool v) async {
+    _guidanceAvoidTolls = v;
+    (await SharedPreferences.getInstance()).setBool(_kGuidanceAvoidTolls, v);
+    notifyListeners();
+  }
+
+  Future<void> setGuidanceAvoidFerries(bool v) async {
+    _guidanceAvoidFerries = v;
+    (await SharedPreferences.getInstance()).setBool(_kGuidanceAvoidFerries, v);
+    notifyListeners();
+  }
+
+  Future<void> setGuidanceVoiceMuted(bool v) async {
+    _guidanceVoiceMuted = v;
+    (await SharedPreferences.getInstance()).setBool(_kGuidanceVoiceMuted, v);
     notifyListeners();
   }
 }

@@ -146,4 +146,31 @@ void main() {
     await s.setFallCountdownSeconds(999);
     expect(s.fallCountdownSeconds, 120);
   });
+
+  test('les réglages de guidage par défaut sont désactivés', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    expect(s.guidanceAvoidHighways, isFalse);
+    expect(s.guidanceAvoidTolls, isFalse);
+    expect(s.guidanceAvoidFerries, isFalse);
+    expect(s.guidanceVoiceMuted, isFalse);
+  });
+
+  test('les réglages de guidage survivent à un rechargement', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    await s.setGuidanceAvoidHighways(true);
+    await s.setGuidanceAvoidTolls(true);
+    await s.setGuidanceAvoidFerries(true);
+    await s.setGuidanceVoiceMuted(true);
+
+    final reloaded = SettingsProvider();
+    await reloaded.load();
+    expect(reloaded.guidanceAvoidHighways, isTrue);
+    expect(reloaded.guidanceAvoidTolls, isTrue);
+    expect(reloaded.guidanceAvoidFerries, isTrue);
+    expect(reloaded.guidanceVoiceMuted, isTrue);
+  });
 }
