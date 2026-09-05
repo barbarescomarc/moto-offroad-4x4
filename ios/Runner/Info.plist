@@ -32,6 +32,10 @@
 	<string>La position en arrière-plan permet de continuer l'enregistrement de la trace et le suivi de sécurité écran éteint.</string>
 	<key>NSMotionUsageDescription</key>
 	<string>L'accéléromètre sert à la pause automatique et à la détection de chute.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Utilisée si vous choisissez de prendre une photo lors de l'import d'un fichier depuis l'appareil.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Utilisée pour importer un fichier GPX ou une image depuis votre photothèque, si vous choisissez cette option.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>location</string>
