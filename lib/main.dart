@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -124,7 +126,11 @@ class MotoOffroadApp extends StatelessWidget {
                 sessionId: solo.sessionId!, deviceKey: solo.deviceKey!, memberId: solo.memberId!, kind: kind,
               );
             },
-            phoneChannelEnabled: () => _fallSettingsRef?.alertChannelPhone ?? true,
+            // Le SMS depuis le téléphone n'existe que sur Android : sur iOS le
+            // canal reste fermé quel que soit le réglage persisté, l'alerte
+            // passe alors uniquement par le serveur.
+            phoneChannelEnabled: () =>
+                Platform.isAndroid && (_fallSettingsRef?.alertChannelPhone ?? true),
             serverChannelEnabled: () => _fallSettingsRef?.alertChannelServer ?? true,
             trustedContacts: () => _fallSoloRef?.contacts ?? [],
             positionProvider: () => LocationService().getCurrentPosition(),
@@ -175,11 +181,14 @@ class _AutoReplyHost extends StatefulWidget {
 }
 
 class _AutoReplyHostState extends State<_AutoReplyHost> {
-  late final AutoReplyService _service;
+  // L'auto-réponse repose sur la détection d'appel entrant et l'envoi de SMS :
+  // iOS n'accorde ni l'une ni l'autre, le service n'y est jamais démarré.
+  AutoReplyService? _service;
 
   @override
   void initState() {
     super.initState();
+    if (!Platform.isAndroid) return;
 
     final settings = context.read<SettingsProvider>();
     final recording = context.read<RecordingProvider>();
@@ -203,7 +212,7 @@ class _AutoReplyHostState extends State<_AutoReplyHost> {
 
   @override
   void dispose() {
-    _service.stop();
+    _service?.stop();
     super.dispose();
   }
 

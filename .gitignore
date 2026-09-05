@@ -6,6 +6,9 @@
 build/
 *.iml
 
+# IDE
+.idea/
+
 # Android sensible
 android/local.properties
 android/app/google-services.json

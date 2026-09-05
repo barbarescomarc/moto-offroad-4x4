@@ -15,6 +15,13 @@ class CallEvent {
 //
 // Trois capacités qu'Android seul fournit : détecter un appel entrant, envoyer
 // un SMS sans intervention de l'utilisateur, afficher un bandeau à boutons.
+//
+// Sur iOS aucun handler natif n'est enregistré (Apple interdit ces trois
+// capacités aux applications tierces) : chaque appel y lève une
+// MissingPluginException, qui n'est pas une PlatformException. Elle est
+// attrapée ici pour qu'un canal indisponible se comporte comme un canal en
+// échec — sans quoi une chute sur iOS interromprait la chaîne d'alerte avant
+// d'atteindre le canal serveur.
 class CallBridge {
   static const _methods = MethodChannel('app.motooffroad/call');
   static const _events = EventChannel('app.motooffroad/call_events');
@@ -49,6 +56,8 @@ class CallBridge {
           false;
     } on PlatformException {
       return false;
+    } on MissingPluginException {
+      return false;
     }
   }
 
@@ -61,6 +70,8 @@ class CallBridge {
     } on PlatformException {
       // Le bandeau est un confort : son échec ne doit pas empêcher
       // l'auto-réponse, qui est la fonction de sécurité.
+    } on MissingPluginException {
+      // Idem.
     }
   }
 
@@ -69,6 +80,8 @@ class CallBridge {
       await _methods.invokeMethod<void>('hideBanner');
     } on PlatformException {
       // Idem : sans conséquence sur la sécurité.
+    } on MissingPluginException {
+      // Idem.
     }
   }
 
@@ -77,6 +90,8 @@ class CallBridge {
       return await _methods.invokeMethod<bool>('hasPermissions') ?? false;
     } on PlatformException {
       return false;
+    } on MissingPluginException {
+      return false;
     }
   }
 
@@ -84,6 +99,8 @@ class CallBridge {
     try {
       return await _methods.invokeMethod<bool>('requestPermissions') ?? false;
     } on PlatformException {
+      return false;
+    } on MissingPluginException {
       return false;
     }
   }

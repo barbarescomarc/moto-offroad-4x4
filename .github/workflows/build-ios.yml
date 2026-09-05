@@ -1,0 +1,72 @@
+name: Build iOS (non signé)
+
+# Aucun Mac de développement n'est disponible pour ce projet : ce workflow est
+# le seul endroit où le code iOS est compilé. Il produit une app NON SIGNÉE,
+# donc non installable sur un iPhone — son rôle est de vérifier que le projet
+# iOS compile (pods, plugins, Info.plist). La distribution TestFlight demande
+# des secrets de signature Apple, ajoutés dans un second temps.
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          flutter-version: '3.44.3'
+          cache: true
+
+      # Même fichier gitignoré que le build Android — sans lui le code ne
+      # compile pas. Le guidage vers une destination reste inactif sans clé.
+      - name: Create api_keys.dart
+        env:
+          ORS_API_KEY: ${{ secrets.ORS_API_KEY }}
+        run: |
+          mkdir -p lib/config
+          cat > lib/config/api_keys.dart << 'EOF'
+          class ApiKeys {
+            ApiKeys._();
+            static const String ignApiKey = '';
+            static const String googlePlacesKey = '';
+            static const String tomTomKey = '';
+            static const String openRouteServiceApiKey = '__ORS_API_KEY__';
+            static const String openMeteoBaseUrl = 'https://api.open-meteo.com/v1';
+            static const String openMeteoArchiveUrl = 'https://archive-api.open-meteo.com/v1';
+            static const String rainViewerApiUrl = 'https://api.rainviewer.com/public/weather-maps.json';
+            static const String rainViewerTileUrl = 'https://tilecache.rainviewer.com';
+            static const String overpassUrl = 'https://overpass-api.de/api/interpreter';
+            static bool get isIgnConfigured => ignApiKey.isNotEmpty;
+            static bool get isGoogleConfigured => googlePlacesKey.isNotEmpty;
+            static bool get isTomTomConfigured => tomTomKey.isNotEmpty;
+            static bool get isOrsConfigured => openRouteServiceApiKey != 'VOTRE_CLE_ORS_ICI';
+            static bool get isWeatherReady => true;
+            static bool get isRadarReady => true;
+            static bool get isOsmReady => true;
+          }
+          EOF
+          sed -i '' "s|__ORS_API_KEY__|${ORS_API_KEY:-VOTRE_CLE_ORS_ICI}|" lib/config/api_keys.dart
+
+      - name: Create asset directories
+        run: |
+          mkdir -p assets/icons assets/maps
+          touch assets/icons/.keep assets/maps/.keep
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build iOS sans signature
+        run: flutter build ios --release --no-codesign
+
+      - name: Taille du bundle
+        run: du -sh build/ios/iphoneos/Runner.app

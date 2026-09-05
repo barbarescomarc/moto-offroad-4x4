@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
@@ -38,9 +40,11 @@ class _SettingsScreenState extends State<SettingsScreen>
     _pilotEmailCtrl = TextEditingController(
       text: context.read<SettingsProvider>().pilotEmail,
     );
-    CallBridge().hasPermissions().then((v) {
-      if (mounted) setState(() => _smsPermissionGranted = v);
-    });
+    if (Platform.isAndroid) {
+      CallBridge().hasPermissions().then((v) {
+        if (mounted) setState(() => _smsPermissionGranted = v);
+      });
+    }
   }
 
   Future<void> _requestSmsPermission() async {
@@ -408,15 +412,18 @@ class _SettingsScreenState extends State<SettingsScreen>
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push(AppRoutes.calibration),
         ),
-        ListTile(
-          leading: const Icon(Icons.phone_callback, color: AppColors.textMuted),
-          title: const Text('Appels et position',
-            style: TextStyle(color: Colors.white)),
-          subtitle: const Text('Auto-réponse SMS, réponses rapides',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
-          trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
-          onTap: () => context.push(AppRoutes.callSettings),
-        ),
+        // Auto-réponse et réponses rapides reposent sur des API réservées à
+        // Android : l'écran n'a rien à proposer ailleurs.
+        if (Platform.isAndroid)
+          ListTile(
+            leading: const Icon(Icons.phone_callback, color: AppColors.textMuted),
+            title: const Text('Appels et position',
+              style: TextStyle(color: Colors.white)),
+            subtitle: const Text('Auto-réponse SMS, réponses rapides',
+              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+            onTap: () => context.push(AppRoutes.callSettings),
+          ),
         // Seul chemin vers l'écran Mode Solo : le badge de la carte ne
         // s'affiche que si le mode est déjà actif, il ne peut donc pas
         // servir à l'activer la première fois.
@@ -467,14 +474,19 @@ class _SettingsScreenState extends State<SettingsScreen>
           const SizedBox(height: 8),
           const Text('CANAUX D\'ALERTE', style: TextStyle(
             fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5)),
-          SwitchListTile(
-            value: settings.alertChannelPhone,
-            onChanged: (v) => settings.setAlertChannelPhone(v),
-            title: const Text('SMS depuis le téléphone', style: TextStyle(color: Colors.white, fontSize: 14)),
-            activeColor: AppColors.statusGreen,
-            contentPadding: EdgeInsets.zero,
-          ),
-          if (settings.alertChannelPhone) _smsPermissionRow(),
+          // iOS n'autorise aucune application tierce à envoyer un SMS par
+          // programme : le canal y est fermé côté chaîne d'alerte, on ne
+          // propose pas un réglage sans effet.
+          if (Platform.isAndroid) ...[
+            SwitchListTile(
+              value: settings.alertChannelPhone,
+              onChanged: (v) => settings.setAlertChannelPhone(v),
+              title: const Text('SMS depuis le téléphone', style: TextStyle(color: Colors.white, fontSize: 14)),
+              activeColor: AppColors.statusGreen,
+              contentPadding: EdgeInsets.zero,
+            ),
+            if (settings.alertChannelPhone) _smsPermissionRow(),
+          ],
           SwitchListTile(
             value: settings.alertChannelServer,
             onChanged: (v) => settings.setAlertChannelServer(v),

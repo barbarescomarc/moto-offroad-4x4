@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -78,20 +80,25 @@ class _SendPositionScreenState extends State<SendPositionScreen> {
                 label: const Text('Partager autrement'),
               ),
               const SizedBox(height: 24),
-              const Text('ENVOYER PAR SMS',
-                style: TextStyle(color: AppColors.textMuted, fontSize: 12,
-                  fontWeight: FontWeight.w700, letterSpacing: 1)),
-              const SizedBox(height: 8),
-              if (solo.contacts.isEmpty) _noContacts()
-              else ...solo.contacts.map((c) => ListTile(
-                title: Text(c.name, style: const TextStyle(color: Colors.white)),
-                subtitle: Text(c.phone,
-                  style: const TextStyle(color: AppColors.textSecondary)),
-                trailing: ElevatedButton(
-                  onPressed: () => _sendTo(c),
-                  child: const Text('Envoyer'),
-                ),
-              )),
+              // L'envoi direct passe par SmsManager, réservé à Android :
+              // ailleurs, « Partager autrement » ouvre la feuille de partage
+              // système, d'où l'utilisateur envoie lui-même son SMS.
+              if (Platform.isAndroid) ...[
+                const Text('ENVOYER PAR SMS',
+                  style: TextStyle(color: AppColors.textMuted, fontSize: 12,
+                    fontWeight: FontWeight.w700, letterSpacing: 1)),
+                const SizedBox(height: 8),
+                if (solo.contacts.isEmpty) _noContacts()
+                else ...solo.contacts.map((c) => ListTile(
+                  title: Text(c.name, style: const TextStyle(color: Colors.white)),
+                  subtitle: Text(c.phone,
+                    style: const TextStyle(color: AppColors.textSecondary)),
+                  trailing: ElevatedButton(
+                    onPressed: () => _sendTo(c),
+                    child: const Text('Envoyer'),
+                  ),
+                )),
+              ],
             ],
           ],
         ),
