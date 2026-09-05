@@ -120,6 +120,28 @@ class SoloProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Modifier un contact existant ─────────────────────────
+  Future<void> updateContact({
+    required String id,
+    required String name,
+    required String phone,
+    required String email,
+    required String relation,
+  }) async {
+    final index = _contacts.indexWhere((c) => c.id == id);
+    if (index == -1) return;
+    _contacts[index] = TrustedContact(
+      id: id,
+      name: name,
+      phone: phone,
+      email: email,
+      relation: relation,
+      isNotified: _contacts[index].isNotified,
+    );
+    await _saveContacts();
+    notifyListeners();
+  }
+
   Future<void> removeContact(String id) async {
     _contacts.removeWhere((c) => c.id == id);
     await _saveContacts();

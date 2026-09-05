@@ -8,6 +8,8 @@ import '../../models/rider_profile.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/fuel_provider.dart';
 import '../../services/alert_channel_unlock.dart';
+import '../../services/call_bridge.dart';
+import '../../services/tracker_api_client.dart';
 import '../../widgets/glass_control.dart';
 import '../../widgets/update_tile.dart';
 import '../info/info_screen.dart';
@@ -24,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   late final TabController _tabs;
   late final TextEditingController _nameCtrl;
   late final TextEditingController _pilotEmailCtrl;
+  bool? _smsPermissionGranted;
 
   @override
   void initState() {
@@ -35,6 +38,15 @@ class _SettingsScreenState extends State<SettingsScreen>
     _pilotEmailCtrl = TextEditingController(
       text: context.read<SettingsProvider>().pilotEmail,
     );
+    CallBridge().hasPermissions().then((v) {
+      if (mounted) setState(() => _smsPermissionGranted = v);
+    });
+  }
+
+  Future<void> _requestSmsPermission() async {
+    await CallBridge().requestPermissions();
+    final granted = await CallBridge().hasPermissions();
+    if (mounted) setState(() => _smsPermissionGranted = granted);
   }
 
   @override
@@ -107,7 +119,17 @@ class _SettingsScreenState extends State<SettingsScreen>
         const SizedBox(height: 8),
         CheckboxListTile(
           value: context.watch<SettingsProvider>().pilotNewsletterOptIn,
-          onChanged: (v) => context.read<SettingsProvider>().setPilotNewsletterOptIn(v ?? false),
+          onChanged: (v) async {
+            final enabled = v ?? false;
+            await context.read<SettingsProvider>().setPilotNewsletterOptIn(enabled);
+            final email = context.read<SettingsProvider>().pilotEmail;
+            if (email.isEmpty) return; // rien à (dés)inscrire sans e-mail pilote
+            if (enabled) {
+              await TrackerApiClient().subscribeNewsletter(email: email, source: 'pilot');
+            } else {
+              await TrackerApiClient().unsubscribeNewsletter(email: email);
+            }
+          },
           title: const Text('Recevoir les nouvelles de MOTO OFFROAD 4X4',
             style: TextStyle(color: Colors.white, fontSize: 13)),
           controlAffinity: ListTileControlAffinity.leading,
@@ -452,6 +474,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             activeColor: AppColors.statusGreen,
             contentPadding: EdgeInsets.zero,
           ),
+          if (settings.alertChannelPhone) _smsPermissionRow(),
           SwitchListTile(
             value: settings.alertChannelServer,
             onChanged: (v) => settings.setAlertChannelServer(v),
@@ -483,6 +506,45 @@ class _SettingsScreenState extends State<SettingsScreen>
           ),
         ],
       ],
+    );
+  }
+
+  Widget _smsPermissionRow() {
+    if (_smsPermissionGranted == null) return const SizedBox.shrink();
+    if (_smsPermissionGranted == true) {
+      return const Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
+        child: Row(
+          children: [
+            Icon(Icons.check_circle_outline, color: AppColors.statusGreen, size: 14),
+            SizedBox(width: 6),
+            Text('SMS autorisé', style: TextStyle(color: AppColors.statusGreen, fontSize: 11)),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: AppColors.orange, size: 16),
+          const SizedBox(width: 6),
+          const Expanded(
+            child: Text(
+              'Permission SMS non accordée — les alertes par SMS ne partiront pas.',
+              style: TextStyle(color: AppColors.orange, fontSize: 11),
+            ),
+          ),
+          TextButton(
+            onPressed: _requestSmsPermission,
+            style: TextButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              foregroundColor: AppColors.orange,
+            ),
+            child: const Text('Autoriser', style: TextStyle(fontSize: 12)),
+          ),
+        ],
+      ),
     );
   }
 

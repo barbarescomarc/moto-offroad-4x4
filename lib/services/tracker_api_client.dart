@@ -258,6 +258,32 @@ class TrackerApiClient {
     }
   }
 
+  Future<bool> subscribeNewsletter({required String email, required String source}) async {
+    try {
+      final res = await _client.post(
+        _uri('/api/newsletter/subscribe'),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({'email': email, 'source': source}),
+      );
+      return res.statusCode ~/ 100 == 2;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> unsubscribeNewsletter({required String email}) async {
+    try {
+      final res = await _client.post(
+        _uri('/api/newsletter/unsubscribe'),
+        headers: {'content-type': 'application/json'},
+        body: jsonEncode({'email': email}),
+      );
+      return res.statusCode ~/ 100 == 2;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> sendAlert({
     required String sessionId,
     required String deviceKey,

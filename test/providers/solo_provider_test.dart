@@ -123,6 +123,63 @@ void main() {
     expect(reloaded.contacts.first.email, 'claire@example.test');
   });
 
+  test('updateContact persists edited fields and reloads correctly', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SoloProvider();
+    await s.loadContacts();
+    await s.addContact(name: 'Claire', phone: '+33600000000', relation: 'Sœur', email: '');
+    final id = s.contacts.first.id;
+
+    await s.updateContact(
+      id: id, name: 'Claire Martin', phone: '+33611111111',
+      email: 'claire.martin@example.test', relation: 'Conjointe',
+    );
+
+    final reloaded = SoloProvider();
+    await reloaded.loadContacts();
+    expect(reloaded.contacts.length, 1);
+    expect(reloaded.contacts.first.id, id);
+    expect(reloaded.contacts.first.name, 'Claire Martin');
+    expect(reloaded.contacts.first.phone, '+33611111111');
+    expect(reloaded.contacts.first.email, 'claire.martin@example.test');
+    expect(reloaded.contacts.first.relation, 'Conjointe');
+  });
+
+  test('updateContact with an unknown id is a no-op', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SoloProvider();
+    await s.loadContacts();
+    await s.addContact(name: 'Claire', phone: '+33600000000', relation: 'Sœur', email: 'claire@example.test');
+    final before = s.contacts.map((c) => c.toJson()).toList();
+
+    await s.updateContact(
+      id: 'not-a-real-id', name: 'Ghost', phone: '0000000000',
+      email: 'ghost@example.test', relation: 'Personne',
+    );
+
+    expect(s.contacts.map((c) => c.toJson()).toList(), before);
+  });
+
+  test('updateContact does not reorder the contact list', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SoloProvider();
+    await s.loadContacts();
+    await s.addContact(name: 'Claire', phone: '0600000000', relation: 'Sœur', email: 'claire@example.test');
+    await s.addContact(name: 'Jean', phone: '0600000001', relation: 'Ami', email: 'jean@example.test');
+    await s.addContact(name: 'Léa', phone: '0600000002', relation: 'Amie', email: 'lea@example.test');
+    final jeanId = s.contacts[1].id;
+
+    await s.updateContact(
+      id: jeanId, name: 'Jean Dupont', phone: '0600000099',
+      email: 'jean.dupont@example.test', relation: 'Frère',
+    );
+
+    expect(s.contacts[0].name, 'Claire');
+    expect(s.contacts[1].id, jeanId);
+    expect(s.contacts[1].name, 'Jean Dupont');
+    expect(s.contacts[2].name, 'Léa');
+  });
+
   test('deadmanThresholdMin defaults to 15 and can be changed', () {
     final s = SoloProvider();
     expect(s.deadmanThresholdMin, 15);

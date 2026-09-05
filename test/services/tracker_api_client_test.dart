@@ -149,4 +149,47 @@ void main() {
       expect(ok, isFalse);
     });
   });
+
+  group('subscribeNewsletter', () {
+    test('returns true on success', () async {
+      final client = MockClient((req) async {
+        expect(req.url.path, '/api/newsletter/subscribe');
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        expect(body['email'], 'marc@example.test');
+        expect(body['source'], 'pilot');
+        return http.Response('{}', 200);
+      });
+      final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
+      final ok = await api.subscribeNewsletter(email: 'marc@example.test', source: 'pilot');
+      expect(ok, isTrue);
+    });
+
+    test('returns false on network failure without throwing', () async {
+      final client = MockClient((_) async => throw Exception('offline'));
+      final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
+      final ok = await api.subscribeNewsletter(email: 'marc@example.test', source: 'pilot');
+      expect(ok, isFalse);
+    });
+  });
+
+  group('unsubscribeNewsletter', () {
+    test('returns true on success', () async {
+      final client = MockClient((req) async {
+        expect(req.url.path, '/api/newsletter/unsubscribe');
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        expect(body['email'], 'marc@example.test');
+        return http.Response('{}', 200);
+      });
+      final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
+      final ok = await api.unsubscribeNewsletter(email: 'marc@example.test');
+      expect(ok, isTrue);
+    });
+
+    test('returns false on network failure without throwing', () async {
+      final client = MockClient((_) async => throw Exception('offline'));
+      final api = TrackerApiClient(client: client, baseUrl: 'https://example.test');
+      final ok = await api.unsubscribeNewsletter(email: 'marc@example.test');
+      expect(ok, isFalse);
+    });
+  });
 }

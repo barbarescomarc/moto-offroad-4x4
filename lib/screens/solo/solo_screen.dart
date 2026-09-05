@@ -212,10 +212,29 @@ class _SoloScreenState extends State<SoloScreen> {
           child: Text(contact.name[0].toUpperCase(),
             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
         ),
-        title: Text(contact.name,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-        subtitle: Text('${contact.relation} · ${contact.phone}',
-          style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Flexible(
+              child: Text(contact.name,
+                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                overflow: TextOverflow.ellipsis),
+            ),
+            if (contact.email.isEmpty) ...[
+              const SizedBox(width: 6),
+              const Icon(Icons.warning_amber_rounded, color: AppColors.orange, size: 16),
+            ],
+          ],
+        ),
+        subtitle: Text(
+          contact.email.isEmpty
+              ? '${contact.relation} · ${contact.phone} · E-mail manquant — modifiez ce contact'
+              : '${contact.relation} · ${contact.phone}',
+          style: TextStyle(
+            color: contact.email.isEmpty ? AppColors.orange : AppColors.textSecondary,
+            fontSize: 12,
+          ),
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -235,6 +254,11 @@ class _SoloScreenState extends State<SoloScreen> {
                     else _selectedContactIds.add(contact.id);
                   });
                 },
+              ),
+            if (!solo.soloActive)
+              IconButton(
+                icon: const Icon(Icons.edit_outlined, color: AppColors.textMuted, size: 20),
+                onPressed: () => _showAddContactDialog(solo, existing: contact),
               ),
             if (!solo.soloActive)
               IconButton(
@@ -424,12 +448,17 @@ class _SoloScreenState extends State<SoloScreen> {
     );
   }
 
-  void _showAddContactDialog(SoloProvider solo) {
+  void _showAddContactDialog(SoloProvider solo, {TrustedContact? existing}) {
+    _nameCtrl.text     = existing?.name ?? '';
+    _phoneCtrl.text    = existing?.phone ?? '';
+    _emailCtrl.text    = existing?.email ?? '';
+    _relationCtrl.text = existing?.relation ?? '';
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AppColors.bgPanel,
-        title: const Text('Ajouter un contact', style: TextStyle(color: Colors.white, fontFamily: 'Rajdhani')),
+        title: Text(existing == null ? 'Ajouter un contact' : 'Modifier le contact',
+          style: const TextStyle(color: Colors.white, fontFamily: 'Rajdhani')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -465,12 +494,22 @@ class _SoloScreenState extends State<SoloScreen> {
           ElevatedButton(
             onPressed: () async {
               if (_nameCtrl.text.isNotEmpty && _phoneCtrl.text.isNotEmpty && _emailCtrl.text.contains('@')) {
-                await solo.addContact(
-                  name:     _nameCtrl.text,
-                  phone:    _phoneCtrl.text,
-                  email:    _emailCtrl.text.trim(),
-                  relation: _relationCtrl.text.isNotEmpty ? _relationCtrl.text : 'Contact',
-                );
+                if (existing == null) {
+                  await solo.addContact(
+                    name:     _nameCtrl.text,
+                    phone:    _phoneCtrl.text,
+                    email:    _emailCtrl.text.trim(),
+                    relation: _relationCtrl.text.isNotEmpty ? _relationCtrl.text : 'Contact',
+                  );
+                } else {
+                  await solo.updateContact(
+                    id:       existing.id,
+                    name:     _nameCtrl.text,
+                    phone:    _phoneCtrl.text,
+                    email:    _emailCtrl.text.trim(),
+                    relation: _relationCtrl.text.isNotEmpty ? _relationCtrl.text : 'Contact',
+                  );
+                }
                 _nameCtrl.clear();
                 _phoneCtrl.clear();
                 _emailCtrl.clear();
@@ -478,7 +517,7 @@ class _SoloScreenState extends State<SoloScreen> {
                 Navigator.pop(ctx);
               }
             },
-            child: const Text('Ajouter'),
+            child: Text(existing == null ? 'Ajouter' : 'Enregistrer'),
           ),
         ],
       ),
