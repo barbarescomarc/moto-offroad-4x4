@@ -243,6 +243,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final traceProv = context.watch<TraceProvider>();
     final groupProv = context.watch<GroupProvider>();
     final settings  = context.watch<SettingsProvider>();
+    final guidance  = context.watch<GuidanceProvider>();
     final snap      = _locationService.lastSnapshot;
 
     return FlutterMap(
@@ -339,6 +340,28 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               point: traceProv.activeTrace!.points.last.position,
               width: 20, height: 20,
               child: _traceEndpoint(AppColors.orange),
+            ),
+          ]),
+        ],
+
+        // ── Itinéraire de guidage vers une destination ──────
+        // Le mode gpxAlert/gpxTurnByTurn affiche déjà la trace suivie
+        // ci-dessus ; seul le mode destination (calculé via ORS) a besoin
+        // de son propre tracé, absent de route_result tant qu'il n'est pas
+        // dessiné explicitement ici.
+        if (guidance.mode == GuidanceMode.destination && guidance.route != null) ...[
+          PolylineLayer(polylines: [
+            Polyline(
+              points: guidance.route!.polyline,
+              strokeWidth: 4.5,
+              color: AppColors.blue,
+            ),
+          ]),
+          MarkerLayer(markers: [
+            Marker(
+              point: guidance.route!.polyline.last,
+              width: 20, height: 20,
+              child: _traceEndpoint(AppColors.blue),
             ),
           ]),
         ],
