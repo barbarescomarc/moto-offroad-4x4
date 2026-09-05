@@ -176,6 +176,54 @@ CREATE TABLE IF NOT EXISTS alert_contact (
 CREATE INDEX IF NOT EXISTS idx_alert_contact_session ON alert_contact(session_id);
 ```
 
+**Also modify the `openDb` function in this same file — this is the part of this task most likely to be missed, and without it, this task's whole feature silently fails against the already-deployed production database.** `CREATE TABLE IF NOT EXISTS` only helps a brand-new database file: the production server's `data/tracker.db` already has a `session` table from before this column existed, and SQLite has no "ADD COLUMN IF NOT EXISTS". Read the current `openDb` function (it currently just runs `db.exec(SCHEMA)` and returns `db`) and change it to:
+```js
+function openDb(path) {
+  const db = new Database(path);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON');
+  db.exec(SCHEMA);
+  migrate(db);
+  return db;
+}
+
+// Runs on every openDb call, including every test's fresh :memory: database
+// (a harmless no-op there, since a brand-new CREATE TABLE already has the
+// column) — this is the only thing that makes the column actually appear
+// on the live server's existing database after a deploy.
+function migrate(db) {
+  const columns = db.prepare('PRAGMA table_info(session)').all().map((c) => c.name);
+  if (!columns.includes('pilot_email')) {
+    db.exec('ALTER TABLE session ADD COLUMN pilot_email TEXT');
+  }
+}
+```
+Add a test for this to `test/db.test.js` (this repo's existing schema test file — check its current content for the exact style). `:memory:` databases can't be reopened by path, and the migration only matters when re-opening an *existing* file, so this test uses a real temp file to genuinely exercise that path:
+```js
+test('migrate adds pilot_email to a session table created before this column existed', () => {
+  const Database = require('better-sqlite3');
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const path = require('node:path');
+
+  const file = path.join(os.tmpdir(), `migrate-test-${Date.now()}.db`);
+  const real = new Database(file);
+  real.exec(`CREATE TABLE session (
+    id TEXT PRIMARY KEY, kind TEXT NOT NULL, watch_token TEXT UNIQUE, join_code TEXT UNIQUE,
+    owner_key TEXT NOT NULL, created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL,
+    ended_at INTEGER, deadman_after INTEGER, immobile_after INTEGER, alerted_at INTEGER,
+    alert_kind TEXT, rally_lat REAL, rally_lng REAL
+  )`);
+  real.close();
+
+  const migrated = openDb(file); // le vrai openDb : exec(SCHEMA) + migrate()
+  const after = migrated.prepare('PRAGMA table_info(session)').all().map((c) => c.name);
+  assert.ok(after.includes('pilot_email'));
+  migrated.close();
+  fs.unlinkSync(file);
+});
+```
+
 In `src/routes/sessions.js`, modify the `POST /` handler. Replace:
 ```js
   router.post('/', (req, res) => {
@@ -2253,7 +2301,7 @@ class FallDetector {
   FallDetector({
     required Stream<List<double>> accelerometer,
     required Stream<GpsSnapshot> positions,
-    required double Function() shockThreshold,
+    required this.shockThreshold,
     this.stopWindow = const Duration(seconds: 20),
     this.stopSpeedKmh = 3.0,
     this.tiltMaxDeg = 5.0,
@@ -2271,6 +2319,7 @@ class FallDetector {
   StreamSubscription<GpsSnapshot>? _positionSub;
   Timer? _windowTimer;
   List<double>? _originVector;
+  List<double>? _lastSample;
   void Function()? _onFallDetected;
 
   void start({required void Function() onFallDetected}) {
@@ -2279,11 +2328,17 @@ class FallDetector {
 
     _accelSub = _accelerometer.listen((sample) {
       final magnitude = _magnitude(sample);
+      final previousSample = _lastSample;
+      _lastSample = sample;
 
       if (_originVector == null) {
-        // Pas en observation : un choc démarre la fenêtre.
+        // Pas en observation : un choc démarre la fenêtre. L'orientation de
+        // référence est celle d'AVANT le choc (le dernier échantillon connu),
+        // pas le choc lui-même — le choc est justement le moment où
+        // l'orientation change brutalement, donc s'en servir comme référence
+        // ferait toujours passer l'instant suivant pour une inclinaison.
         if (magnitude >= shockThreshold()) {
-          _originVector = sample;
+          _originVector = previousSample ?? sample;
           _windowTimer?.cancel();
           _windowTimer = Timer(stopWindow, () {
             _onFallDetected?.call();

@@ -17,9 +17,12 @@ import '../screens/rides/ride_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/vibration_calibration_screen.dart';
 import '../screens/settings/call_settings_screen.dart';
+import '../screens/sos/fall_countdown_screen.dart';
 import '../services/update_checker.dart';
 import '../widgets/glass_control.dart';
 import '../widgets/update_tile.dart';
+
+final GlobalKey<NavigatorState> rootNavigatorKey = GlobalKey<NavigatorState>();
 
 // ── Routes nommées ───────────────────────────────────────────
 class AppRoutes {
@@ -34,10 +37,12 @@ class AppRoutes {
   static const String solo        = '/solo';
   static const String sendPosition = '/send-position';
   static const String group       = '/group';
+  static const String fallCountdown = '/fall-countdown';
 }
 
 // ── Router GoRouter ──────────────────────────────────────────
 final GoRouter appRouter = GoRouter(
+  navigatorKey: rootNavigatorKey,
   initialLocation: AppRoutes.map,
   debugLogDiagnostics: false,
   routes: [
@@ -101,6 +106,11 @@ final GoRouter appRouter = GoRouter(
     GoRoute(
       path: AppRoutes.group,
       pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: GroupScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.fallCountdown,
+      pageBuilder: (_, __) => const MaterialPage(
+        fullscreenDialog: true, child: FallCountdownScreen()),
     ),
   ],
 );

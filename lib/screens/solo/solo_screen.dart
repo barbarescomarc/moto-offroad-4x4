@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../app/router.dart';
 import '../../app/theme.dart';
 import '../../providers/solo_provider.dart';
+import '../../providers/settings_provider.dart';
 
 class SoloScreen extends StatefulWidget {
   const SoloScreen({super.key});
@@ -16,6 +17,7 @@ class SoloScreen extends StatefulWidget {
 class _SoloScreenState extends State<SoloScreen> {
   final _nameCtrl     = TextEditingController();
   final _phoneCtrl    = TextEditingController();
+  final _emailCtrl    = TextEditingController();
   final _relationCtrl = TextEditingController();
   Set<String> _selectedContactIds = {};
 
@@ -23,6 +25,7 @@ class _SoloScreenState extends State<SoloScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _phoneCtrl.dispose();
+    _emailCtrl.dispose();
     _relationCtrl.dispose();
     super.dispose();
   }
@@ -69,6 +72,12 @@ class _SoloScreenState extends State<SoloScreen> {
               _sectionTitle('ALERTE AUTOMATIQUE'),
               const SizedBox(height: 8),
               _immobilitySlider(solo),
+              const SizedBox(height: 24),
+
+              // ── Seuil homme-mort ─────────────────────────
+              _sectionTitle('ALERTE SILENCE TOTAL'),
+              const SizedBox(height: 8),
+              _deadmanSlider(solo),
               const SizedBox(height: 24),
 
               // ── Bouton activer / désactiver ─────────────
@@ -295,10 +304,51 @@ class _SoloScreenState extends State<SoloScreen> {
     );
   }
 
+  Widget _deadmanSlider(SoloProvider solo) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.bgCard,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: const Color(0xFF2A2A3E)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Alerte si aucune position reçue depuis', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              Text('${solo.deadmanThresholdMin} min',
+                style: const TextStyle(color: AppColors.orange, fontWeight: FontWeight.w700,
+                  fontFamily: 'Rajdhani', fontSize: 18)),
+            ],
+          ),
+          Slider(
+            value: solo.deadmanThresholdMin.toDouble(),
+            min: 10, max: 30, divisions: 4,
+            activeColor: AppColors.orange,
+            onChanged: (v) => solo.setDeadmanThreshold(v.round()),
+          ),
+          const Text('Couvre le téléphone détruit, déchargé ou hors réseau — le serveur alerte même si l\'application ne répond plus.',
+            style: TextStyle(fontSize: 10, color: AppColors.textMuted)),
+        ],
+      ),
+    );
+  }
+
   Widget _activateBtn(SoloProvider solo) {
     final hasContacts = solo.contacts.isNotEmpty;
     final hasSelected = _selectedContactIds.isNotEmpty;
     final canActivate = hasContacts && hasSelected;
+
+    final pilotEmail = context.watch<SettingsProvider>().pilotEmail;
+    final pilotEmailMissing = pilotEmail.trim().isEmpty;
+    final selectedContactMissingEmail = solo.contacts
+        .where((c) => _selectedContactIds.contains(c.id))
+        .any((c) => c.email.trim().isEmpty);
+
+    final blocked = !canActivate || pilotEmailMissing || selectedContactMissingEmail;
 
     return Column(
       children: [
@@ -308,21 +358,37 @@ class _SoloScreenState extends State<SoloScreen> {
             child: Text('Sélectionnez au moins un contact à notifier',
               style: TextStyle(color: AppColors.textMuted, fontSize: 12), textAlign: TextAlign.center),
           ),
+        if (canActivate && pilotEmailMissing)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text('Renseignez votre e-mail dans Réglages pour activer le mode Solo.',
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12), textAlign: TextAlign.center),
+          ),
+        if (canActivate && !pilotEmailMissing && selectedContactMissingEmail)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              "Un contact sélectionné n'a pas d'e-mail — retirez-le puis rajoutez-le avec une adresse e-mail.",
+              style: TextStyle(color: AppColors.textMuted, fontSize: 12), textAlign: TextAlign.center),
+          ),
         SizedBox(
           width: double.infinity,
           height: 56,
           child: ElevatedButton.icon(
-            onPressed: canActivate
-                ? () async {
-                    final ok = await solo.activate(_selectedContactIds.toList());
+            onPressed: blocked
+                ? null
+                : () async {
+                    final ok = await solo.activate(
+                      _selectedContactIds.toList(),
+                      pilotEmail: pilotEmail,
+                    );
                     if (!ok && context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(content: Text(
                           'Impossible de joindre le serveur de suivi — réessayez.')),
                       );
                     }
-                  }
-                : null,
+                  },
             icon: const Icon(Icons.shield, size: 22),
             label: const Text('PARTIR EN MODE SOLO SÉCURISÉ',
               style: TextStyle(fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700)),
@@ -381,6 +447,13 @@ class _SoloScreenState extends State<SoloScreen> {
             ),
             const SizedBox(height: 8),
             TextField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: 'E-mail'),
+              style: const TextStyle(color: Colors.white),
+            ),
+            const SizedBox(height: 8),
+            TextField(
               controller: _relationCtrl,
               decoration: const InputDecoration(labelText: 'Relation (ex: Conjointe)'),
               style: const TextStyle(color: Colors.white),
@@ -391,14 +464,16 @@ class _SoloScreenState extends State<SoloScreen> {
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
           ElevatedButton(
             onPressed: () async {
-              if (_nameCtrl.text.isNotEmpty && _phoneCtrl.text.isNotEmpty) {
+              if (_nameCtrl.text.isNotEmpty && _phoneCtrl.text.isNotEmpty && _emailCtrl.text.contains('@')) {
                 await solo.addContact(
                   name:     _nameCtrl.text,
                   phone:    _phoneCtrl.text,
+                  email:    _emailCtrl.text.trim(),
                   relation: _relationCtrl.text.isNotEmpty ? _relationCtrl.text : 'Contact',
                 );
                 _nameCtrl.clear();
                 _phoneCtrl.clear();
+                _emailCtrl.clear();
                 _relationCtrl.clear();
                 Navigator.pop(ctx);
               }

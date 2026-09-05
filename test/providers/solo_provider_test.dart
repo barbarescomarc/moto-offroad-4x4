@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:moto_offroad/providers/solo_provider.dart';
@@ -12,7 +13,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final s = SoloProvider();
     await s.loadContacts();
-    await s.addContact(name: 'Claire', phone: '+33600000000', relation: 'Sœur');
+    await s.addContact(name: 'Claire', phone: '+33600000000', relation: 'Sœur', email: 'claire@example.test');
 
     final reloaded = SoloProvider();
     await reloaded.loadContacts();
@@ -25,7 +26,7 @@ void main() {
     SharedPreferences.setMockInitialValues({});
     final s = SoloProvider();
     await s.loadContacts();
-    await s.addContact(name: 'Claire', phone: '+33600000000', relation: 'Sœur');
+    await s.addContact(name: 'Claire', phone: '+33600000000', relation: 'Sœur', email: 'claire@example.test');
     await s.removeContact(s.contacts.first.id);
 
     final reloaded = SoloProvider();
@@ -38,7 +39,7 @@ void main() {
     final s = SoloProvider();
     await s.loadContacts();
     for (int i = 0; i < 5; i++) {
-      await s.addContact(name: 'C$i', phone: '060000000$i', relation: 'Ami');
+      await s.addContact(name: 'C$i', phone: '060000000$i', relation: 'Ami', email: 'c$i@example.test');
     }
     expect(s.contacts.length, 3);
   });
@@ -56,9 +57,9 @@ void main() {
     });
     final s = SoloProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
     await s.loadContacts();
-    await s.addContact(name: 'Claire', phone: '0600000000', relation: 'Sœur');
+    await s.addContact(name: 'Claire', phone: '0600000000', relation: 'Sœur', email: 'claire@example.test');
 
-    final ok = await s.activate([s.contacts.first.id]);
+    final ok = await s.activate([s.contacts.first.id], pilotEmail: 'marc@example.test');
 
     expect(ok, isTrue);
     expect(s.soloActive, isTrue);
@@ -73,9 +74,9 @@ void main() {
     final client = MockClient((_) async => throw Exception('offline'));
     final s = SoloProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
     await s.loadContacts();
-    await s.addContact(name: 'Claire', phone: '0600000000', relation: 'Sœur');
+    await s.addContact(name: 'Claire', phone: '0600000000', relation: 'Sœur', email: 'claire@example.test');
 
-    final ok = await s.activate([s.contacts.first.id]);
+    final ok = await s.activate([s.contacts.first.id], pilotEmail: 'marc@example.test');
 
     expect(ok, isFalse);
     expect(s.soloActive, isFalse);
@@ -100,8 +101,8 @@ void main() {
     });
     final s = SoloProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
     await s.loadContacts();
-    await s.addContact(name: 'Claire', phone: '0600000000', relation: 'Sœur');
-    await s.activate([s.contacts.first.id]);
+    await s.addContact(name: 'Claire', phone: '0600000000', relation: 'Sœur', email: 'claire@example.test');
+    await s.activate([s.contacts.first.id], pilotEmail: 'marc@example.test');
 
     s.deactivate();
     await Future.delayed(Duration.zero); // laisse le endSession() fire-and-forget se lancer
@@ -109,5 +110,61 @@ void main() {
     expect(endCalled, isTrue);
     expect(s.sessionId, isNull);
     expect(s.trackingUrl, isNull);
+  });
+
+  test('a contact stores and reloads its email', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SoloProvider();
+    await s.loadContacts();
+    await s.addContact(name: 'Claire', phone: '+33600000000', relation: 'Sœur', email: 'claire@example.test');
+
+    final reloaded = SoloProvider();
+    await reloaded.loadContacts();
+    expect(reloaded.contacts.first.email, 'claire@example.test');
+  });
+
+  test('deadmanThresholdMin defaults to 15 and can be changed', () {
+    final s = SoloProvider();
+    expect(s.deadmanThresholdMin, 15);
+    s.setDeadmanThreshold(20);
+    expect(s.deadmanThresholdMin, 20);
+  });
+
+  test('activate() sends the pilot email and every selected contact email to the hub', () async {
+    SharedPreferences.setMockInitialValues({});
+    Map<String, dynamic>? capturedBody;
+    final client = MockClient((req) async {
+      capturedBody = jsonDecode(req.body) as Map<String, dynamic>;
+      return http.Response(
+        '{"sessionId":"s1","ownerKey":"ok","deviceKey":"dk","memberId":"m1","watchToken":"tok"}',
+        201,
+      );
+    });
+    final s = SoloProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
+    await s.loadContacts();
+    await s.addContact(name: 'Claire', phone: '0600000000', email: 'claire@example.test', relation: 'Sœur');
+    await s.addContact(name: 'Jean', phone: '0600000001', email: 'jean@example.test', relation: 'Ami');
+
+    final ok = await s.activate([s.contacts.first.id], pilotEmail: 'marc@example.test');
+
+    expect(ok, isTrue);
+    expect(capturedBody!['pilotEmail'], 'marc@example.test');
+    expect(capturedBody!['contactEmails'], ['claire@example.test']); // seul le contact sélectionné, pas Jean
+    expect(capturedBody!['deadmanAfterSec'], 15 * 60); // valeur par défaut de deadmanThresholdMin
+  });
+
+  test('activate() fails without contacting the hub if the pilot email is empty', () async {
+    SharedPreferences.setMockInitialValues({});
+    var hubCalled = false;
+    final client = MockClient((req) async { hubCalled = true; return http.Response('', 500); });
+    final s = SoloProvider(trackerClient: TrackerApiClient(client: client, baseUrl: 'https://example.test'));
+    await s.loadContacts();
+    await s.addContact(name: 'Claire', phone: '0600000000', email: 'claire@example.test', relation: 'Sœur');
+
+    final ok = await s.activate([s.contacts.first.id], pilotEmail: '');
+
+    expect(ok, isFalse);
+    expect(hubCalled, isFalse);
+    expect(s.soloActive, isFalse);
   });
 }

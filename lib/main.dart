@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:sensors_plus/sensors_plus.dart';
+import 'package:go_router/go_router.dart';
 import 'app/theme.dart';
 import 'app/router.dart';
 import 'providers/map_provider.dart';
@@ -17,10 +19,31 @@ import 'services/ride_repository.dart';
 import 'services/ride_recording_service.dart';
 import 'services/auto_reply_service.dart';
 import 'services/auto_reply_policy.dart';
+import 'services/alert_channel_unlock.dart';
 import 'services/call_bridge.dart';
+import 'services/fall_alert_service.dart';
+import 'services/fall_detector.dart';
+import 'services/fall_thresholds.dart';
 import 'services/location_service.dart';
 import 'services/tracker_api_client.dart';
 import 'services/position_uplink_service.dart';
+import 'services/vibration_calibration.dart';
+
+// Références mutables lues par les fermetures de FallAlertService : le
+// service ne change jamais d'identité (ProxyProvider2 renvoie toujours la
+// même instance), seul ce qu'il lit doit rester à jour. Mises à jour par le
+// callback `update` du ProxyProvider à chaque notification de
+// SettingsProvider/SoloProvider — pas de BuildContext à conserver ici.
+SettingsProvider? _fallSettingsRef;
+SoloProvider? _fallSoloRef;
+
+// Garde de ré-entrance : un second choc qualifiant pendant qu'un écran
+// d'alerte est déjà affiché (ou en cours d'ouverture) ne doit pas empiler un
+// second FallCountdownScreen ni redéclencher un SMS aux contacts de
+// confiance. Simple drapeau top-level (pas un Provider) : posé juste avant
+// le push, relâché par `.whenComplete()` quand la route est dépilée, que le
+// compte à rebours ait été annulé ou soit allé à son terme.
+bool _fallAlertInFlight = false;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -86,14 +109,40 @@ class MotoOffroadApp extends StatelessWidget {
           q.load();
           return q;
         }),
+        Provider<AlertChannelUnlock>(create: (_) => AlertChannelUnlock()),
+        ProxyProvider2<SettingsProvider, SoloProvider, FallAlertService>(
+          create: (_) => FallAlertService(
+            sendSms: CallBridge().sendSms,
+            sendServerAlert: ({required kind}) async {
+              final solo = _fallSoloRef;
+              if (solo == null || solo.sessionId == null || solo.deviceKey == null || solo.memberId == null) {
+                return false;
+              }
+              return TrackerApiClient().sendAlert(
+                sessionId: solo.sessionId!, deviceKey: solo.deviceKey!, memberId: solo.memberId!, kind: kind,
+              );
+            },
+            phoneChannelEnabled: () => _fallSettingsRef?.alertChannelPhone ?? true,
+            serverChannelEnabled: () => _fallSettingsRef?.alertChannelServer ?? true,
+            trustedContacts: () => _fallSoloRef?.contacts ?? [],
+            positionProvider: () => LocationService().getCurrentPosition(),
+          ),
+          update: (_, settings, solo, previous) {
+            _fallSettingsRef = settings;
+            _fallSoloRef = solo;
+            return previous!;
+          },
+        ),
       ],
       child: _AutoReplyHost(
         child: _SoloUplinkHost(
-          child: MaterialApp.router(
-            title: 'Moto Offroad 4x4',
-            debugShowCheckedModeBanner: false,
-            theme: AppTheme.dark,
-            routerConfig: appRouter,
+          child: _FallDetectionHost(
+            child: MaterialApp.router(
+              title: 'Moto Offroad 4x4',
+              debugShowCheckedModeBanner: false,
+              theme: AppTheme.dark,
+              routerConfig: appRouter,
+            ),
           ),
         ),
       ),
@@ -204,6 +253,64 @@ class _SoloUplinkHostState extends State<_SoloUplinkHost> {
   @override
   void dispose() {
     _uplink.stop();
+    super.dispose();
+  }
+}
+
+// ── Cycle de vie de la détection de chute ────────────────────
+// Même règle de garde que l'auto-réponse aux appels : actif seulement
+// pendant un enregistrement ou en mode Solo, jamais téléphone posé sur
+// une table.
+class _FallDetectionHost extends StatefulWidget {
+  const _FallDetectionHost({required this.child});
+  final Widget child;
+
+  @override
+  State<_FallDetectionHost> createState() => _FallDetectionHostState();
+}
+
+class _FallDetectionHostState extends State<_FallDetectionHost> {
+  FallDetector? _detector;
+  bool _running = false;
+  VibrationCalibration? _lastCalibration;
+
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.watch<SettingsProvider>();
+    final recording = context.watch<RecordingProvider>();
+    final solo = context.watch<SoloProvider>();
+
+    final shouldRun = settings.fallDetectionEnabled && (recording.isRecording || solo.soloActive);
+
+    if (shouldRun && !_running) {
+      _running = true;
+      _detector = FallDetector(
+        accelerometer: accelerometerEventStream().map((e) => [e.x, e.y, e.z]),
+        positions: LocationService().stream,
+        shockThreshold: () => shockThresholdMs2(_lastCalibration ?? const VibrationCalibration()),
+      );
+      VibrationCalibration.load().then((cal) => _lastCalibration = cal);
+      _detector!.start(onFallDetected: () {
+        if (_fallAlertInFlight) return;
+        final ctx = rootNavigatorKey.currentContext;
+        if (ctx == null) return;
+        _fallAlertInFlight = true;
+        GoRouter.of(ctx).push(AppRoutes.fallCountdown).whenComplete(() {
+          _fallAlertInFlight = false;
+        });
+      });
+    } else if (!shouldRun && _running) {
+      _running = false;
+      _detector?.stop();
+      _detector = null;
+    }
+
+    return widget.child;
+  }
+
+  @override
+  void dispose() {
+    _detector?.stop();
     super.dispose();
   }
 }
