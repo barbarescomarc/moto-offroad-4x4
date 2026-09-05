@@ -135,6 +135,11 @@ void main() {
     await positions.close();
   });
 
+  // Attention en modifiant ce test : avec vibrationWindowSize=3, il faut
+  // exactement 3 echantillons post-choc pour vider la magnitude du choc
+  // (25.0) de la fenetre glissante avant la verification de fin de fenetre —
+  // en retirer un seul remet le choc dans la fenetre et fait echouer le test
+  // (ecart-type ~7.2 au lieu de 0.0).
   test('no GPS ever received: a big shock, changed orientation, and idle-level vibration together fire', () async {
     final accel = StreamController<List<double>>();
     final positions = StreamController<GpsSnapshot>();
@@ -275,7 +280,7 @@ void main() {
     await Future.delayed(const Duration(milliseconds: 5));
     accel.add([0, 16, 0]);         // idem — les 3 derniers echantillons de la fenetre glissante ont un ecart-type eleve
 
-    await Future.delayed(const Duration(milliseconds: 35));
+    await Future.delayed(const Duration(milliseconds: 50)); // marge confortable au-dela de la fin de fenetre (80ms)
 
     expect(fired, isFalse);
     detector.stop();

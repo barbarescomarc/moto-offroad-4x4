@@ -14,6 +14,14 @@ class VibrationCalibration {
   // en cas de doute, on continue d'enregistrer.
   static const double _ratio = 0.35;
 
+  // Repli non calibré pour un niveau de vibration « au ralenti » (utilisé
+  // par FallDetector quand rien n'est calibré). Remonte le ratio utilisé
+  // pour choisir defaultThreshold plutôt que de réutiliser ce seuil de choc
+  // tel quel comme s'il était déjà un niveau de vibration : le seuil est
+  // délibérément à _ratio du ralenti, pas au ralenti lui-même — le
+  // réutiliser directement rendrait le repli ~3x trop strict.
+  static const double defaultIdleLevel = defaultThreshold / _ratio;
+
   final double? stillLevel;   // moteur coupé
   final double? idleLevel;    // moteur au ralenti
 

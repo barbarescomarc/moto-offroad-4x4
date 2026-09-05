@@ -16,9 +16,12 @@ import 'vibration_meter.dart';
 // une vraie chute immobilise le téléphone dans sa position d'arrivée jusqu'à
 // ce que quelqu'un le bouge.
 //
-// Repli sans GPS : si aucune position n'est jamais reçue pendant toute la
-// fenêtre (permission refusée, écran carte jamais ouvert), le silence ne
-// suffit plus à lui seul — trois signaux accéléromètre doivent converger :
+// Repli sans GPS : si aucune position n'a jamais été reçue depuis le
+// démarrage de la détection (permission refusée, écran carte jamais ouvert —
+// PAS juste « pendant cette fenêtre » : un vrai arrêt fait aussi taire le
+// flux GPS, `_hasGps` doit donc rester vrai une fois vu, pas se réinitialiser
+// à chaque chute), le silence ne suffit plus à lui seul — trois signaux
+// accéléromètre doivent converger :
 // un choc nettement plus fort que d'habitude, une orientation d'arrivée
 // vraiment différente de celle de la conduite (pas seulement figée), et des
 // vibrations retombées au niveau du ralenti moteur plutôt que celui, plus
