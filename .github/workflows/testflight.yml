@@ -133,15 +133,22 @@ jobs:
       - name: Préparer le projet iOS
         run: flutter build ios --release --no-codesign
 
+      # La signature manuelle (certificat + profil) est déclarée dans les
+      # réglages de build Release du seul target Runner (project.pbxproj) :
+      # la passer en argument xcodebuild s'appliquerait aussi aux targets des
+      # pods/paquets Swift tiers, qui ne supportent pas un profil de
+      # provisioning et font échouer l'archive.
+      - name: Configurer l'équipe de signature
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          sed -i '' "s/__APPLE_TEAM_ID__/${APPLE_TEAM_ID}/" ios/Runner.xcodeproj/project.pbxproj
+
       - name: Archiver avec Xcode
         run: |
           xcodebuild -workspace ios/Runner.xcworkspace -scheme Runner \
             -configuration Release -archivePath build/ios/Runner.xcarchive \
             -destination generic/platform=iOS \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            DEVELOPMENT_TEAM="${{ secrets.APPLE_TEAM_ID }}" \
-            PROVISIONING_PROFILE_SPECIFIER="MOTO OFFROAD 4X4 App Store" \
             archive
 
       - name: Exporter et envoyer sur TestFlight
