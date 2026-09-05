@@ -134,4 +134,152 @@ void main() {
     await accel.close();
     await positions.close();
   });
+
+  test('no GPS ever received: a big shock, changed orientation, and idle-level vibration together fire', () async {
+    final accel = StreamController<List<double>>();
+    final positions = StreamController<GpsSnapshot>();
+    var fired = false;
+    final detector = FallDetector(
+      accelerometer: accel.stream, positions: positions.stream,
+      shockThreshold: () => 10.0,
+      stopWindow: const Duration(milliseconds: 80),
+      settleDelay: const Duration(milliseconds: 20),
+      stopSpeedKmh: 3.0, tiltMaxDeg: 5.0,
+      noGpsShockMultiplier: 2.0,
+      noGpsTiltFromRidingDeg: 20.0,
+      idleVibrationLevel: () => 1.0,
+      idleVibrationMultiplier: 1.5,
+      vibrationWindowSize: 3,
+    );
+    detector.start(onFallDetected: () => fired = true);
+
+    accel.add([0, 0, 9.8]);        // orientation de conduite, avant le choc
+    await Future.delayed(const Duration(milliseconds: 5));
+    accel.add([25, 0, 0]);         // choc bien au-dessus du seuil sans GPS (10*2.0=20)
+    await Future.delayed(const Duration(milliseconds: 10));
+    accel.add([0, 9.8, 0]);        // en cours de stabilisation, avant la fin du delai
+    await Future.delayed(const Duration(milliseconds: 15)); // origine capturee ici : [0,9.8,0]
+    accel.add([0, 9.8, 0]);        // tient, meme magnitude — vide la secousse du choc de la fenetre glissante
+    await Future.delayed(const Duration(milliseconds: 10));
+    accel.add([0, 9.8, 0]);        // encore la meme — vibrations au niveau du ralenti (ecart-type nul)
+
+    await Future.delayed(const Duration(milliseconds: 50)); // laisse le reste de la fenetre s'ecouler
+
+    expect(fired, isTrue);
+    detector.stop();
+    await accel.close();
+    await positions.close();
+  });
+
+  test('no GPS ever received: a shock below the no-GPS threshold does not fire, even with the other two signals', () async {
+    final accel = StreamController<List<double>>();
+    final positions = StreamController<GpsSnapshot>();
+    var fired = false;
+    final detector = FallDetector(
+      accelerometer: accel.stream, positions: positions.stream,
+      shockThreshold: () => 10.0,
+      stopWindow: const Duration(milliseconds: 80),
+      settleDelay: const Duration(milliseconds: 20),
+      stopSpeedKmh: 3.0, tiltMaxDeg: 5.0,
+      noGpsShockMultiplier: 2.0,
+      noGpsTiltFromRidingDeg: 20.0,
+      idleVibrationLevel: () => 1.0,
+      idleVibrationMultiplier: 1.5,
+      vibrationWindowSize: 3,
+    );
+    detector.start(onFallDetected: () => fired = true);
+
+    accel.add([0, 0, 9.8]);
+    await Future.delayed(const Duration(milliseconds: 5));
+    accel.add([15, 0, 0]);         // magnitude 15 : depasse le seuil normal (10) mais pas 10*2.0=20
+    await Future.delayed(const Duration(milliseconds: 10));
+    accel.add([0, 9.8, 0]);
+    await Future.delayed(const Duration(milliseconds: 15)); // origine : [0,9.8,0]
+    accel.add([0, 9.8, 0]);
+    await Future.delayed(const Duration(milliseconds: 10));
+    accel.add([0, 9.8, 0]);
+
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    expect(fired, isFalse);
+    detector.stop();
+    await accel.close();
+    await positions.close();
+  });
+
+  test('no GPS ever received: settling into the same orientation as riding does not fire', () async {
+    final accel = StreamController<List<double>>();
+    final positions = StreamController<GpsSnapshot>();
+    var fired = false;
+    final detector = FallDetector(
+      accelerometer: accel.stream, positions: positions.stream,
+      shockThreshold: () => 10.0,
+      stopWindow: const Duration(milliseconds: 80),
+      settleDelay: const Duration(milliseconds: 20),
+      stopSpeedKmh: 3.0, tiltMaxDeg: 5.0,
+      noGpsShockMultiplier: 2.0,
+      noGpsTiltFromRidingDeg: 20.0,
+      idleVibrationLevel: () => 1.0,
+      idleVibrationMultiplier: 1.5,
+      vibrationWindowSize: 3,
+    );
+    detector.start(onFallDetected: () => fired = true);
+
+    accel.add([0, 0, 9.8]);        // orientation de conduite
+    await Future.delayed(const Duration(milliseconds: 5));
+    accel.add([25, 0, 0]);         // choc bien au-dessus du seuil sans GPS
+    await Future.delayed(const Duration(milliseconds: 10));
+    accel.add([0, 0, 9.8]);        // se stabilise dans LA MEME orientation que la conduite
+    await Future.delayed(const Duration(milliseconds: 15)); // origine : [0,0,9.8] — identique a la conduite
+    accel.add([0, 0, 9.8]);
+    await Future.delayed(const Duration(milliseconds: 10));
+    accel.add([0, 0, 9.8]);
+
+    await Future.delayed(const Duration(milliseconds: 50));
+
+    expect(fired, isFalse);
+    detector.stop();
+    await accel.close();
+    await positions.close();
+  });
+
+  test('no GPS ever received: vibration still at riding level after settling does not fire', () async {
+    final accel = StreamController<List<double>>();
+    final positions = StreamController<GpsSnapshot>();
+    var fired = false;
+    final detector = FallDetector(
+      accelerometer: accel.stream, positions: positions.stream,
+      shockThreshold: () => 10.0,
+      stopWindow: const Duration(milliseconds: 80),
+      settleDelay: const Duration(milliseconds: 20),
+      stopSpeedKmh: 3.0, tiltMaxDeg: 5.0,
+      noGpsShockMultiplier: 2.0,
+      noGpsTiltFromRidingDeg: 20.0,
+      idleVibrationLevel: () => 1.0,
+      idleVibrationMultiplier: 1.5,
+      vibrationWindowSize: 3,
+    );
+    detector.start(onFallDetected: () => fired = true);
+
+    accel.add([0, 0, 9.8]);        // orientation de conduite
+    await Future.delayed(const Duration(milliseconds: 5));
+    accel.add([25, 0, 0]);         // choc bien au-dessus du seuil sans GPS
+    await Future.delayed(const Duration(milliseconds: 10));
+    accel.add([0, 9.8, 0]);        // en cours de stabilisation
+    await Future.delayed(const Duration(milliseconds: 15)); // origine : [0,9.8,0]
+    accel.add([0, 9.8, 0]);        // meme direction que l'origine (angle 0, ne coupe pas la fenetre)
+    await Future.delayed(const Duration(milliseconds: 10));
+    accel.add([0, 15, 0]);         // meme direction, magnitude tres differente : vibration
+    await Future.delayed(const Duration(milliseconds: 5));
+    accel.add([0, 5, 0]);          // idem
+    await Future.delayed(const Duration(milliseconds: 5));
+    accel.add([0, 16, 0]);         // idem — les 3 derniers echantillons de la fenetre glissante ont un ecart-type eleve
+
+    await Future.delayed(const Duration(milliseconds: 35));
+
+    expect(fired, isFalse);
+    detector.stop();
+    await accel.close();
+    await positions.close();
+  });
 }

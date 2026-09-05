@@ -288,6 +288,7 @@ class _FallDetectionHostState extends State<_FallDetectionHost> {
         accelerometer: accelerometerEventStream().map((e) => [e.x, e.y, e.z]),
         positions: LocationService().stream,
         shockThreshold: () => shockThresholdMs2(_lastCalibration ?? const VibrationCalibration()),
+        idleVibrationLevel: () => _lastCalibration?.idleLevel ?? VibrationCalibration.defaultThreshold,
       );
       VibrationCalibration.load().then((cal) => _lastCalibration = cal);
       _detector!.start(onFallDetected: () {

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'location_service.dart';
+import 'vibration_meter.dart';
 
 // ── Détection de chute en trois temps ────────────────────────
 //
@@ -14,6 +15,14 @@ import 'location_service.dart';
 // laisse le pilote reparti avant la fin de la fenêtre (la vitesse remonte) ;
 // une vraie chute immobilise le téléphone dans sa position d'arrivée jusqu'à
 // ce que quelqu'un le bouge.
+//
+// Repli sans GPS : si aucune position n'est jamais reçue pendant toute la
+// fenêtre (permission refusée, écran carte jamais ouvert), le silence ne
+// suffit plus à lui seul — trois signaux accéléromètre doivent converger :
+// un choc nettement plus fort que d'habitude, une orientation d'arrivée
+// vraiment différente de celle de la conduite (pas seulement figée), et des
+// vibrations retombées au niveau du ralenti moteur plutôt que celui, plus
+// élevé, de la conduite.
 class FallDetector {
   FallDetector({
     required Stream<List<double>> accelerometer,
@@ -23,8 +32,14 @@ class FallDetector {
     this.settleDelay = const Duration(seconds: 2),
     this.stopSpeedKmh = 3.0,
     this.tiltMaxDeg = 5.0,
+    this.noGpsShockMultiplier = 2.0,
+    this.noGpsTiltFromRidingDeg = 20.0,
+    this.idleVibrationLevel,
+    this.idleVibrationMultiplier = 1.5,
+    this.vibrationWindowSize = 100,
   })  : _accelerometer = accelerometer,
-        _positions = positions;
+        _positions = positions,
+        _vibrationMeter = VibrationMeter(windowSize: vibrationWindowSize);
 
   final Stream<List<double>> _accelerometer;
   final Stream<GpsSnapshot> _positions;
@@ -33,6 +48,13 @@ class FallDetector {
   final Duration settleDelay;
   final double stopSpeedKmh;
   final double tiltMaxDeg;
+  final double noGpsShockMultiplier;
+  final double noGpsTiltFromRidingDeg;
+  final double Function()? idleVibrationLevel;
+  final double idleVibrationMultiplier;
+  final int vibrationWindowSize;
+
+  final VibrationMeter _vibrationMeter;
 
   StreamSubscription<List<double>>? _accelSub;
   StreamSubscription<GpsSnapshot>? _positionSub;
@@ -40,7 +62,10 @@ class FallDetector {
   Timer? _settleTimer;
   List<double>? _originVector;
   List<double>? _lastSample;
+  List<double>? _preShockSample;
+  double? _shockMagnitude;
   bool _watching = false;
+  bool _hasGps = false;
   void Function()? _onFallDetected;
 
   void start({required void Function() onFallDetected}) {
@@ -48,18 +73,23 @@ class FallDetector {
     _onFallDetected = onFallDetected;
 
     _accelSub = _accelerometer.listen((sample) {
+      final previousSample = _lastSample;
       _lastSample = sample;
       final magnitude = _magnitude(sample);
+      _vibrationMeter.addSample(magnitude);
 
       if (!_watching) {
         // Pas en observation : un choc démarre la fenêtre ET le délai de
         // stabilisation. L'inclinaison n'est pas encore jugée : dans les
         // instants qui suivent un impact, l'orientation bouge forcément,
-        // chute ou pas.
+        // chute ou pas. On retient aussi l'orientation ET la magnitude
+        // du choc, pour le repli sans GPS ci-dessous.
         if (magnitude >= shockThreshold()) {
+          _preShockSample = previousSample ?? sample;
+          _shockMagnitude = magnitude;
           _watching = true;
           _windowTimer = Timer(stopWindow, () {
-            _onFallDetected?.call();
+            if (_shouldFire()) _onFallDetected?.call();
             _resetWatch();
           });
           _settleTimer = Timer(settleDelay, () {
@@ -83,11 +113,31 @@ class FallDetector {
     });
 
     _positionSub = _positions.listen((snap) {
+      _hasGps = true;
       if (!_watching) return; // pas en observation, rien à vérifier
       if (snap.speedKmh >= stopSpeedKmh) {
         _resetWatch();
       }
     });
+  }
+
+  // Le GPS confirme normalement l'arrêt (comportement inchangé). Sans
+  // aucune position reçue pendant toute la fenêtre, les trois signaux
+  // accéléromètre doivent tous converger avant de déclencher.
+  bool _shouldFire() {
+    if (_hasGps) return true;
+
+    final shock = _shockMagnitude;
+    final origin = _originVector;
+    final preShock = _preShockSample;
+    if (shock == null || origin == null || preShock == null) return false;
+
+    final bigEnough = shock >= shockThreshold() * noGpsShockMultiplier;
+    final tiltChangedFromRiding = _angleBetweenDeg(preShock, origin) > noGpsTiltFromRidingDeg;
+    final idleLevel = idleVibrationLevel;
+    final lowVibration = idleLevel == null || _vibrationMeter.level <= idleLevel() * idleVibrationMultiplier;
+
+    return bigEnough && tiltChangedFromRiding && lowVibration;
   }
 
   void _resetWatch() {
@@ -96,6 +146,8 @@ class FallDetector {
     _settleTimer?.cancel();
     _settleTimer = null;
     _originVector = null;
+    _preShockSample = null;
+    _shockMagnitude = null;
     _watching = false;
   }
 
@@ -106,6 +158,8 @@ class FallDetector {
     _positionSub = null;
     _onFallDetected = null;
     _lastSample = null;
+    _hasGps = false;
+    _vibrationMeter.reset();
     _resetWatch();
   }
 
