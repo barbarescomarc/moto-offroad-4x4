@@ -163,6 +163,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // ── Badge Solo ──────────────────────────────────
             _buildSoloBadge(),
 
+            // ── Bandeau de guidage ────────────────────────────
+            // En bas, au-dessus de la barre de stats : la route regardée
+            // pendant la conduite est en bas de l'écran, pas en haut.
+            _buildGuidanceBannerBottom(),
+
             // ── Contrôles carte ──────────────────────────────
             // Recherche d'adresse, Météo et Mode Solo ont rejoint le menu
             // radial de Recentrer (voir _buildMapControls) : appui long
@@ -408,16 +413,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // ── HEADER ────────────────────────────────────────────────
   Widget _buildHeader() {
     final traceProv = context.watch<TraceProvider>();
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildHeaderBar(traceProv),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 8),
-          child: GuidanceBanner(),
-        ),
-      ],
-    );
+    return _buildHeaderBar(traceProv);
   }
 
   Widget _buildHeaderBar(TraceProvider traceProv) {
@@ -779,15 +775,28 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   // ── BANDEAU DE GUIDAGE (paysage et plein écran) ───────────
   //
-  // En portrait fenêtré le bandeau vit dans le header (voir _buildHeader) ;
-  // partout ailleurs il se pose en haut de la carte, à droite de la colonne
-  // SOS/enregistrement qui occupe le même bord.
+  // En portrait fenêtré le bandeau se pose en bas (voir
+  // _buildGuidanceBannerBottom) ; partout ailleurs il se pose en haut de la
+  // carte, à droite de la colonne SOS/enregistrement qui occupe le même bord.
   Widget _buildGuidanceBanner() {
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,
       left: _guidanceBannerLeft,
       right: 8,
       child: const GuidanceBanner(),
+    );
+  }
+
+  // ── BANDEAU DE GUIDAGE (portrait fenêtré) ─────────────────
+  // En bas, au-dessus de la barre de stats. La colonne de contrôles carte
+  // occupe le même coin bas-droit : on lui laisse sa largeur pour ne pas
+  // recouvrir le bouton plein écran.
+  Widget _buildGuidanceBannerBottom() {
+    return const Positioned(
+      left: 8,
+      right: 12 + AppSizes.iconButtonSize + 8,
+      bottom: AppSizes.statsBarHeight + 16,
+      child: GuidanceBanner(),
     );
   }
 

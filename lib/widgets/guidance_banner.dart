@@ -31,7 +31,7 @@ class GuidanceBanner extends StatelessWidget {
     final step =
         guidance.mode == GuidanceMode.gpxAlert ? null : guidance.currentStep;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: AppColors.bgPanel.withValues(alpha: .92),
         borderRadius: BorderRadius.circular(12),
@@ -39,22 +39,12 @@ class GuidanceBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(_iconFor(step?.maneuver), color: AppColors.orange, size: 28),
-          const SizedBox(width: 10),
+          _maneuverTile(step, guidance),
+          const SizedBox(width: 12),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  step?.instruction ?? 'Suivi de la trace',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14),
-                ),
-                if (step != null)
-                  Text(
-                    '${guidance.distanceToNextStepMeters.round()} m',
-                    style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
-                  ),
-              ],
+            child: Text(
+              step?.instruction ?? 'Suivi de la trace',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
             ),
           ),
           if (guidance.gpsSignalLost)
@@ -64,6 +54,39 @@ class GuidanceBanner extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // Flèche de manœuvre et distance dans un même bloc, à la manière d'un
+  // GPS auto : l'oeil n'a qu'un seul endroit à lire pour "quoi" et "quand".
+  Widget _maneuverTile(RouteStep? step, GuidanceProvider guidance) {
+    return Container(
+      width: 64,
+      height: 64,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: AppColors.orange.withValues(alpha: .15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: AppColors.orange.withValues(alpha: .5)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(_iconFor(step?.maneuver), color: AppColors.orange, size: 34),
+          if (step != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              _distanceLabel(guidance.distanceToNextStepMeters),
+              style: const TextStyle(color: AppColors.orange, fontSize: 12, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _distanceLabel(double meters) {
+    if (meters >= 1000) return '${(meters / 1000).toStringAsFixed(1)} km';
+    return '${meters.round()} m';
   }
 
   Widget _footer(BuildContext context, GuidanceProvider guidance) {
