@@ -277,15 +277,23 @@ class GuidanceProvider extends ChangeNotifier {
     const calc = Distance();
     final d = calc(position, step.location);
 
-    for (final threshold in _announceThresholds) {
-      if (d <= threshold && !_announcedThresholds.contains(threshold)) {
-        _announcedThresholds.add(threshold);
-        _voice.announce('Dans ${threshold.round()} mètres, ${step.instruction}');
+    // Une étape "tout droit" ne correspond à aucune manœuvre à exécuter —
+    // ORS en génère beaucoup (changement de nom de rue, etc.) le long d'un
+    // trajet globalement rectiligne. Les annoncer rendrait la voix bavarde
+    // en permanence ; seule une vraie manœuvre mérite d'être dite.
+    final announceable = step.maneuver != ManeuverType.straight;
+
+    if (announceable) {
+      for (final threshold in _announceThresholds) {
+        if (d <= threshold && !_announcedThresholds.contains(threshold)) {
+          _announcedThresholds.add(threshold);
+          _voice.announce('Dans ${threshold.round()} mètres, ${step.instruction}');
+        }
       }
     }
 
     if (d <= _stepArrivalRadiusMeters) {
-      _voice.announce(step.instruction);
+      if (announceable) _voice.announce(step.instruction);
       _announcedThresholds.clear();
       if (_currentStepIndex >= _route!.steps.length - 1) {
         stop();
