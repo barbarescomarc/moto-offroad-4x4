@@ -219,16 +219,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       WakelockPlus.toggle(enable: keepOn);
     }
 
-    return Stack(
-      children: [
-        OrientationBuilder(
-          builder: (context, orientation) {
-            final isLandscape = orientation == Orientation.landscape;
-            return isLandscape ? _buildLandscape() : _buildPortrait();
-          },
-        ),
-        if (_tauntMessage != null) _buildTauntOverlay(),
-      ],
+    // Pas de Stack ici : un Stack dont tous les enfants sont Positioned
+    // s'effondre à taille nulle dès que les contraintes ne sont plus tight,
+    // ce qu'un Stack englobant (même avec un seul enfant non-Positioned)
+    // provoque en aval — la carte entière disparaît alors, boutons compris.
+    // Le bandeau de vitesse est ajouté directement dans les Stacks internes
+    // de _buildPortrait/_buildLandscape, qui restent tight.
+    return OrientationBuilder(
+      builder: (context, orientation) {
+        final isLandscape = orientation == Orientation.landscape;
+        return isLandscape ? _buildLandscape() : _buildPortrait();
+      },
     );
   }
 
@@ -244,6 +245,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         children: [
           // ── Carte plein écran ou non ─────────────────────
           Positioned.fill(child: _buildMap()),
+
+          if (_tauntMessage != null) _buildTauntOverlay(),
 
           // ── HUD fullscreen ───────────────────────────────
           if (isFullscreen) ...[
@@ -325,6 +328,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             flex: 65,
             child: Stack(children: [
               Positioned.fill(child: _buildMap()),
+              if (_tauntMessage != null) _buildTauntOverlay(),
               _buildGuidanceBanner(),
               _buildSideControls(),
               _buildSoloBadge(),
