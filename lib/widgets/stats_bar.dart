@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../app/theme.dart';
+import 'speed_limit_badge.dart';
 
 class StatsBar extends StatelessWidget {
   final double speedKmh;
+  final double? speedLimitKmh;
   final double? remainingKm;
   final double fuelRangeKm;
   final bool fuelOk;
@@ -11,6 +13,7 @@ class StatsBar extends StatelessWidget {
   const StatsBar({
     super.key,
     required this.speedKmh,
+    this.speedLimitKmh,
     this.remainingKm,
     required this.fuelRangeKm,
     required this.fuelOk,
@@ -27,7 +30,7 @@ class StatsBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _stat('VITESSE', '${speedKmh.toStringAsFixed(0)} km/h', Colors.white),
+          _speedStat(),
           _divider(),
           if (remainingKm != null) ...[
             _stat('RESTE', '${remainingKm!.toStringAsFixed(1)} km', AppColors.statusGreen),
@@ -39,6 +42,32 @@ class StatsBar extends StatelessWidget {
             _divider(),
             _stat('ALT.', '${altitude!.toStringAsFixed(0)} m', AppColors.textSecondary),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _speedStat() {
+    final limit = speedLimitKmh;
+    return Expanded(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Text('VITESSE', style: TextStyle(
+            fontSize: 9, color: AppColors.textMuted, letterSpacing: .5)),
+          const SizedBox(height: 2),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${speedKmh.toStringAsFixed(0)} km/h', style: const TextStyle(
+                fontSize: 15, fontWeight: FontWeight.w700,
+                color: Colors.white, fontFamily: 'Rajdhani')),
+              if (limit != null) ...[
+                const SizedBox(width: 6),
+                SpeedLimitBadge(limitKmh: limit, size: 24),
+              ],
+            ],
+          ),
         ],
       ),
     );

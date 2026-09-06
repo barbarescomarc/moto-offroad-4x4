@@ -30,6 +30,7 @@ class AppColors {
   static const Color overlayOrange = Color(0x44F57C00); // difficile
   static const Color traceColor   = Color(0xFFE8601C);  // trace GPX
   static const Color traceDone    = Color(0xFF4CAF50);  // portion parcourue
+  static const Color navRoute     = Color(0xFF00B0FF);  // ruban de route en guidage actif
 }
 
 // ── Thème principal ─────────────────────────────────────────

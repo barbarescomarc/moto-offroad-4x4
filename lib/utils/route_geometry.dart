@@ -103,6 +103,35 @@ NearestPointResult nearestPointOnPolylineWindowed(
 double distanceToPolyline(LatLng position, List<LatLng> polyline) =>
     nearestPointOnPolyline(position, polyline).distanceMeters;
 
+// Distance le long de [polyline] entre deux projections déjà calculées, dans
+// le sens de la progression (de [from] vers [to]). Renvoie null si [to] n'est
+// pas en avant de [from] — segment antérieur, ou même segment mais plus près
+// du départ de ce segment — utile pour ignorer tout point déjà dépassé
+// (ex. un radar derrière le rider).
+double? distanceAheadAlongPolyline(
+  List<LatLng> polyline, {
+  required NearestPointResult from,
+  required NearestPointResult to,
+}) {
+  const calc = Distance();
+  if (to.segmentIndex < from.segmentIndex) return null;
+
+  if (to.segmentIndex == from.segmentIndex) {
+    final segmentEnd = polyline[from.segmentIndex + 1];
+    // Sur le même segment, [to] doit être plus proche de la fin de segment
+    // que [from] pour être réellement devant — sinon il est derrière.
+    if (calc(to.point, segmentEnd) > calc(from.point, segmentEnd)) return null;
+    return calc(from.point, to.point);
+  }
+
+  double total = calc(from.point, polyline[from.segmentIndex + 1]);
+  for (var i = from.segmentIndex + 1; i < to.segmentIndex; i++) {
+    total += calc(polyline[i], polyline[i + 1]);
+  }
+  total += calc(polyline[to.segmentIndex], to.point);
+  return total;
+}
+
 // Delta de cap signé, normalisé dans [-180, 180]. Positif = vers la droite.
 double bearingDeltaDeg(double fromDeg, double toDeg) {
   var delta = (toDeg - fromDeg) % 360;

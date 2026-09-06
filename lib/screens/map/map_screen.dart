@@ -31,6 +31,7 @@ import '../../widgets/map_search_bar.dart';
 import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
 import '../../widgets/guidance_banner.dart';
+import '../../widgets/speed_limit_badge.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -46,6 +47,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   String? _tauntMessage;
   Timer? _tauntClearTimer;
+
+  // ── Vue 3D inclinée (guidage actif) ───────────────────────
+  // Angle et facteur d'échelle réglés à l'oeil pour un rendu proche de
+  // TomTom/Waze sans rogner les bords : le zoom compense l'agrandissement
+  // apparent dû à l'inclinaison.
+  static const double _navTiltPerspective = 0.0018;
+  static const double _navTiltAngle = 0.55; // ~31°, en radians
+  static const double _navTiltScale = 1.35;
 
   // ── Zoom automatique à l'approche d'une manœuvre ──────────
   static const double _intersectionZoomThresholdMeters = 150;
@@ -369,7 +378,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final guidance  = context.watch<GuidanceProvider>();
     final snap      = _locationService.lastSnapshot;
 
-    return FlutterMap(
+    final navActive = guidance.isActive;
+
+    final flutterMap = FlutterMap(
       mapController: _mapController,
       options: MapOptions(
         initialCenter: mapProv.center,
@@ -385,14 +396,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ),
       children: [
         // ── Tuile de fond ──────────────────────────────────
+        // En guidage actif, le fond choisi par l'utilisateur cède la place à
+        // un rendu stylisé/épuré, plus lisible en conduite.
         TileLayer(
-          urlTemplate: mapProv.activeLayer.tileUrl,
+          urlTemplate: navActive ? mapProv.navigationTileUrl() : mapProv.activeLayer.tileUrl,
           userAgentPackageName: 'app.motooffroad',
           maxZoom: 18,
         ),
 
         // ── Noms de rues/lieux sur fond satellite ───────────
-        if (mapProv.activeLayer.labelsOverlayUrl != null)
+        // Masqué en guidage : le fond de navigation porte déjà ses propres
+        // labels, la surcouche satellite n'a plus lieu d'être.
+        if (!navActive && mapProv.activeLayer.labelsOverlayUrl != null)
           TileLayer(
             urlTemplate: mapProv.activeLayer.labelsOverlayUrl!,
             userAgentPackageName: 'app.motooffroad',
@@ -419,15 +434,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // ── Trace GPX ──────────────────────────────────────
         if (traceProv.hasTrace) ...[
-          // Portion restante (orange)
+          // Portion restante — ruban vif et épais en guidage actif, plus
+          // discret en simple suivi de trace hors navigation.
           PolylineLayer(polylines: [
             Polyline(
               points: traceProv.activeTrace!.points
                   .skip(traceProv.currentIndex)
                   .map((p) => p.position)
                   .toList(),
-              strokeWidth: 3.5,
-              color: AppColors.traceColor,
+              strokeWidth: navActive ? 6 : 3.5,
+              color: navActive ? AppColors.navRoute : AppColors.traceColor,
             ),
           ]),
           // Portion parcourue (vert)
@@ -437,7 +453,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   .take(traceProv.currentIndex + 1)
                   .map((p) => p.position)
                   .toList(),
-              strokeWidth: 3.5,
+              strokeWidth: navActive ? 6 : 3.5,
               color: AppColors.traceDone,
             ),
           ]),
@@ -476,8 +492,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           PolylineLayer(polylines: [
             Polyline(
               points: guidance.route!.polyline,
-              strokeWidth: 4.5,
-              color: AppColors.blue,
+              strokeWidth: 6,
+              color: AppColors.navRoute,
             ),
           ]),
           MarkerLayer(markers: [
@@ -525,6 +541,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ),
           ]),
       ],
+    );
+
+    // Vue 3D inclinée façon TomTom, uniquement en guidage + suivi de
+    // position actif : ailleurs (consultation libre de la carte), la
+    // perspective inclinée gênerait plus qu'elle n'aiderait. Le zoom réel
+    // et la rotation heading-up restent gérés par flutter_map ; ce Transform
+    // n'est qu'un habillage visuel appliqué par-dessus le rendu fini.
+    if (!(navActive && mapProv.followPosition)) return flutterMap;
+
+    return ClipRect(
+      child: Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.identity()
+          ..setEntry(3, 2, _navTiltPerspective)
+          ..rotateX(_navTiltAngle)
+          ..scaleByDouble(_navTiltScale, _navTiltScale, _navTiltScale, 1.0),
+        child: flutterMap,
+      ),
     );
   }
 
@@ -592,11 +626,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // elle en portrait. Il vit maintenant dans cette même colonne (voir
   // _buildPortrait), qui n'a plus besoin de deviner une hauteur.
   Widget _buildStatsBar() {
-    return Consumer3<TraceProvider, FuelProvider, MapProvider>(
-      builder: (ctx, trace, fuel, map, _) {
+    return Consumer4<TraceProvider, FuelProvider, MapProvider, GuidanceProvider>(
+      builder: (ctx, trace, fuel, map, guidance, _) {
         final snap = _locationService.lastSnapshot;
         return StatsBar(
-          speedKmh:    snap?.speedKmh ?? 0,
+          speedKmh:      snap?.speedKmh ?? 0,
+          speedLimitKmh: guidance.isActive ? guidance.speedLimitKmh : null,
           remainingKm: trace.hasTrace && snap != null
               ? trace.remainingKm(
                   snap.position.latitude, snap.position.longitude)
@@ -685,31 +720,42 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // ── HUD PLEIN ÉCRAN ───────────────────────────────────────
   Widget _buildFullscreenHud() {
     final snap = _locationService.lastSnapshot;
+    final guidance = context.watch<GuidanceProvider>();
+    final speedLimit = guidance.isActive ? guidance.speedLimitKmh : null;
     return Positioned(
       bottom: 16,
       left: 16,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Vitesse
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.black.withOpacity(.65),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              children: [
-                Text(
-                  '${snap?.speedKmh.toStringAsFixed(0) ?? '--'}',
-                  style: const TextStyle(
-                    fontSize: 36, fontWeight: FontWeight.w700,
-                    color: Colors.white, fontFamily: 'Rajdhani',
-                  ),
+          // Vitesse (+ limite en guidage, si connue)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(.65),
+                  borderRadius: BorderRadius.circular(10),
                 ),
-                const Text('km/h', style: TextStyle(fontSize: 11, color: Colors.white54)),
+                child: Column(
+                  children: [
+                    Text(
+                      '${snap?.speedKmh.toStringAsFixed(0) ?? '--'}',
+                      style: const TextStyle(
+                        fontSize: 36, fontWeight: FontWeight.w700,
+                        color: Colors.white, fontFamily: 'Rajdhani',
+                      ),
+                    ),
+                    const Text('km/h', style: TextStyle(fontSize: 11, color: Colors.white54)),
+                  ],
+                ),
+              ),
+              if (speedLimit != null) ...[
+                const SizedBox(width: 8),
+                SpeedLimitBadge(limitKmh: speedLimit),
               ],
-            ),
+            ],
           ),
           const SizedBox(height: 8),
           // Cap
@@ -779,7 +825,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           )),
           const SizedBox(height: 10),
           // Stats en grille
-          _landscapeStat('VITESSE', '${snap?.speedKmh.toStringAsFixed(0) ?? '--'} km/h', AppColors.orange),
+          _landscapeSpeedStat(snap),
           _landscapeStat('ALTITUDE', '${snap?.altitudeMeters.toStringAsFixed(0) ?? '--'} m', Colors.white),
           if (traceProv.hasTrace && snap != null)
             _landscapeStat('RESTE',
@@ -845,6 +891,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 minimumSize: const Size(double.infinity, 44),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _landscapeSpeedStat(GpsSnapshot? snap) {
+    final guidance = context.watch<GuidanceProvider>();
+    final speedLimit = guidance.isActive ? guidance.speedLimitKmh : null;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('VITESSE', style: TextStyle(fontSize: 11, color: AppColors.textMuted, letterSpacing: .5)),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('${snap?.speedKmh.toStringAsFixed(0) ?? '--'} km/h', style: const TextStyle(
+                fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.orange, fontFamily: 'Rajdhani')),
+              if (speedLimit != null) ...[
+                const SizedBox(width: 6),
+                SpeedLimitBadge(limitKmh: speedLimit, size: 26),
+              ],
+            ],
           ),
         ],
       ),

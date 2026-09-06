@@ -145,6 +145,20 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // Fond de carte "Navigation" (guidage actif) — CartoDB Positron/Dark
+  // Matter : rendu épuré (aplats de couleur, peu de labels), pensé pour la
+  // lisibilité en conduite, contrairement au fond choisi par l'utilisateur
+  // qui reste chargé de détails hors navigation. Bascule jour/nuit sur
+  // l'heure système, faute de capteur de luminosité déjà exploité.
+  // `now` s'injecte en test pour couvrir les deux variantes sans horloge réelle.
+  String navigationTileUrl({DateTime Function() now = DateTime.now}) {
+    final hour = now().hour;
+    final isNight = hour < 7 || hour >= 20;
+    return isNight
+        ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
+        : 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+  }
+
   void setNavMode(NavMode mode) {
     _navMode = mode;
     notifyListeners();

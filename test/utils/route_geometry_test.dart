@@ -94,6 +94,41 @@ void main() {
     });
   });
 
+  group('distanceAheadAlongPolyline', () {
+    // Ligne droite plein nord, segments d'environ 1,11 km (0,01° de latitude).
+    final polyline = [
+      for (var i = 0; i <= 5; i++) LatLng(44.0 + i * 0.01, 6.0),
+    ];
+
+    test('même segment, to devant from → distance directe', () {
+      final from = nearestPointOnPolyline(const LatLng(44.001, 6.0), polyline);
+      final to = nearestPointOnPolyline(const LatLng(44.005, 6.0), polyline);
+      final result = distanceAheadAlongPolyline(polyline, from: from, to: to);
+      expect(result, isNotNull);
+      expect(result, closeTo(const Distance()(const LatLng(44.001, 6.0), const LatLng(44.005, 6.0)), 1));
+    });
+
+    test('même segment, to derrière from → null', () {
+      final from = nearestPointOnPolyline(const LatLng(44.005, 6.0), polyline);
+      final to = nearestPointOnPolyline(const LatLng(44.001, 6.0), polyline);
+      expect(distanceAheadAlongPolyline(polyline, from: from, to: to), isNull);
+    });
+
+    test('to sur un segment antérieur → null', () {
+      final from = nearestPointOnPolyline(const LatLng(44.025, 6.0), polyline);
+      final to = nearestPointOnPolyline(const LatLng(44.005, 6.0), polyline);
+      expect(distanceAheadAlongPolyline(polyline, from: from, to: to), isNull);
+    });
+
+    test('to sur un segment ultérieur → somme les segments intermédiaires', () {
+      final from = nearestPointOnPolyline(const LatLng(44.001, 6.0), polyline);
+      final to = nearestPointOnPolyline(const LatLng(44.032, 6.0), polyline);
+      final result = distanceAheadAlongPolyline(polyline, from: from, to: to);
+      expect(result, isNotNull);
+      expect(result, closeTo(const Distance()(const LatLng(44.001, 6.0), const LatLng(44.032, 6.0)), 5));
+    });
+  });
+
   group('bearingDeltaDeg', () {
     test('aucun changement de cap → delta 0', () {
       expect(bearingDeltaDeg(90, 90), 0);

@@ -9,6 +9,8 @@ import '../services/guidance_background_client.dart';
 import '../services/guidance_voice_service.dart';
 import '../services/location_service.dart';
 import '../services/routing_service.dart';
+import '../services/speed_camera_service.dart';
+import '../services/speed_limit_service.dart';
 import '../utils/route_geometry.dart';
 
 enum GuidanceMode { destination, gpxAlert, gpxTurnByTurn }
@@ -18,11 +20,15 @@ class GuidanceProvider extends ChangeNotifier {
     RoutingService? routingService,
     GuidanceVoiceService? voiceService,
     GuidanceBackgroundClient? backgroundClient,
+    SpeedLimitService? speedLimitService,
+    SpeedCameraService? speedCameraService,
     Stream<GpsSnapshot>? positionStream,
     DateTime Function()? clock,
   })  : _routing = routingService ?? RoutingService(),
         _voice = voiceService ?? GuidanceVoiceService(),
         _background = backgroundClient ?? GuidanceBackgroundClient(),
+        _speedLimit = speedLimitService ?? SpeedLimitService(),
+        _speedCamera = speedCameraService ?? SpeedCameraService(),
         _positionStream = positionStream ?? LocationService().stream,
         _clock = clock ?? DateTime.now;
 
@@ -44,10 +50,31 @@ class GuidanceProvider extends ChangeNotifier {
   static const Duration _rerouteCooldown = Duration(seconds: 20);
   // Silence GPS au-delà duquel le guidage se signale en perte de signal.
   static const Duration _gpsTimeout = Duration(seconds: 15);
+  // Fréquence de rafraîchissement de la limite de vitesse — Overpass n'est
+  // pas fait pour être interrogé à chaque relevé GPS, on ne requête que si
+  // le rider s'est significativement déplacé ou qu'assez de temps a passé.
+  static const double _speedLimitMinMoveMeters = 200;
+  static const Duration _speedLimitMinInterval = Duration(seconds: 45);
+  // Fréquence de rafraîchissement des radars connus — leur position ne
+  // change jamais, un intervalle plus large que la limite de vitesse suffit.
+  static const double _cameraQueryMinMoveMeters = 500;
+  static const Duration _cameraQueryMinInterval = Duration(seconds: 60);
+  // Un radar à plus de cette distance de la route suivie n'est pas dessus
+  // (route parallèle, bretelle...) : on l'ignore plutôt que de fausser
+  // l'alerte.
+  static const double _cameraMaxRoadDistanceMeters = 60;
+  // Distances de pré-alerte légales (décret du 3 janvier 2012), choisies
+  // selon la vitesse actuelle du rider à défaut de connaître le type de
+  // route au niveau du radar lui-même (agglomération / route / autoroute).
+  static const double _controlZoneAgglomerationMeters = 500;
+  static const double _controlZoneRouteMeters = 2000;
+  static const double _controlZoneAutorouteMeters = 4000;
 
   final RoutingService _routing;
   final GuidanceVoiceService _voice;
   final GuidanceBackgroundClient _background;
+  final SpeedLimitService _speedLimit;
+  final SpeedCameraService _speedCamera;
   final Stream<GpsSnapshot> _positionStream;
   final DateTime Function() _clock;
 
@@ -63,6 +90,18 @@ class GuidanceProvider extends ChangeNotifier {
   DateTime? _lastRerouteAttempt;
   bool _gpsSignalLost = false;
   String? _error;
+  double? _speedLimitKmh;
+  LatLng? _lastSpeedLimitQueryPosition;
+  DateTime? _lastSpeedLimitQueryAt;
+  bool _speedLimitQueryInFlight = false;
+  double? _upcomingControlZoneMeters;
+  List<LatLng> _knownCameras = const [];
+  LatLng? _lastCameraQueryPosition;
+  DateTime? _lastCameraQueryAt;
+  bool _cameraQueryInFlight = false;
+  // Radar déjà annoncé à la voix — évite de répéter l'alerte à chaque
+  // relevé GPS tant que le rider approche du même radar.
+  LatLng? _announcedCamera;
   final Set<double> _announcedThresholds = {};
   // Dernier segment de la polyligne reconnu sous le rider. Sert d'amorce à la
   // recherche fenêtrée : sur une trace qui boucle, un balayage complet peut
@@ -88,6 +127,8 @@ class GuidanceProvider extends ChangeNotifier {
   bool get gpsSignalLost => _gpsSignalLost;
   bool get isMuted => _voice.isMuted;
   String? get error => _error;
+  double? get speedLimitKmh => _speedLimitKmh;
+  double? get upcomingControlZoneMeters => _upcomingControlZoneMeters;
 
   RouteStep? get currentStep {
     final r = _route;
@@ -210,6 +251,14 @@ class GuidanceProvider extends ChangeNotifier {
     _gpsTimeoutTimer?.cancel();
     _gpsTimeoutTimer = null;
     _gpsSignalLost = false;
+    _speedLimitKmh = null;
+    _lastSpeedLimitQueryPosition = null;
+    _lastSpeedLimitQueryAt = null;
+    _upcomingControlZoneMeters = null;
+    _knownCameras = const [];
+    _lastCameraQueryPosition = null;
+    _lastCameraQueryAt = null;
+    _announcedCamera = null;
     _background.stop();
     notifyListeners();
   }
@@ -244,7 +293,106 @@ class GuidanceProvider extends ChangeNotifier {
     _checkOffRoute(snap.position);
     _noteDistanceFromFinish(snap.position);
     _checkStepAdvance(snap.position);
+    _maybeRefreshSpeedLimit(snap.position);
+    _maybeRefreshCameras(snap.position, snap.speedKmh);
+    _updateUpcomingControlZone(snap.position, snap.speedKmh);
     notifyListeners();
+  }
+
+  void _maybeRefreshSpeedLimit(LatLng position) {
+    if (_speedLimitQueryInFlight) return;
+    final now = _clock();
+    final lastAt = _lastSpeedLimitQueryAt;
+    final lastPos = _lastSpeedLimitQueryPosition;
+    final dueToTime = lastAt == null || now.difference(lastAt) >= _speedLimitMinInterval;
+    final dueToMove = lastPos == null ||
+        const Distance()(position, lastPos) >= _speedLimitMinMoveMeters;
+    if (!dueToTime && !dueToMove) return;
+
+    _speedLimitQueryInFlight = true;
+    _lastSpeedLimitQueryPosition = position;
+    _lastSpeedLimitQueryAt = now;
+    _speedLimit.fetchSpeedLimitKmh(position).then((limit) {
+      _speedLimitQueryInFlight = false;
+      // Le guidage a pu s'arrêter pendant la requête : rien à mettre à jour.
+      if (!isActive) return;
+      _speedLimitKmh = limit;
+      notifyListeners();
+    });
+  }
+
+  void _maybeRefreshCameras(LatLng position, double speedKmh) {
+    if (_cameraQueryInFlight) return;
+    final now = _clock();
+    final lastAt = _lastCameraQueryAt;
+    final lastPos = _lastCameraQueryPosition;
+    final dueToTime = lastAt == null || now.difference(lastAt) >= _cameraQueryMinInterval;
+    final dueToMove = lastPos == null ||
+        const Distance()(position, lastPos) >= _cameraQueryMinMoveMeters;
+    if (!dueToTime && !dueToMove) return;
+
+    _cameraQueryInFlight = true;
+    _lastCameraQueryPosition = position;
+    _lastCameraQueryAt = now;
+    _speedCamera.fetchNearbyCameras(position).then((cameras) {
+      _cameraQueryInFlight = false;
+      // Le guidage a pu s'arrêter pendant la requête : rien à mettre à jour.
+      if (!isActive) return;
+      _knownCameras = cameras;
+      // Le calcul synchrone dans _onPosition a pu tourner avant que ce cache
+      // ne soit rempli (premier relevé, ou juste après un rafraîchissement) :
+      // on le rejoue avec les données désormais à jour.
+      _updateUpcomingControlZone(position, speedKmh);
+      notifyListeners();
+    });
+  }
+
+  // Ne signale jamais la position d'un radar — seule une "zone de contrôle
+  // possible" est autorisée en France (décret du 3 janvier 2012). La
+  // distance de pré-alerte dépend du type de route ; faute de connaître le
+  // classement exact au niveau du radar, on l'approxime par la vitesse
+  // actuelle du rider, qui corrèle fortement avec le type de route.
+  void _updateUpcomingControlZone(LatLng position, double speedKmh) {
+    final route = _route;
+    if (route == null || route.polyline.length < 2 || _knownCameras.isEmpty) {
+      _upcomingControlZoneMeters = null;
+      return;
+    }
+
+    final riderNearest = nearestPointOnPolylineWindowed(position, route.polyline, _lastSegmentIndex);
+
+    LatLng? nearestCamera;
+    double? nearestDistance;
+    for (final camera in _knownCameras) {
+      final cameraNearest = nearestPointOnPolyline(camera, route.polyline);
+      if (cameraNearest.distanceMeters > _cameraMaxRoadDistanceMeters) continue;
+      final ahead = distanceAheadAlongPolyline(route.polyline, from: riderNearest, to: cameraNearest);
+      if (ahead == null) continue;
+      if (nearestDistance == null || ahead < nearestDistance) {
+        nearestDistance = ahead;
+        nearestCamera = camera;
+      }
+    }
+
+    final threshold = speedKmh <= 60
+        ? _controlZoneAgglomerationMeters
+        : speedKmh <= 90
+            ? _controlZoneRouteMeters
+            : _controlZoneAutorouteMeters;
+
+    if (nearestCamera == null || nearestDistance == null || nearestDistance > threshold) {
+      _upcomingControlZoneMeters = null;
+      // Le radar annoncé est désormais dépassé ou hors de portée : une
+      // prochaine approche (le sien ou un autre) pourra être réannoncée.
+      _announcedCamera = null;
+      return;
+    }
+
+    _upcomingControlZoneMeters = nearestDistance;
+    if (_announcedCamera != nearestCamera) {
+      _announcedCamera = nearestCamera;
+      _voice.announce('Zone de contrôle possible');
+    }
   }
 
   // À vol d'oiseau, pas le long du parcours : sur une boucle, la distance

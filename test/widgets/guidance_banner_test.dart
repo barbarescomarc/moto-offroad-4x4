@@ -13,6 +13,7 @@ import 'package:moto_offroad/services/guidance_background_client.dart';
 import 'package:moto_offroad/services/guidance_voice_service.dart';
 import 'package:moto_offroad/services/location_service.dart';
 import 'package:moto_offroad/services/routing_service.dart';
+import 'package:moto_offroad/services/speed_camera_service.dart';
 import 'package:moto_offroad/widgets/guidance_banner.dart';
 
 class _MockGuidanceBackgroundClient extends GuidanceBackgroundClient {
@@ -47,6 +48,14 @@ class _FakeRoutingService extends RoutingService {
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
   }) async => _twoSegmentRoute();
+}
+
+class _FakeSpeedCameraService extends SpeedCameraService {
+  final List<LatLng> cameras;
+  _FakeSpeedCameraService(this.cameras);
+
+  @override
+  Future<List<LatLng>> fetchNearbyCameras(LatLng position) async => cameras;
 }
 
 class _SilentTtsEngine implements TtsEngine {
@@ -173,6 +182,33 @@ void main() {
 
     expect(find.text('0.4 km restants'), findsOneWidget);
     expect(find.text('5 min'), findsOneWidget);
+    guidance.stop();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('affiche une alerte de zone de contrôle possible quand un radar est proche', (tester) async {
+    final positions = StreamController<GpsSnapshot>.broadcast();
+    addTearDown(positions.close);
+    final guidance = GuidanceProvider(
+      routingService: _FakeRoutingService(),
+      voiceService: GuidanceVoiceService(engine: _SilentTtsEngine()),
+      speedCameraService: _FakeSpeedCameraService([const LatLng(44.0, 6.0075)]),
+      positionStream: positions.stream,
+      backgroundClient: _MockGuidanceBackgroundClient(),
+    );
+    await guidance.startToDestination(
+      origin: const LatLng(44.0, 6.0),
+      destination: const LatLng(44.0, 6.01),
+      profile: RoutingProfile.drivingCar,
+    );
+
+    // ~200 m avant le radar, en dessous du seuil agglomération (500 m à 20 km/h).
+    positions.add(_gps(const LatLng(44.0, 6.005)));
+    await tester.pump();
+    await _pump(tester, guidance);
+
+    expect(find.textContaining('Zone de contrôle possible'), findsOneWidget);
+    expect(find.textContaining('radar'), findsNothing);
     guidance.stop();
     await tester.pumpAndSettle();
   });

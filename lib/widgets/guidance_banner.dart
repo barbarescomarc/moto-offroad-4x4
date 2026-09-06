@@ -14,13 +14,42 @@ class GuidanceBanner extends StatelessWidget {
     final guidance = context.watch<GuidanceProvider>();
     if (!guidance.isActive) return const SizedBox.shrink();
 
+    final controlZone = guidance.upcomingControlZoneMeters;
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (controlZone != null) ...[
+          _controlZoneAlert(controlZone),
+          const SizedBox(height: 6),
+        ],
         _instructionCard(guidance),
         const SizedBox(height: 6),
         _footer(context, guidance),
       ],
+    );
+  }
+
+  // Jamais le mot « radar » ni sa position exacte : seule une zone de
+  // danger est autorisée en France (décret du 3 janvier 2012).
+  Widget _controlZoneAlert(double distanceMeters) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.statusOrange.withValues(alpha: .18),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.statusOrange.withValues(alpha: .6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.warning_amber, color: AppColors.statusOrange, size: 20),
+          const SizedBox(width: 8),
+          Text(
+            'Zone de contrôle possible à ${_distanceLabel(distanceMeters)}',
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+          ),
+        ],
+      ),
     );
   }
 

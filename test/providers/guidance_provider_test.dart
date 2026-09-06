@@ -10,14 +10,16 @@ import 'package:moto_offroad/services/guidance_background_client.dart';
 import 'package:moto_offroad/services/guidance_voice_service.dart';
 import 'package:moto_offroad/services/location_service.dart';
 import 'package:moto_offroad/services/routing_service.dart';
+import 'package:moto_offroad/services/speed_camera_service.dart';
+import 'package:moto_offroad/services/speed_limit_service.dart';
 
 final _t0 = DateTime(2026, 9, 3, 10, 0, 0);
 
-GpsSnapshot _gps(LatLng pos, {int s = 0}) => GpsSnapshot(
+GpsSnapshot _gps(LatLng pos, {int s = 0, double speedKmh = 20}) => GpsSnapshot(
   position:       pos,
   accuracyMeters: 4,
   altitudeMeters: 300,
-  speedKmh:       20,
+  speedKmh:       speedKmh,
   headingDeg:     0,
   timestamp:      _t0.add(Duration(seconds: s)),
 );
@@ -49,6 +51,30 @@ class _FakeControl implements ForegroundServiceControl {
   Future<void> update({required String title, required String text}) async {}
   @override
   Future<void> stop() async {}
+}
+
+class _FakeSpeedLimitService extends SpeedLimitService {
+  int calls = 0;
+  final List<LatLng> queriedPositions = [];
+  double? nextLimit;
+
+  @override
+  Future<double?> fetchSpeedLimitKmh(LatLng position) async {
+    calls++;
+    queriedPositions.add(position);
+    return nextLimit;
+  }
+}
+
+class _FakeSpeedCameraService extends SpeedCameraService {
+  int calls = 0;
+  List<LatLng> nextCameras = const [];
+
+  @override
+  Future<List<LatLng>> fetchNearbyCameras(LatLng position) async {
+    calls++;
+    return nextCameras;
+  }
 }
 
 class _FakeTtsEngine implements TtsEngine {
@@ -105,6 +131,8 @@ TraceModel _traceFrom(List<LatLng> points) => TraceModel(
 void main() {
   late StreamController<GpsSnapshot> positionController;
   late _FakeRoutingService routing;
+  late _FakeSpeedLimitService speedLimit;
+  late _FakeSpeedCameraService speedCamera;
   late _FakeTtsEngine ttsEngine;
   late GuidanceProvider guidance;
   late DateTime fakeNow;
@@ -112,6 +140,8 @@ void main() {
   setUp(() {
     positionController = StreamController<GpsSnapshot>.broadcast();
     routing = _FakeRoutingService();
+    speedLimit = _FakeSpeedLimitService();
+    speedCamera = _FakeSpeedCameraService();
     ttsEngine = _FakeTtsEngine();
     fakeNow = _t0;
     guidance = GuidanceProvider(
@@ -120,6 +150,8 @@ void main() {
       backgroundClient: GuidanceBackgroundClient(
         coordinator: BackgroundServiceCoordinator(control: _FakeControl()),
       ),
+      speedLimitService: speedLimit,
+      speedCameraService: speedCamera,
       positionStream: positionController.stream,
       clock: () => fakeNow,
     );
@@ -381,6 +413,158 @@ void main() {
     expect(guidance.remainingDistanceMeters, closeTo(900, 20));
   });
 
+  // ── Limite de vitesse ──────────────────────────────────────
+
+  group('speedLimitKmh', () {
+    test('se met à jour depuis le premier relevé GPS en guidage', () async {
+      speedLimit.nextLimit = 90;
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+
+      positionController.add(_gps(_longStraightTrace[0], s: 1));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(speedLimit.calls, 1);
+      expect(guidance.speedLimitKmh, 90);
+    });
+
+    test('ne requête pas à nouveau sur un relevé proche dans le temps et l\'espace', () async {
+      speedLimit.nextLimit = 90;
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+      positionController.add(_gps(_longStraightTrace[0], s: 1));
+      await Future<void>.delayed(Duration.zero);
+      expect(speedLimit.calls, 1);
+
+      // Quelques mètres plus loin, quelques secondes après.
+      positionController.add(_gps(_longStraightTrace[1], s: 2));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(speedLimit.calls, 1);
+    });
+
+    test('requête à nouveau après un déplacement suffisant', () async {
+      speedLimit.nextLimit = 90;
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+      positionController.add(_gps(_longStraightTrace[0], s: 1));
+      await Future<void>.delayed(Duration.zero);
+      expect(speedLimit.calls, 1);
+
+      // ~100 m plus loin par point de la trace ; 3 points ≈ 270 m.
+      positionController.add(_gps(_longStraightTrace[3], s: 2));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(speedLimit.calls, 2);
+    });
+
+    test('requête à nouveau après un délai suffisant même sans déplacement', () async {
+      speedLimit.nextLimit = 90;
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+      positionController.add(_gps(_longStraightTrace[0], s: 1));
+      await Future<void>.delayed(Duration.zero);
+      expect(speedLimit.calls, 1);
+
+      fakeNow = fakeNow.add(const Duration(seconds: 50));
+      positionController.add(_gps(_longStraightTrace[0], s: 2));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(speedLimit.calls, 2);
+    });
+
+    test('remise à zéro à l\'arrêt du guidage', () async {
+      speedLimit.nextLimit = 90;
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+      positionController.add(_gps(_longStraightTrace[0], s: 1));
+      await Future<void>.delayed(Duration.zero);
+      expect(guidance.speedLimitKmh, 90);
+
+      guidance.stop();
+
+      expect(guidance.speedLimitKmh, isNull);
+    });
+  });
+
+  // ── Zone de contrôle possible (radars fixes) ──────────────
+  // _longStraightTrace : 30 points plein nord espacés d'environ 100,2 m.
+
+  group('upcomingControlZoneMeters', () {
+    test('un radar à ~400 m devant, à faible vitesse, déclenche la zone', () async {
+      speedCamera.nextCameras = [_longStraightTrace[4]]; // ~400 m
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+
+      positionController.add(_gps(_longStraightTrace[0], s: 1, speedKmh: 20));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(guidance.upcomingControlZoneMeters, isNotNull);
+      expect(guidance.upcomingControlZoneMeters, closeTo(400, 20));
+      expect(ttsEngine.spoken, contains('Zone de contrôle possible'));
+    });
+
+    test('un radar derrière le rider n\'est pas signalé', () async {
+      speedCamera.nextCameras = [_longStraightTrace[2]];
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+
+      positionController.add(_gps(_longStraightTrace[10], s: 1, speedKmh: 20));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(guidance.upcomingControlZoneMeters, isNull);
+    });
+
+    test('un radar hors de portée pour la vitesse actuelle n\'est pas signalé', () async {
+      speedCamera.nextCameras = [_longStraightTrace[8]]; // ~800 m
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+
+      // 20 km/h → seuil agglomération (500 m), 800 m est hors de portée.
+      positionController.add(_gps(_longStraightTrace[0], s: 1, speedKmh: 20));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(guidance.upcomingControlZoneMeters, isNull);
+    });
+
+    test('le même radar devient audible à vitesse plus élevée (seuil route)', () async {
+      speedCamera.nextCameras = [_longStraightTrace[8]]; // ~800 m
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+
+      // 70 km/h → seuil route (2000 m), 800 m est dans la zone.
+      positionController.add(_gps(_longStraightTrace[0], s: 1, speedKmh: 70));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(guidance.upcomingControlZoneMeters, closeTo(800, 20));
+    });
+
+    test('un radar trop éloigné latéralement de la route est ignoré', () async {
+      // ~240 m à l'est du tracé (au-delà du seuil de 60 m).
+      speedCamera.nextCameras = [const LatLng(44.0009, 6.003)];
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+
+      positionController.add(_gps(_longStraightTrace[0], s: 1, speedKmh: 20));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(guidance.upcomingControlZoneMeters, isNull);
+    });
+
+    test('l\'annonce vocale ne se répète pas en approchant du même radar', () async {
+      speedCamera.nextCameras = [_longStraightTrace[4]];
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+
+      positionController.add(_gps(_longStraightTrace[0], s: 1, speedKmh: 20));
+      await Future<void>.delayed(Duration.zero);
+      positionController.add(_gps(_longStraightTrace[1], s: 2, speedKmh: 20));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(ttsEngine.spoken.where((m) => m == 'Zone de contrôle possible').length, 1);
+    });
+
+    test('remise à zéro à l\'arrêt du guidage', () async {
+      speedCamera.nextCameras = [_longStraightTrace[4]];
+      guidance.startOnTrace(_traceFrom(_longStraightTrace), GuidanceMode.gpxAlert);
+      positionController.add(_gps(_longStraightTrace[0], s: 1, speedKmh: 20));
+      await Future<void>.delayed(Duration.zero);
+      expect(guidance.upcomingControlZoneMeters, isNotNull);
+
+      guidance.stop();
+
+      expect(guidance.upcomingControlZoneMeters, isNull);
+    });
+  });
 }
 
 // Carré de ~500 m de côté fermé sur son point de départ (0,0045° de latitude
