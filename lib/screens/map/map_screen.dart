@@ -654,6 +654,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               icon: Icons.star, color: AppColors.orange, angleDeg: 302,
               onSelect: _openFavorites,
             ),
+            // Seule entrée vers le mode groupe : l'écran (créer/rejoindre,
+            // ou gérer un groupe actif) existait déjà côté code mais
+            // n'était accessible depuis nulle part dans l'appli.
+            RadialMenuSegment(
+              icon: Icons.groups, color: AppColors.blue, angleDeg: 339,
+              onSelect: () => context.push(AppRoutes.group),
+            ),
           ],
         ),
         if (traceProv.hasTrace) ...[
