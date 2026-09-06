@@ -148,9 +148,13 @@ class _SettingsScreenState extends State<SettingsScreen>
     context.read<SettingsProvider>().setRiderName(name);
     if (name.trim().toLowerCase() == 'jhon' || name.trim().toLowerCase() == 'john') {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('💊 Pensez à prendre une dose de Testicouille par jour !'),
+        content: Text(
+          '💊 Pensez à prendre une dose de Testicouille par jour !',
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
+        ),
         backgroundColor: Color(0xFF6A1B9A),
-        duration: Duration(seconds: 4),
+        duration: Duration(seconds: 5),
+        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 18),
       ));
     }
   }

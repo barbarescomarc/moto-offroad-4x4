@@ -51,7 +51,17 @@ extension MapLayerExt on MapLayer {
 }
 
 // ── Mode de navigation ───────────────────────────────────────
-enum NavMode { offroad, route }
+enum NavMode { offroad, route, fourByFour }
+
+extension NavModeExt on NavMode {
+  String get label {
+    switch (this) {
+      case NavMode.offroad:    return 'Offroad';
+      case NavMode.route:      return 'Route';
+      case NavMode.fourByFour: return '4X4';
+    }
+  }
+}
 
 // ── Provider — État de la carte ──────────────────────────────
 class MapProvider extends ChangeNotifier {
@@ -141,7 +151,11 @@ class MapProvider extends ChangeNotifier {
   }
 
   void toggleNavMode() {
-    _navMode = _navMode == NavMode.offroad ? NavMode.route : NavMode.offroad;
+    _navMode = switch (_navMode) {
+      NavMode.offroad    => NavMode.route,
+      NavMode.route      => NavMode.fourByFour,
+      NavMode.fourByFour => NavMode.offroad,
+    };
     notifyListeners();
   }
 

@@ -17,8 +17,10 @@ import '../../providers/favorites_provider.dart';
 import '../../providers/guidance_provider.dart';
 import '../../models/trace.dart';
 import '../../models/favorite_place.dart';
+import '../../models/route_result.dart';
 import '../../services/location_service.dart';
 import '../../services/routing_service.dart';
+import '../../services/speed_taunt_service.dart';
 import '../../widgets/sos_button.dart';
 import '../../widgets/mode_switch.dart';
 import '../../widgets/stats_bar.dart';
@@ -40,6 +42,16 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final _mapController = MapController();
   final _locationService = LocationService();
+  final _tauntService = SpeedTauntService();
+
+  String? _tauntMessage;
+  Timer? _tauntClearTimer;
+
+  // ── Zoom automatique à l'approche d'une manœuvre ──────────
+  static const double _intersectionZoomThresholdMeters = 150;
+  static const double _intersectionZoomBoost = 2.5;
+  bool _intersectionZoomActive = false;
+  double? _preIntersectionZoom;
 
   // Décalage gauche du bandeau de guidage quand il partage la pile avec la
   // colonne SOS/enregistrement (paysage et plein écran) : celle-ci commence à
@@ -71,6 +83,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     _navBarHideTimer?.cancel();
+    _tauntClearTimer?.cancel();
     WakelockPlus.disable();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -97,15 +110,99 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       if (!mounted) return;
       final mapProv = context.read<MapProvider>();
       final traceProv = context.read<TraceProvider>();
+      final settings = context.read<SettingsProvider>();
 
       // Centrer la carte sur la position si suivi actif
       if (mapProv.followPosition && _mapReady) {
         _mapController.move(snap.position, _mapController.camera.zoom);
+        // Cap en haut : la carte tourne pour garder le sens de circulation
+        // vers le haut de l'écran, comme un GPS auto — sinon Nord en haut.
+        if (settings.mapHeadingUp) {
+          _mapController.rotate(-snap.headingDeg);
+        }
       }
 
       // Mise à jour position sur la trace
       traceProv.updatePosition(snap.position.latitude, snap.position.longitude);
+
+      _checkSpeedTaunt(snap.speedKmh);
+      _updateIntersectionZoom(mapProv);
     });
+  }
+
+  // ── Zoom automatique à l'approche d'une manœuvre ──────────
+  // Rapprocher la carte quand un virage arrive aide à voir l'intersection ;
+  // le zoom d'origine (avant l'approche) est restauré une fois la manœuvre
+  // passée, pour ne pas imposer un niveau de zoom permanent au rider.
+  void _updateIntersectionZoom(MapProvider mapProv) {
+    if (!mounted || !_mapReady || !mapProv.followPosition) return;
+    final guidance = context.read<GuidanceProvider>();
+    final step = guidance.isActive ? guidance.currentStep : null;
+    final approaching = step != null &&
+        step.maneuver != ManeuverType.straight &&
+        guidance.distanceToNextStepMeters <= _intersectionZoomThresholdMeters;
+
+    if (approaching && !_intersectionZoomActive) {
+      _intersectionZoomActive = true;
+      _preIntersectionZoom = _mapController.camera.zoom;
+      _mapController.move(
+        _mapController.camera.center,
+        (_preIntersectionZoom! + _intersectionZoomBoost).clamp(5, 18),
+      );
+    } else if (!approaching && _intersectionZoomActive) {
+      _intersectionZoomActive = false;
+      final restoreZoom = _preIntersectionZoom ?? mapProv.zoom;
+      _preIntersectionZoom = null;
+      _mapController.move(_mapController.camera.center, restoreZoom);
+    }
+  }
+
+  void _toggleMapOrientation() {
+    final settings = context.read<SettingsProvider>();
+    settings.toggleMapHeadingUp();
+    if (!settings.mapHeadingUp) {
+      // Retour au Nord en haut : on réaligne la carte tout de suite plutôt
+      // que d'attendre le prochain relevé GPS.
+      _mapController.rotate(0);
+    }
+  }
+
+  // ── Messages provocateurs selon la vitesse ────────────────
+  Future<void> _checkSpeedTaunt(double speedKmh) async {
+    final taunt = await _tauntService.onSpeed(speedKmh);
+    if (taunt == null || !mounted) return;
+    _tauntClearTimer?.cancel();
+    setState(() {
+      _tauntMessage = switch (taunt) {
+        SpeedTaunt.tooFast => 'Crois-tu en Dieu pour aller si vite ?',
+        SpeedTaunt.tooSlow => 'Tu te traînes...',
+      };
+    });
+    _tauntClearTimer = Timer(const Duration(seconds: 3), () {
+      if (mounted) setState(() => _tauntMessage = null);
+    });
+  }
+
+  Widget _buildTauntOverlay() {
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: Container(
+          color: Colors.black.withValues(alpha: .55),
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Text(
+            _tauntMessage!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 34,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -122,11 +219,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       WakelockPlus.toggle(enable: keepOn);
     }
 
-    return OrientationBuilder(
-      builder: (context, orientation) {
-        final isLandscape = orientation == Orientation.landscape;
-        return isLandscape ? _buildLandscape() : _buildPortrait();
-      },
+    return Stack(
+      children: [
+        OrientationBuilder(
+          builder: (context, orientation) {
+            final isLandscape = orientation == Orientation.landscape;
+            return isLandscape ? _buildLandscape() : _buildPortrait();
+          },
+        ),
+        if (_tauntMessage != null) _buildTauntOverlay(),
+      ],
     );
   }
 
@@ -182,6 +284,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 children: [
                   _buildMapControls(),
                   const SizedBox(height: 6),
+                  _mapCtrlBtn(
+                    Icons.explore,
+                    _toggleMapOrientation,
+                    active: context.watch<SettingsProvider>().mapHeadingUp,
+                  ),
+                  const SizedBox(height: 6),
                   // Plein écran : uniquement en portrait, la vue paysage
                   // dédie déjà 35% de l'écran au panneau de statistiques.
                   _mapCtrlBtn(Icons.fullscreen, mapProv.toggleFullscreen),
@@ -227,6 +335,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     _buildMapControls(),
+                    const SizedBox(height: 6),
+                    _mapCtrlBtn(
+                      Icons.explore,
+                      _toggleMapOrientation,
+                      active: context.watch<SettingsProvider>().mapHeadingUp,
+                    ),
                   ],
                 ),
               ),
@@ -434,21 +548,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       ),
       child: Row(
         children: [
-          // Nom trace
+          // Nom de la trace en cours — rien à afficher sinon : le nom de
+          // l'appli n'apporte aucune information utile pendant la conduite,
+          // il n'occupait que de la place.
           Expanded(
-            child: Text(
-              traceProv.hasTrace
-                  ? traceProv.activeTrace!.name
-                  : 'MOTO OFFROAD 4X4',
-              style: const TextStyle(
-                fontFamily: 'Rajdhani',
-                fontSize: 16,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
-                letterSpacing: .8,
-              ),
-              overflow: TextOverflow.ellipsis,
-            ),
+            child: traceProv.hasTrace
+                ? Text(
+                    traceProv.activeTrace!.name,
+                    style: const TextStyle(
+                      fontFamily: 'Rajdhani',
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                      letterSpacing: .8,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  )
+                : const SizedBox.shrink(),
           ),
           // Switch offroad/route
           const ModeSwitchWidget(),
@@ -676,11 +792,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           const Divider(height: 16),
           Row(
             children: [
-              // Mode offroad/route
+              // Mode de navigation — offroad / route / 4x4
               Expanded(child: _landscapeCtrlBtn(
-                Icons.terrain,
-                'Offroad',
-                context.watch<MapProvider>().isOffroad,
+                switch (context.watch<MapProvider>().navMode) {
+                  NavMode.offroad => Icons.terrain,
+                  NavMode.route => Icons.route,
+                  NavMode.fourByFour => Icons.directions_car,
+                },
+                context.watch<MapProvider>().navMode.label,
+                true,
                 () => context.read<MapProvider>().toggleNavMode(),
               )),
               const SizedBox(width: 6),
@@ -1066,7 +1186,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
     final mapProv = context.read<MapProvider>();
     final settings = context.read<SettingsProvider>();
-    final profile = mapProv.isOffroad ? RoutingProfile.cyclingMountain : RoutingProfile.drivingCar;
+    // ORS n'a pas de profil "4x4" dédié : le mode réutilise le profil route,
+    // seul à couvrir des pistes carrossables par un véhicule à quatre roues.
+    final profile = mapProv.navMode == NavMode.offroad
+        ? RoutingProfile.cyclingMountain
+        : RoutingProfile.drivingCar;
     final avoid = <AvoidFeature>{
       if (settings.guidanceAvoidHighways) AvoidFeature.highways,
       if (settings.guidanceAvoidTolls) AvoidFeature.tollways,

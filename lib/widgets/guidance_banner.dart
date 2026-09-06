@@ -30,6 +30,10 @@ class GuidanceBanner extends StatelessWidget {
     // c'est ce que le bandeau doit dire.
     final step =
         guidance.mode == GuidanceMode.gpxAlert ? null : guidance.currentStep;
+    // Le texte d'instruction d'ORS embarque le nom de rue ("Tournez à gauche
+    // sur D941") : pas encore souhaité à l'affichage. Tant que c'est le cas,
+    // la manœuvre ne parle qu'à travers la flèche + la distance ; le texte ne
+    // revient que pour "Suivi de la trace", qui ne nomme aucune rue.
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
@@ -38,19 +42,25 @@ class GuidanceBanner extends StatelessWidget {
         border: Border.all(color: const Color(0xFF2A2A3E)),
       ),
       child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           _maneuverTile(step, guidance),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              step?.instruction ?? 'Suivi de la trace',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+          if (step == null) ...[
+            const SizedBox(width: 12),
+            const Flexible(
+              child: Text(
+                'Suivi de la trace',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+              ),
             ),
-          ),
-          if (guidance.gpsSignalLost)
-            const Icon(Icons.gps_off, color: AppColors.statusRed, size: 20)
-          else if (guidance.isOffRoute)
+          ],
+          if (guidance.gpsSignalLost) ...[
+            const SizedBox(width: 10),
+            const Icon(Icons.gps_off, color: AppColors.statusRed, size: 20),
+          ] else if (guidance.isOffRoute) ...[
+            const SizedBox(width: 10),
             const Icon(Icons.warning_amber, color: AppColors.statusOrange, size: 20),
+          ],
         ],
       ),
     );

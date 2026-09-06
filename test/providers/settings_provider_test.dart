@@ -155,6 +155,7 @@ void main() {
     expect(s.guidanceAvoidTolls, isFalse);
     expect(s.guidanceAvoidFerries, isFalse);
     expect(s.guidanceVoiceMuted, isFalse);
+    expect(s.mapHeadingUp, isFalse);
   });
 
   test('les réglages de guidage survivent à un rechargement', () async {
@@ -165,6 +166,7 @@ void main() {
     await s.setGuidanceAvoidTolls(true);
     await s.setGuidanceAvoidFerries(true);
     await s.setGuidanceVoiceMuted(true);
+    await s.toggleMapHeadingUp();
 
     final reloaded = SettingsProvider();
     await reloaded.load();
@@ -172,5 +174,17 @@ void main() {
     expect(reloaded.guidanceAvoidTolls, isTrue);
     expect(reloaded.guidanceAvoidFerries, isTrue);
     expect(reloaded.guidanceVoiceMuted, isTrue);
+    expect(reloaded.mapHeadingUp, isTrue);
+  });
+
+  test('toggleMapHeadingUp bascule dans les deux sens', () async {
+    SharedPreferences.setMockInitialValues({});
+    final s = SettingsProvider();
+    await s.load();
+    expect(s.mapHeadingUp, isFalse);
+    await s.toggleMapHeadingUp();
+    expect(s.mapHeadingUp, isTrue);
+    await s.toggleMapHeadingUp();
+    expect(s.mapHeadingUp, isFalse);
   });
 }

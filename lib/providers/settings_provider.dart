@@ -29,6 +29,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kGuidanceAvoidTolls    = 'guidance_avoid_tolls';
   static const _kGuidanceAvoidFerries  = 'guidance_avoid_ferries';
   static const _kGuidanceVoiceMuted    = 'guidance_voice_muted';
+  static const _kMapHeadingUp          = 'map_orientation_heading_up';
 
   // Message envoyé seul, sans que le pilote ait à toucher l'écran.
   static const String defaultAutoReplyMessage = 'Je roule, je ne peux pas répondre';
@@ -65,6 +66,9 @@ class SettingsProvider extends ChangeNotifier {
   bool _guidanceAvoidTolls    = false;
   bool _guidanceAvoidFerries  = false;
   bool _guidanceVoiceMuted    = false;
+  // false = Nord en haut (défaut) ; true = carte tournée selon le cap du
+  // rider, comme un GPS auto — utile à l'arrêt comme en roulant.
+  bool _mapHeadingUp          = false;
 
   SkillLevel  get skillLevel => _skillLevel;
   MotoPreset? get moto       => _moto;
@@ -91,6 +95,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get guidanceAvoidTolls    => _guidanceAvoidTolls;
   bool get guidanceAvoidFerries  => _guidanceAvoidFerries;
   bool get guidanceVoiceMuted    => _guidanceVoiceMuted;
+  bool get mapHeadingUp          => _mapHeadingUp;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
@@ -124,6 +129,7 @@ class SettingsProvider extends ChangeNotifier {
     _guidanceAvoidTolls    = prefs.getBool(_kGuidanceAvoidTolls)    ?? false;
     _guidanceAvoidFerries  = prefs.getBool(_kGuidanceAvoidFerries)  ?? false;
     _guidanceVoiceMuted    = prefs.getBool(_kGuidanceVoiceMuted)    ?? false;
+    _mapHeadingUp          = prefs.getBool(_kMapHeadingUp)          ?? false;
     notifyListeners();
   }
 
@@ -279,6 +285,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setGuidanceVoiceMuted(bool v) async {
     _guidanceVoiceMuted = v;
     (await SharedPreferences.getInstance()).setBool(_kGuidanceVoiceMuted, v);
+    notifyListeners();
+  }
+
+  Future<void> toggleMapHeadingUp() async {
+    _mapHeadingUp = !_mapHeadingUp;
+    (await SharedPreferences.getInstance()).setBool(_kMapHeadingUp, _mapHeadingUp);
     notifyListeners();
   }
 }
