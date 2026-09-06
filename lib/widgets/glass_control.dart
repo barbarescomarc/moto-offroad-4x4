@@ -29,8 +29,8 @@ class GlassPuck extends StatelessWidget {
     required this.icon,
     required this.color,
     this.active = false,
-    this.size = 44,
-    this.iconSize = 20,
+    this.size = 52,
+    this.iconSize = 24,
   });
 
   @override

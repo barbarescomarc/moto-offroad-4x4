@@ -161,7 +161,7 @@ class AppSizes {
   static const double statsBarHeight  = 56.0;
   static const double appBarHeight    = 56.0;
   static const double sosButtonSize   = 52.0;  // min 48dp pour les gants
-  static const double iconButtonSize  = 48.0;
+  static const double iconButtonSize  = 52.0;  // aligné sur GlassPuck.size par défaut
   static const double cardRadius      = 12.0;
   static const double mapSplitRatio   = 0.65;  // paysage : 65% carte
 }

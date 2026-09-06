@@ -1040,9 +1040,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
+  // 44pt : seuil minimal Apple pour une cible tactile, en dessous duquel
+  // ces boutons d'en-tête étaient trop petits pour être fiables en conduite.
   Widget _iconBtn(IconData icon, VoidCallback onTap) => GestureDetector(
     onTap: onTap,
-    child: GlassPuck(icon: icon, color: AppColors.orange, size: 36, iconSize: 18),
+    child: GlassPuck(icon: icon, color: AppColors.orange, size: 44, iconSize: 22),
   );
 
   Widget _mapCtrlBtn(IconData icon, VoidCallback onTap,

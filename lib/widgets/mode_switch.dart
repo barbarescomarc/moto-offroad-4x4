@@ -28,16 +28,20 @@ class ModeSwitchWidget extends StatelessWidget {
     final mode = mapProv.navMode;
     final color = _colors[mode]!;
 
+    // 44x44 : seuil minimal Apple pour une cible tactile, sous lequel ce
+    // badge était trop petit à viser en conduite.
     return GestureDetector(
       onLongPressStart: (details) => _openMenu(context, mapProv, details.globalPosition),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        width: 44,
+        height: 44,
+        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: AppColors.bgPanel.withValues(alpha: .92),
-          borderRadius: BorderRadius.circular(20),
+          shape: BoxShape.circle,
           border: Border.all(color: color.withValues(alpha: .6)),
         ),
-        child: Icon(_icons[mode], color: color, size: 18),
+        child: Icon(_icons[mode], color: color, size: 22),
       ),
     );
   }
