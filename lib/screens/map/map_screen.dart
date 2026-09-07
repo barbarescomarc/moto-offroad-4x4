@@ -15,9 +15,11 @@ import '../../providers/solo_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/guidance_provider.dart';
+import '../../providers/poi_search_provider.dart';
 import '../../models/trace.dart';
 import '../../models/favorite_place.dart';
 import '../../models/route_result.dart';
+import '../../models/poi.dart';
 import '../../services/location_service.dart';
 import '../../services/routing_service.dart';
 import '../../services/speed_taunt_service.dart';
@@ -33,6 +35,7 @@ import '../../widgets/recording_panel.dart';
 import '../../widgets/guidance_banner.dart';
 import '../../widgets/speed_limit_badge.dart';
 import '../../widgets/maneuver_tile.dart';
+import '../../widgets/poi_search_sheet.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -548,6 +551,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               .toList(),
         ),
 
+        // ── Points d'intérêt (DATAtourisme) ─────────────────
+        MarkerLayer(
+          markers: context.watch<PoiSearchProvider>().results
+              .map((poi) => Marker(
+                    point: poi.position,
+                    width: 34, height: 34,
+                    child: GestureDetector(
+                      onTap: () => _showPoiDetails(poi),
+                      child: _poiMarker(poi),
+                    ),
+                  ))
+              .toList(),
+        ),
+
         // ── Position du rider ───────────────────────────────
         if (snap != null)
           MarkerLayer(markers: [
@@ -730,7 +747,96 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           active: mapProv.radarEnabled,
           activeColor: AppColors.blue,
         ),
+        const SizedBox(height: 6),
+        // Points d'intérêt (DATAtourisme)
+        _mapCtrlBtn(
+          Icons.travel_explore,
+          _openPoiSearchSheet,
+          active: context.watch<PoiSearchProvider>().results.isNotEmpty,
+          activeColor: AppColors.orange,
+        ),
       ],
+    );
+  }
+
+  void _openPoiSearchSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => PoiSearchSheet(locationService: _locationService),
+    );
+  }
+
+  void _showPoiDetails(PoiModel poi) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('${poi.category.emoji} ${poi.name}', style: const TextStyle(
+                fontFamily: 'Rajdhani', fontSize: 18, fontWeight: FontWeight.w700,
+                color: Colors.white,
+              )),
+              const SizedBox(height: 4),
+              Text(poi.category.label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
+              if (poi.address != null) ...[
+                const SizedBox(height: 12),
+                Row(children: [
+                  const Icon(Icons.place_outlined, color: AppColors.textSecondary, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(poi.address!, style: const TextStyle(color: Colors.white70, fontSize: 13))),
+                ]),
+              ],
+              if (poi.phone != null) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  const Icon(Icons.phone_outlined, color: AppColors.textSecondary, size: 18),
+                  const SizedBox(width: 8),
+                  Text(poi.phone!, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                ]),
+              ],
+              if (poi.website != null) ...[
+                const SizedBox(height: 8),
+                Row(children: [
+                  const Icon(Icons.language, color: AppColors.textSecondary, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(poi.website!, style: const TextStyle(color: AppColors.blue, fontSize: 13),
+                    overflow: TextOverflow.ellipsis)),
+                ]),
+              ],
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    _startGuidanceTo(poi.position);
+                  },
+                  icon: const Icon(Icons.directions),
+                  label: const Text('Guider ici'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Color(0xFF2A2A3E)),
+                    minimumSize: const Size(double.infinity, 44),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -1069,6 +1175,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       border: Border.all(color: Colors.white, width: 2),
       boxShadow: [BoxShadow(color: color.withOpacity(.4), blurRadius: 6)],
     ),
+  );
+
+  Widget _poiMarker(PoiModel poi) => Container(
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Color(poi.category.colorValue),
+      border: Border.all(color: Colors.white, width: 2),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 4)],
+    ),
+    alignment: Alignment.center,
+    child: Text(poi.category.emoji, style: const TextStyle(fontSize: 16)),
   );
 
   Widget _riderMarker(double heading) => Transform.rotate(

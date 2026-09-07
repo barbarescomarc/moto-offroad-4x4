@@ -32,6 +32,7 @@ jobs:
       - name: Create api_keys.dart
         env:
           ORS_API_KEY: ${{ secrets.ORS_API_KEY }}
+          DATATOURISME_API_KEY: ${{ secrets.DATATOURISME_API_KEY }}
         run: |
           mkdir -p lib/config
           cat > lib/config/api_keys.dart << 'EOF'
@@ -41,6 +42,7 @@ jobs:
             static const String googlePlacesKey = '';
             static const String tomTomKey = '';
             static const String openRouteServiceApiKey = '__ORS_API_KEY__';
+            static const String dataTourismeApiKey = '__DATATOURISME_API_KEY__';
             static const String openMeteoBaseUrl = 'https://api.open-meteo.com/v1';
             static const String openMeteoArchiveUrl = 'https://archive-api.open-meteo.com/v1';
             static const String rainViewerApiUrl = 'https://api.rainviewer.com/public/weather-maps.json';
@@ -50,12 +52,14 @@ jobs:
             static bool get isGoogleConfigured => googlePlacesKey.isNotEmpty;
             static bool get isTomTomConfigured => tomTomKey.isNotEmpty;
             static bool get isOrsConfigured => openRouteServiceApiKey != 'VOTRE_CLE_ORS_ICI';
+            static bool get isDataTourismeConfigured => dataTourismeApiKey != 'VOTRE_CLE_DATATOURISME_ICI';
             static bool get isWeatherReady => true;
             static bool get isRadarReady => true;
             static bool get isOsmReady => true;
           }
           EOF
           sed -i '' "s|__ORS_API_KEY__|${ORS_API_KEY:-VOTRE_CLE_ORS_ICI}|" lib/config/api_keys.dart
+          sed -i '' "s|__DATATOURISME_API_KEY__|${DATATOURISME_API_KEY:-VOTRE_CLE_DATATOURISME_ICI}|" lib/config/api_keys.dart
 
       - name: Create asset directories
         run: |

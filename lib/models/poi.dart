@@ -9,6 +9,11 @@ enum PoiCategory {
   motoShop,
   bivouac,
   danger,
+  // DATAtourisme
+  viewpoint,
+  guestHouse,
+  naturalSite,
+  heritage,
 }
 
 extension PoiCategoryExt on PoiCategory {
@@ -21,6 +26,10 @@ extension PoiCategoryExt on PoiCategory {
       case PoiCategory.motoShop:   return 'Moto / Réparation';
       case PoiCategory.bivouac:    return 'Bivouac';
       case PoiCategory.danger:     return 'Danger';
+      case PoiCategory.viewpoint:   return 'Point de vue';
+      case PoiCategory.guestHouse:  return 'Hébergement';
+      case PoiCategory.naturalSite: return 'Site naturel';
+      case PoiCategory.heritage:    return 'Patrimoine';
     }
   }
 
@@ -33,6 +42,10 @@ extension PoiCategoryExt on PoiCategory {
       case PoiCategory.motoShop:   return '🔧';
       case PoiCategory.bivouac:    return '🌙';
       case PoiCategory.danger:     return '⚠️';
+      case PoiCategory.viewpoint:   return '🔭';
+      case PoiCategory.guestHouse:  return '🛏️';
+      case PoiCategory.naturalSite: return '🏞️';
+      case PoiCategory.heritage:    return '🏛️';
     }
   }
 
@@ -45,6 +58,10 @@ extension PoiCategoryExt on PoiCategory {
       case PoiCategory.motoShop:   return 0xFF6A1B9A;
       case PoiCategory.bivouac:    return 0xFF00695C;
       case PoiCategory.danger:     return 0xFFC62828;
+      case PoiCategory.viewpoint:   return 0xFF00838F;
+      case PoiCategory.guestHouse:  return 0xFF8D6E63;
+      case PoiCategory.naturalSite: return 0xFF558B2F;
+      case PoiCategory.heritage:    return 0xFF6D4C41;
     }
   }
 }
