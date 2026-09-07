@@ -32,6 +32,7 @@ import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
 import '../../widgets/guidance_banner.dart';
 import '../../widgets/speed_limit_badge.dart';
+import '../../widgets/maneuver_tile.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -270,6 +271,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ] else ...[
             // ── Header ──────────────────────────────────────
             Positioned(top: 0, left: 0, right: 0, child: _buildHeader()),
+
+            // ── Carré (rond) flèche de manœuvre ──────────────
+            // Sous l'icône Réglages de l'en-tête plutôt que dans le bandeau
+            // du bas : la prochaine manœuvre reste visible même quand
+            // l'oeil est déjà en haut de l'écran.
+            _buildManeuverTileTop(),
 
             // ── Bouton SOS (toujours visible) ───────────────
             _buildSideControls(),
@@ -1008,7 +1015,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       left: 8,
       right: 12 + AppSizes.iconButtonSize + 8,
       bottom: AppSizes.statsBarHeight + 16,
-      child: GuidanceBanner(),
+      child: GuidanceBanner(showManeuverTile: false),
+    );
+  }
+
+  // ── CARRÉ (ROND) FLÈCHE DE MANŒUVRE — portrait normal ────
+  // Positionné sous la rangée d'icônes de l'en-tête (dont Réglages, à
+  // droite) : top = marge de sécurité + hauteur de l'en-tête (icônes 52 +
+  // paddings 4/8) + un petit espace.
+  Widget _buildManeuverTileTop() {
+    final guidance = context.watch<GuidanceProvider>();
+    if (!guidance.isActive) return const SizedBox.shrink();
+    final step = guidance.mode == GuidanceMode.gpxAlert ? null : guidance.currentStep;
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 4 + AppSizes.iconButtonSize + 8 + 8,
+      right: 12,
+      child: ManeuverTile(step: step, distanceToNextStepMeters: guidance.distanceToNextStepMeters),
     );
   }
 

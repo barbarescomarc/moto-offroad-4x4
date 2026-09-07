@@ -2,12 +2,18 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../app/theme.dart';
-import '../models/route_result.dart';
 import '../providers/guidance_provider.dart';
 import '../providers/settings_provider.dart';
+import 'maneuver_tile.dart';
 
 class GuidanceBanner extends StatelessWidget {
-  const GuidanceBanner({super.key});
+  // À false, le carré flèche+distance est affiché ailleurs à l'écran (voir
+  // MapScreen, portrait normal) : l'instruction card ne garde alors que le
+  // texte "Suivi de la trace" et les icônes GPS perdu/hors piste, pour ne
+  // pas le dupliquer.
+  final bool showManeuverTile;
+
+  const GuidanceBanner({super.key, this.showManeuverTile = true});
 
   @override
   Widget build(BuildContext context) {
@@ -73,9 +79,10 @@ class GuidanceBanner extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _maneuverTile(step, guidance),
+          if (showManeuverTile)
+            ManeuverTile(step: step, distanceToNextStepMeters: guidance.distanceToNextStepMeters),
           if (step == null) ...[
-            const SizedBox(width: 12),
+            if (showManeuverTile) const SizedBox(width: 12),
             const Flexible(
               child: Text(
                 'Suivi de la trace',
@@ -89,34 +96,6 @@ class GuidanceBanner extends StatelessWidget {
           ] else if (guidance.isOffRoute) ...[
             const SizedBox(width: 10),
             const Icon(Icons.warning_amber, color: AppColors.statusOrange, size: 20),
-          ],
-        ],
-      ),
-    );
-  }
-
-  // Flèche de manœuvre et distance dans un même bloc, à la manière d'un
-  // GPS auto : l'oeil n'a qu'un seul endroit à lire pour "quoi" et "quand".
-  Widget _maneuverTile(RouteStep? step, GuidanceProvider guidance) {
-    return Container(
-      width: 64,
-      height: 64,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: AppColors.orange.withValues(alpha: .15),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.orange.withValues(alpha: .5)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(_iconFor(step?.maneuver), color: AppColors.orange, size: 34),
-          if (step != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              _distanceLabel(guidance.distanceToNextStepMeters),
-              style: const TextStyle(color: AppColors.orange, fontSize: 12, fontWeight: FontWeight.w700),
-            ),
           ],
         ],
       ),
@@ -175,19 +154,5 @@ class GuidanceBanner extends StatelessWidget {
       return '${d.inHours}h${(d.inMinutes % 60).toString().padLeft(2, '0')}';
     }
     return d.inMinutes < 1 ? '< 1 min' : '${d.inMinutes} min';
-  }
-
-  IconData _iconFor(ManeuverType? m) {
-    switch (m) {
-      case ManeuverType.turnLeft:   return Icons.turn_left;
-      case ManeuverType.turnRight:  return Icons.turn_right;
-      case ManeuverType.sharpLeft:  return Icons.turn_sharp_left;
-      case ManeuverType.sharpRight: return Icons.turn_sharp_right;
-      case ManeuverType.uturn:      return Icons.u_turn_left;
-      case ManeuverType.arrive:     return Icons.flag;
-      case ManeuverType.depart:     return Icons.navigation;
-      case ManeuverType.straight:
-      case null:                    return Icons.straight;
-    }
   }
 }

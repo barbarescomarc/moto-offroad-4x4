@@ -15,6 +15,7 @@ import 'package:moto_offroad/services/location_service.dart';
 import 'package:moto_offroad/services/routing_service.dart';
 import 'package:moto_offroad/services/speed_camera_service.dart';
 import 'package:moto_offroad/widgets/guidance_banner.dart';
+import 'package:moto_offroad/widgets/maneuver_tile.dart';
 
 class _MockGuidanceBackgroundClient extends GuidanceBackgroundClient {
   @override
@@ -121,6 +122,29 @@ void main() {
     guidance.startOnTrace(_straightTrace(), GuidanceMode.gpxAlert);
     await _pump(tester, guidance);
     expect(find.text('Suivi de la trace'), findsOneWidget);
+    guidance.stop();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('affiche le carré flèche par défaut, mais pas quand showManeuverTile est à false', (tester) async {
+    final guidance = GuidanceProvider(
+      positionStream: const Stream.empty(),
+      backgroundClient: _MockGuidanceBackgroundClient(),
+    );
+    guidance.startOnTrace(_straightTrace(), GuidanceMode.gpxAlert);
+    await _pump(tester, guidance);
+    expect(find.byType(ManeuverTile), findsOneWidget);
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider.value(value: guidance),
+          ChangeNotifierProvider.value(value: SettingsProvider()),
+        ],
+        child: const MaterialApp(home: Scaffold(body: GuidanceBanner(showManeuverTile: false))),
+      ),
+    );
+    expect(find.byType(ManeuverTile), findsNothing);
     guidance.stop();
     await tester.pumpAndSettle();
   });
