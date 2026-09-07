@@ -63,6 +63,18 @@ class TraceProvider extends ChangeNotifier {
     return true;
   }
 
+  // ── Trace à main levée (dessinée sur la carte) ───────────
+  // Contrairement à l'import GPX/URL, la trace est déjà construite (points
+  // posés + itinéraire calculé côté MapScreen) : pas de chargement à faire,
+  // juste l'activer et, comme les autres, la persister si demandé.
+  Future<void> setCreatedTrace(TraceModel trace, {RideRepository? repository}) async {
+    _activeTrace = trace;
+    _currentPointIndex = 0;
+    _error = null;
+    if (repository != null) await _persist(trace, repository);
+    notifyListeners();
+  }
+
   // ── Mettre à jour la position du rider sur la trace ──────
   void updatePosition(double lat, double lng) {
     if (_activeTrace == null) return;

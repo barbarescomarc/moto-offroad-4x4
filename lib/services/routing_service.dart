@@ -44,15 +44,31 @@ class RoutingService {
     required LatLng destination,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
+  }) => _fetchRoute(waypoints: [origin, destination], profile: profile, avoid: avoid);
+
+  // Trace à main levée : autant d'étapes que de points posés sur la carte.
+  // ORS accepte nativement plus de deux coordonnées — chaque paire
+  // consécutive devient un « segment » dans la réponse, déjà géré par
+  // _parse qui les parcourt tous pour construire la liste d'étapes.
+  Future<RouteResult> fetchMultiPointRoute({
+    required List<LatLng> waypoints,
+    required RoutingProfile profile,
+    Set<AvoidFeature> avoid = const {},
+  }) {
+    assert(waypoints.length >= 2, 'Il faut au moins deux points pour un itinéraire');
+    return _fetchRoute(waypoints: waypoints, profile: profile, avoid: avoid);
+  }
+
+  Future<RouteResult> _fetchRoute({
+    required List<LatLng> waypoints,
+    required RoutingProfile profile,
+    required Set<AvoidFeature> avoid,
   }) async {
     final uri = Uri.parse(
         'https://api.openrouteservice.org/v2/directions/${profile.orsId}/geojson');
 
     final body = <String, dynamic>{
-      'coordinates': [
-        [origin.longitude, origin.latitude],
-        [destination.longitude, destination.latitude],
-      ],
+      'coordinates': waypoints.map((p) => [p.longitude, p.latitude]).toList(),
       'instructions': true,
       'language': 'fr',
       if (avoid.isNotEmpty)

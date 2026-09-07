@@ -22,6 +22,7 @@ import '../../models/route_result.dart';
 import '../../models/poi.dart';
 import '../../services/location_service.dart';
 import '../../services/routing_service.dart';
+import '../../services/ride_repository.dart';
 import '../../services/speed_taunt_service.dart';
 import '../../widgets/sos_button.dart';
 import '../../widgets/mode_switch.dart';
@@ -74,6 +75,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       12 + AppSizes.sosButtonSize + 12 + 8;
 
   bool _mapReady = false;
+
+  // ── Trace à main levée ────────────────────────────────────
+  static const int _maxDrawPoints = 50;
+  bool _isDrawingTrace = false;
+  final List<LatLng> _drawPoints = [];
+  bool _isComputingDrawnRoute = false;
 
   // Détection du masquage de la barre de navigation : flutter_map émet
   // MapEventSource.dragStart dès le premier micro-mouvement d'un doigt sur
@@ -292,6 +299,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // pendant la conduite est en bas de l'écran, pas en haut.
             _buildGuidanceBannerBottom(),
 
+            // ── Barre de dessin de trace à main levée ────────
+            _buildDrawTraceBar(),
+
             // ── Contrôles carte ──────────────────────────────
             // Recherche d'adresse, Météo et Mode Solo ont rejoint le menu
             // radial de Recentrer (voir _buildMapControls) : appui long
@@ -398,7 +408,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         minZoom: 5,
         maxZoom: 18,
         onMapReady: () => setState(() => _mapReady = true),
-        onTap: (_, __) {
+        onTap: (_, point) {
+          if (_isDrawingTrace) {
+            _addDrawPoint(point);
+            return;
+          }
           if (mapProv.isFullscreen) mapProv.exitFullscreen();
         },
         onLongPress: (_, point) => _showLongPressSheet(point),
@@ -564,6 +578,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ))
               .toList(),
         ),
+
+        // ── Trace à main levée en cours de dessin ───────────
+        if (_isDrawingTrace && _drawPoints.length >= 2)
+          PolylineLayer(polylines: [
+            Polyline(points: _drawPoints, strokeWidth: 3, color: AppColors.orange),
+          ]),
+        if (_isDrawingTrace)
+          MarkerLayer(
+            markers: [
+              for (var i = 0; i < _drawPoints.length; i++)
+                Marker(
+                  point: _drawPoints[i],
+                  width: 26, height: 26,
+                  child: _drawPointMarker(i + 1),
+                ),
+            ],
+          ),
 
         // ── Position du rider ───────────────────────────────
         if (snap != null)
@@ -755,7 +786,158 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           active: context.watch<PoiSearchProvider>().results.isNotEmpty,
           activeColor: AppColors.orange,
         ),
+        const SizedBox(height: 6),
+        // Trace à main levée
+        _mapCtrlBtn(
+          Icons.gesture,
+          _startDrawingTrace,
+          active: _isDrawingTrace,
+          activeColor: AppColors.orange,
+        ),
       ],
+    );
+  }
+
+  // ── TRACE À MAIN LEVÉE ────────────────────────────────────
+
+  void _startDrawingTrace() {
+    setState(() {
+      _isDrawingTrace = true;
+      _drawPoints.clear();
+    });
+  }
+
+  void _addDrawPoint(LatLng point) {
+    if (_drawPoints.length >= _maxDrawPoints) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maximum $_maxDrawPoints points atteint')));
+      return;
+    }
+    setState(() => _drawPoints.add(point));
+  }
+
+  void _undoLastDrawPoint() {
+    if (_drawPoints.isEmpty) return;
+    setState(() => _drawPoints.removeLast());
+  }
+
+  void _cancelDrawingTrace() {
+    setState(() {
+      _isDrawingTrace = false;
+      _drawPoints.clear();
+    });
+  }
+
+  Future<void> _finishDrawingTrace() async {
+    if (_drawPoints.length < 2) return;
+    final mapProv = context.read<MapProvider>();
+    final routing = RoutingService();
+    final profile = mapProv.navMode == NavMode.offroad
+        ? RoutingProfile.cyclingMountain
+        : RoutingProfile.drivingCar;
+
+    setState(() => _isComputingDrawnRoute = true);
+    RouteResult route;
+    try {
+      route = await routing.fetchMultiPointRoute(
+        waypoints: List.of(_drawPoints), profile: profile,
+      );
+    } on RoutingException catch (e) {
+      if (mounted) {
+        setState(() => _isComputingDrawnRoute = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+      }
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _isComputingDrawnRoute = false);
+
+    final name = await _promptTraceName();
+    if (name == null || !mounted) return;
+
+    final trace = TraceModel(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      name: name,
+      points: route.polyline.map((p) => TracePoint(position: p)).toList(),
+      source: 'created',
+    );
+
+    final traceProv = context.read<TraceProvider>();
+    final repo = context.read<RideRepository>();
+    await traceProv.setCreatedTrace(trace, repository: repo);
+
+    setState(() {
+      _isDrawingTrace = false;
+      _drawPoints.clear();
+    });
+    if (mounted) _showGpxGuidanceChooser(trace);
+  }
+
+  Future<String?> _promptTraceName() async {
+    final ctrl = TextEditingController(
+      text: 'Trace du ${DateTime.now().day}/${DateTime.now().month}',
+    );
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.bgPanel,
+        title: const Text('Nommer la trace', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          style: const TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Créer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Barre flottante affichée pendant le dessin — compteur de points et
+  // actions (annuler le dernier, effacer, terminer).
+  Widget _buildDrawTraceBar() {
+    if (!_isDrawingTrace) return const SizedBox.shrink();
+    return Positioned(
+      left: 12, right: 12,
+      bottom: AppSizes.statsBarHeight + 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.bgPanel.withValues(alpha: .95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF2A2A3E)),
+        ),
+        child: Row(
+          children: [
+            Text('${_drawPoints.length}/$_maxDrawPoints points', style: const TextStyle(
+              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.undo, color: Colors.white70, size: 20),
+              onPressed: _drawPoints.isEmpty ? null : _undoLastDrawPoint,
+              tooltip: 'Annuler le dernier point',
+            ),
+            IconButton(
+              icon: const Icon(Icons.close, color: AppColors.statusRed, size: 20),
+              onPressed: _cancelDrawingTrace,
+              tooltip: 'Annuler',
+            ),
+            FilledButton.icon(
+              onPressed: (_drawPoints.length < 2 || _isComputingDrawnRoute) ? null : _finishDrawingTrace,
+              icon: _isComputingDrawnRoute
+                  ? const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.check, size: 18),
+              label: const Text('Terminer'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -1186,6 +1368,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     ),
     alignment: Alignment.center,
     child: Text(poi.category.emoji, style: const TextStyle(fontSize: 16)),
+  );
+
+  Widget _drawPointMarker(int number) => Container(
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: AppColors.orange,
+      border: Border.all(color: Colors.white, width: 2),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 4)],
+    ),
+    alignment: Alignment.center,
+    child: Text('$number', style: const TextStyle(
+      color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
   );
 
   Widget _riderMarker(double heading) => Transform.rotate(

@@ -117,4 +117,72 @@ void main() {
       );
     });
   });
+
+  group('fetchMultiPointRoute', () {
+    const threeWaypointResponse = '''
+    {
+      "features": [
+        {
+          "geometry": {
+            "coordinates": [[6.0, 44.0], [6.005, 44.005], [6.01, 44.01], [6.02, 44.02]]
+          },
+          "properties": {
+            "summary": {"distance": 3000.0, "duration": 600.0},
+            "segments": [
+              {
+                "distance": 1500.0,
+                "duration": 300.0,
+                "steps": [
+                  {"distance": 1500.0, "duration": 300.0, "type": 11, "instruction": "Partez", "way_points": [0, 2]}
+                ]
+              },
+              {
+                "distance": 1500.0,
+                "duration": 300.0,
+                "steps": [
+                  {"distance": 1500.0, "duration": 300.0, "type": 10, "instruction": "Arrivée", "way_points": [2, 3]}
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    }
+    ''';
+
+    test('envoie toutes les étapes dans coordinates, dans l\'ordre', () async {
+      late Map<String, dynamic> sentBody;
+      final client = MockClient((request) async {
+        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(threeWaypointResponse, 200);
+      });
+      final service = RoutingService(client: client);
+
+      await service.fetchMultiPointRoute(
+        waypoints: const [LatLng(44.0, 6.0), LatLng(44.01, 6.01), LatLng(44.02, 6.02)],
+        profile: RoutingProfile.cyclingMountain,
+      );
+
+      expect(sentBody['coordinates'], [
+        [6.0, 44.0],
+        [6.01, 44.01],
+        [6.02, 44.02],
+      ]);
+    });
+
+    test('fusionne les étapes de tous les segments intermédiaires', () async {
+      final client = MockClient((_) async => http.Response(threeWaypointResponse, 200));
+      final service = RoutingService(client: client);
+
+      final result = await service.fetchMultiPointRoute(
+        waypoints: const [LatLng(44.0, 6.0), LatLng(44.01, 6.01), LatLng(44.02, 6.02)],
+        profile: RoutingProfile.drivingCar,
+      );
+
+      expect(result.steps.length, 2);
+      expect(result.steps.first.instruction, 'Partez');
+      expect(result.steps.last.instruction, 'Arrivée');
+      expect(result.totalDistanceMeters, 3000.0);
+    });
+  });
 }
