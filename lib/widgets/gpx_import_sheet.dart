@@ -24,17 +24,23 @@ class _GpxImportSheetState extends State<GpxImportSheet> {
   Future<void> _pickFile() async {
     setState(() { _loading = true; _error = null; });
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['gpx'],
-      );
+      // FileType.custom + allowedExtensions plante sur Android avec
+      // « Unsupported filter » : le picker résout l'extension en type MIME
+      // via le système, qui ne connaît pas .gpx. On laisse tout passer et on
+      // vérifie l'extension nous-mêmes après sélection.
+      final result = await FilePicker.platform.pickFiles(type: FileType.any);
       if (result == null || result.files.single.path == null) {
         setState(() => _loading = false);
         return;
       }
+      final path = result.files.single.path!;
+      if (!path.toLowerCase().endsWith('.gpx')) {
+        setState(() { _loading = false; _error = 'Sélectionne un fichier .gpx'; });
+        return;
+      }
       final trace = context.read<TraceProvider>();
       final repo = context.read<RideRepository>();
-      final ok = await trace.importFromFile(result.files.single.path!, repository: repo);
+      final ok = await trace.importFromFile(path, repository: repo);
       if (mounted) {
         if (ok) Navigator.pop(context);
         else setState(() { _loading = false; _error = trace.error; });
