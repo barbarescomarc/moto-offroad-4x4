@@ -78,6 +78,20 @@ jobs:
           mkdir -p assets/icons assets/maps
           touch assets/icons/.keep assets/maps/.keep
 
+      # ── 5c. Clé de signature debug stable ───────────────────
+      # Sans ceci, Gradle génère une clé de debug aléatoire à chaque run (la
+      # machine est neuve à chaque fois) : deux builds successifs ont alors
+      # des signatures différentes, et Android refuse toute mise à jour
+      # « par-dessus » l'app déjà installée (INSTALL_FAILED_UPDATE_INCOMPATIBLE),
+      # cassant le bouton « Vérifier les mises à jour » des réglages.
+      - name: Installer la clé de signature debug stable
+        env:
+          ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          mkdir -p ~/.android
+          echo -n "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 --decode > ~/.android/debug.keystore
+          echo "Clé de signature installée"
+
       # ── 6. Dépendances Flutter ──────────────────────────────
       - name: Flutter pub get
         run: flutter pub get
@@ -99,7 +113,8 @@ jobs:
       # ── 9. Compilation APK release ─────────────────────────
       # --release et non --debug : trois fois plus léger à télécharger.
       # La signature retombe sur la clé de debug (android/app/build.gradle),
-      # ce qui suffit pour une installation hors Play Store.
+      # désormais fixe (voir étape 5c) — les mises à jour en place restent
+      # possibles d'un build à l'autre.
       - name: Build APK release
         run: flutter build apk --release
 
