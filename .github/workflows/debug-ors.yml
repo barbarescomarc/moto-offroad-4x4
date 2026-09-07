@@ -4,19 +4,30 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    runs-on: ubuntu-latest
+  test-mac:
+    runs-on: macos-latest
     steps:
-      - name: Tester la clé ORS
+      - name: Reproduire exactement la génération de testflight.yml
         env:
           ORS_API_KEY: ${{ secrets.ORS_API_KEY }}
         run: |
-          echo "Longueur de la clé : ${#ORS_API_KEY}"
+          mkdir -p lib/config
+          cat > lib/config/api_keys.dart << 'EOF'
+          class ApiKeys {
+            ApiKeys._();
+            static const String openRouteServiceApiKey = '__ORS_API_KEY__';
+          }
+          EOF
+          sed -i '' "s|__ORS_API_KEY__|${ORS_API_KEY:-VOTRE_CLE_ORS_ICI}|" lib/config/api_keys.dart
+          echo "--- Ligne générée (clé masquée) ---"
+          sed -E 's/[A-Za-z0-9_.\-]{10,}/[MASQUÉ]/g' lib/config/api_keys.dart
+          KEY_IN_FILE=$(grep -o "openRouteServiceApiKey = '[^']*'" lib/config/api_keys.dart | sed "s/.*'\(.*\)'/\1/")
+          echo "Longueur de la clé injectée dans le fichier : ${#KEY_IN_FILE}"
+          echo "Test de cette clé contre l'API ORS :"
           HTTP_CODE=$(curl -s -o /tmp/resp.json -w "%{http_code}" \
             -X POST 'https://api.openrouteservice.org/v2/directions/driving-car/geojson' \
-            -H "Authorization: $ORS_API_KEY" \
+            -H "Authorization: $KEY_IN_FILE" \
             -H "Content-Type: application/json" \
             -d '{"coordinates":[[6.0,44.0],[6.05,44.05]]}')
           echo "Code HTTP : $HTTP_CODE"
-          echo "Corps de la réponse :"
-          cat /tmp/resp.json
+          head -c 300 /tmp/resp.json
