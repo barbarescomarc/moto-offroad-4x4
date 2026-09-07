@@ -7,13 +7,27 @@ void main() {
     test('rend le fond clair en journée', () {
       final mapProv = MapProvider();
       final url = mapProv.navigationTileUrl(now: () => DateTime(2026, 1, 1, 12));
-      expect(url, contains('light_all'));
+      expect(url, contains('World_Light_Gray_Base'));
     });
 
     test('rend le fond sombre la nuit', () {
       final mapProv = MapProvider();
       final url = mapProv.navigationTileUrl(now: () => DateTime(2026, 1, 1, 23));
-      expect(url, contains('dark_all'));
+      expect(url, contains('World_Dark_Gray_Base'));
+    });
+  });
+
+  group('navigationLabelsOverlayUrl', () {
+    test('rend les labels clairs en journée, assortis au fond', () {
+      final mapProv = MapProvider();
+      final url = mapProv.navigationLabelsOverlayUrl(now: () => DateTime(2026, 1, 1, 12));
+      expect(url, contains('World_Light_Gray_Reference'));
+    });
+
+    test('rend les labels sombres la nuit, assortis au fond', () {
+      final mapProv = MapProvider();
+      final url = mapProv.navigationLabelsOverlayUrl(now: () => DateTime(2026, 1, 1, 23));
+      expect(url, contains('World_Dark_Gray_Reference'));
     });
   });
 }

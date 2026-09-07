@@ -404,6 +404,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           maxZoom: 18,
         ),
 
+        // ── Labels/frontières du fond de navigation ─────────
+        // Le fond Canvas Gray est une photo de fond pure, sans texte : cette
+        // surcouche transparente y ajoute noms de lieux et frontières.
+        if (navActive)
+          TileLayer(
+            urlTemplate: mapProv.navigationLabelsOverlayUrl(),
+            userAgentPackageName: 'app.motooffroad',
+            maxZoom: 18,
+          ),
+
         // ── Noms de rues/lieux sur fond satellite ───────────
         // Masqué en guidage : le fond de navigation porte déjà ses propres
         // labels, la surcouche satellite n'a plus lieu d'être.

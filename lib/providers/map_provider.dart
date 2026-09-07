@@ -145,18 +145,35 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // Fond de carte "Navigation" (guidage actif) — CartoDB Positron/Dark
-  // Matter : rendu épuré (aplats de couleur, peu de labels), pensé pour la
+  // Fond de carte "Navigation" (guidage actif) — Esri Canvas Gray (clair/
+  // sombre) : rendu épuré (aplats de gris, sans labels), pensé pour la
   // lisibilité en conduite, contrairement au fond choisi par l'utilisateur
-  // qui reste chargé de détails hors navigation. Bascule jour/nuit sur
-  // l'heure système, faute de capteur de luminosité déjà exploité.
+  // qui reste chargé de détails hors navigation. Gratuit sans clé API, même
+  // fournisseur que la couche satellite déjà utilisée dans l'app — à la
+  // différence de CartoDB (light_all/dark_all), qui exige désormais une clé
+  // depuis fin août 2026. Bascule jour/nuit sur l'heure système, faute de
+  // capteur de luminosité déjà exploité.
   // `now` s'injecte en test pour couvrir les deux variantes sans horloge réelle.
-  String navigationTileUrl({DateTime Function() now = DateTime.now}) {
+  String navigationTileUrl({DateTime Function() now = DateTime.now}) =>
+      _isNavigationNight(now)
+          ? 'https://server.arcgisonline.com/ArcGIS/rest/services/'
+            'Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}'
+          : 'https://server.arcgisonline.com/ArcGIS/rest/services/'
+            'Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}';
+
+  // Surcouche labels/frontières correspondante — le fond Canvas Gray ci-
+  // dessus est une photo de fond pure, sans aucun texte (même principe que
+  // labelsOverlayUrl pour le satellite).
+  String navigationLabelsOverlayUrl({DateTime Function() now = DateTime.now}) =>
+      _isNavigationNight(now)
+          ? 'https://server.arcgisonline.com/ArcGIS/rest/services/'
+            'Canvas/World_Dark_Gray_Reference/MapServer/tile/{z}/{y}/{x}'
+          : 'https://server.arcgisonline.com/ArcGIS/rest/services/'
+            'Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}';
+
+  bool _isNavigationNight(DateTime Function() now) {
     final hour = now().hour;
-    final isNight = hour < 7 || hour >= 20;
-    return isNight
-        ? 'https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png'
-        : 'https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png';
+    return hour < 7 || hour >= 20;
   }
 
   void setNavMode(NavMode mode) {
