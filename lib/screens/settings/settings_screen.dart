@@ -14,6 +14,7 @@ import '../../services/call_bridge.dart';
 import '../../services/tracker_api_client.dart';
 import '../../widgets/glass_control.dart';
 import '../../widgets/update_tile.dart';
+import '../../widgets/map_cache_tile.dart';
 import '../info/info_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -605,6 +606,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       children: [
         _sectionLabel('APPLICATION'),
         const UpdateTile(),
+        const MapCacheTile(),
       ],
     );
   }

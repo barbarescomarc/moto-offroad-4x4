@@ -33,6 +33,7 @@ import 'services/location_service.dart';
 import 'services/tracker_api_client.dart';
 import 'services/position_uplink_service.dart';
 import 'services/vibration_calibration.dart';
+import 'services/map_tile_cache.dart';
 
 // Références mutables lues par les fermetures de FallAlertService : le
 // service ne change jamais d'identité (ProxyProvider2 renvoie toujours la
@@ -69,6 +70,11 @@ void main() async {
       systemNavigationBarIconBrightness: Brightness.light,
     ),
   );
+
+  // Cache hors-ligne des tuiles de carte (voir map_tile_cache.dart) — avant
+  // le premier rendu de la carte, sinon les toutes premières tuiles
+  // échappent au cache.
+  await MapTileCache.initialize();
 
   // Base locale des sorties
   final rideRepository = RideRepository(await RideDatabase.open());

@@ -24,6 +24,7 @@ import '../../services/location_service.dart';
 import '../../services/routing_service.dart';
 import '../../services/ride_repository.dart';
 import '../../services/gpx_route_deriver.dart';
+import '../../services/map_tile_cache.dart';
 import '../../utils/route_geometry.dart';
 import '../../services/speed_taunt_service.dart';
 import '../../widgets/sos_button.dart';
@@ -442,6 +443,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           urlTemplate: navActive ? mapProv.navigationTileUrl() : mapProv.activeLayer.tileUrl,
           userAgentPackageName: 'app.motooffroad',
           maxZoom: 18,
+          tileProvider: MapTileCache.tileProvider,
         ),
 
         // ── Labels/frontières du fond de navigation ─────────
@@ -452,6 +454,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             urlTemplate: mapProv.navigationLabelsOverlayUrl(),
             userAgentPackageName: 'app.motooffroad',
             maxZoom: 18,
+            tileProvider: MapTileCache.tileProvider,
           ),
 
         // ── Noms de rues/lieux sur fond satellite ───────────
@@ -462,6 +465,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             urlTemplate: mapProv.activeLayer.labelsOverlayUrl!,
             userAgentPackageName: 'app.motooffroad',
             maxZoom: 18,
+            tileProvider: MapTileCache.tileProvider,
           ),
 
         // ── Overlay radar pluie (RainViewer) ───────────────
