@@ -93,8 +93,15 @@ jobs:
         env:
           ANDROID_DEBUG_KEYSTORE_BASE64: ${{ secrets.ANDROID_DEBUG_KEYSTORE_BASE64 }}
         run: |
-          mkdir -p ~/.android
+          # Les outils Android récents lisent ~/.config/.android/debug.keystore
+          # (convention XDG) plutôt que l'ancien ~/.android/debug.keystore,
+          # selon la version d'AGP/Gradle — vérifié par diagnostic : Gradle en
+          # régénérait une nouvelle (aléatoire) au second emplacement à chaque
+          # run, rendant cette étape inopérante. On écrit aux deux pour ne
+          # dépendre d'aucune version précise de l'outillage.
+          mkdir -p ~/.android ~/.config/.android
           echo -n "$ANDROID_DEBUG_KEYSTORE_BASE64" | base64 --decode > ~/.android/debug.keystore
+          cp ~/.android/debug.keystore ~/.config/.android/debug.keystore
           echo "Clé de signature installée"
 
       # ── 6. Dépendances Flutter ──────────────────────────────
