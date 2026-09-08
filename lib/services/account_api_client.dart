@@ -1,0 +1,174 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+
+/// Jeton de session renvoyé par le serveur à l'inscription ou à la connexion.
+class AccountSession {
+  final String token;
+  final bool verified;
+  final String? displayName;
+  const AccountSession({required this.token, required this.verified, this.displayName});
+}
+
+/// Profil du compte tel que renvoyé par /api/account/me.
+class AccountProfile {
+  final String email;
+  final bool verified;
+  final String? displayName;
+  const AccountProfile({required this.email, required this.verified, this.displayName});
+}
+
+/// Une panne de réseau et un refus du serveur n'appellent pas la même
+/// conduite : l'une se réessaie, l'autre se corrige. L'écran doit pouvoir
+/// les distinguer.
+enum AccountError {
+  reseau,
+  identifiants,
+  adresseDejaPrise,
+  motDePasseTropCourt,
+  adresseInvalide,
+  tropDeTentatives,
+  inconnue,
+}
+
+/// Résultat générique d'un appel au compte : soit une valeur, soit une
+/// cause d'échec identifiée — jamais les deux, jamais ni l'un ni l'autre.
+class AccountResult<T> {
+  final T? value;
+  final AccountError? error;
+  const AccountResult.success(this.value) : error = null;
+  const AccountResult.failure(this.error) : value = null;
+  bool get ok => error == null;
+}
+
+/// Client HTTP des routes de compte du serveur moto-tracker.
+///
+/// Contrairement à `TrackerApiClient`, qui renvoie `null` en cas d'échec,
+/// ce client distingue la cause de l'échec (panne réseau, identifiants
+/// invalides, adresse déjà prise, etc.) via [AccountResult.error] : c'est
+/// ce qui permet à l'écran d'inscription de choisir entre réessayer et
+/// corriger la saisie.
+class AccountApiClient {
+  AccountApiClient({http.Client? client, String? baseUrl})
+      : _client = client ?? http.Client(),
+        _baseUrl = baseUrl ?? 'https://motooffroad.duckdns.org';
+
+  final http.Client _client;
+  final String _baseUrl;
+
+  Uri _uri(String path) => Uri.parse('$_baseUrl$path');
+
+  Map<String, String> _headers([String? token]) => {
+        'content-type': 'application/json',
+        if (token != null) 'authorization': 'Bearer $token',
+      };
+
+  AccountError _errorFor(int status, String body) {
+    switch (status) {
+      case 401:
+        return AccountError.identifiants;
+      case 409:
+        return AccountError.adresseDejaPrise;
+      case 429:
+        return AccountError.tropDeTentatives;
+      case 400:
+        return body.contains('mot de passe')
+            ? AccountError.motDePasseTropCourt
+            : AccountError.adresseInvalide;
+      default:
+        return AccountError.inconnue;
+    }
+  }
+
+  Future<AccountResult<AccountSession>> _sessionCall(String path, Map<String, dynamic> body) async {
+    try {
+      final res = await _client.post(_uri(path), headers: _headers(), body: jsonEncode(body));
+      if (res.statusCode ~/ 100 != 2) {
+        return AccountResult.failure(_errorFor(res.statusCode, res.body));
+      }
+      final j = jsonDecode(res.body) as Map<String, dynamic>;
+      return AccountResult.success(AccountSession(
+        token: j['token'] as String,
+        verified: j['verified'] as bool? ?? false,
+        displayName: j['displayName'] as String?,
+      ));
+    } catch (_) {
+      return const AccountResult.failure(AccountError.reseau);
+    }
+  }
+
+  /// Crée un compte. `displayName` est optionnel côté serveur.
+  Future<AccountResult<AccountSession>> register({
+    required String email,
+    required String password,
+    String? displayName,
+  }) =>
+      _sessionCall('/api/account/register', {
+        'email': email,
+        'password': password,
+        if (displayName != null && displayName.isNotEmpty) 'displayName': displayName,
+      });
+
+  /// Connecte un compte existant.
+  Future<AccountResult<AccountSession>> login({required String email, required String password}) =>
+      _sessionCall('/api/account/login', {'email': email, 'password': password});
+
+  /// Récupère le profil du compte connecté.
+  Future<AccountResult<AccountProfile>> me({required String token}) async {
+    try {
+      final res = await _client.get(_uri('/api/account/me'), headers: _headers(token));
+      if (res.statusCode ~/ 100 != 2) {
+        return AccountResult.failure(_errorFor(res.statusCode, res.body));
+      }
+      final j = jsonDecode(res.body) as Map<String, dynamic>;
+      return AccountResult.success(AccountProfile(
+        email: j['email'] as String,
+        verified: j['verified'] as bool? ?? false,
+        displayName: j['displayName'] as String?,
+      ));
+    } catch (_) {
+      return const AccountResult.failure(AccountError.reseau);
+    }
+  }
+
+  Future<AccountResult<void>> _voidCall(
+    String path, {
+    String? token,
+    Map<String, dynamic>? body,
+    String method = 'POST',
+  }) async {
+    try {
+      final uri = _uri(path);
+      final res = method == 'DELETE'
+          ? await _client.delete(uri, headers: _headers(token))
+          : await _client.post(uri, headers: _headers(token), body: jsonEncode(body ?? {}));
+      if (res.statusCode ~/ 100 != 2) {
+        return AccountResult.failure(_errorFor(res.statusCode, res.body));
+      }
+      return const AccountResult.success(null);
+    } catch (_) {
+      return const AccountResult.failure(AccountError.reseau);
+    }
+  }
+
+  /// Termine la session courante côté serveur.
+  Future<AccountResult<void>> logout({required String token}) =>
+      _voidCall('/api/account/logout', token: token);
+
+  /// Redemande l'envoi de l'e-mail de vérification.
+  Future<AccountResult<void>> resendVerification({required String token}) =>
+      _voidCall('/api/account/verify/resend', token: token);
+
+  /// Change l'adresse e-mail du compte connecté.
+  Future<AccountResult<void>> changeEmail({required String token, required String email}) =>
+      _voidCall('/api/account/email', token: token, body: {'email': email});
+
+  /// Demande un e-mail de réinitialisation de mot de passe. Le serveur
+  /// répond 202 systématiquement, que l'adresse soit connue ou non — il ne
+  /// faut pas en déduire d'information sur l'existence du compte.
+  Future<AccountResult<void>> forgotPassword({required String email}) =>
+      _voidCall('/api/account/password/forgot', body: {'email': email});
+
+  /// Supprime le compte connecté.
+  Future<AccountResult<void>> deleteAccount({required String token}) =>
+      _voidCall('/api/account/me', token: token, method: 'DELETE');
+}
