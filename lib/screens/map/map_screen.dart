@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:go_router/go_router.dart';
@@ -40,6 +41,7 @@ import '../../widgets/guidance_banner.dart';
 import '../../widgets/speed_limit_badge.dart';
 import '../../widgets/maneuver_tile.dart';
 import '../../widgets/poi_search_sheet.dart';
+import '../../widgets/offline_download_sheet.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -835,7 +837,50 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           active: _isDrawingTrace,
           activeColor: AppColors.orange,
         ),
+        const SizedBox(height: 6),
+        // Télécharger la zone visible pour hors-ligne
+        _mapCtrlBtn(
+          Icons.download_for_offline_outlined,
+          _downloadVisibleAreaOffline,
+        ),
       ],
+    );
+  }
+
+  // ── CARTE HORS-LIGNE — zone visible ────────────────────────
+  // Se greffe sur le même magasin de tuiles que le cache passif (voir
+  // MapTileCache) : pas de zones téléchargées gérées séparément, juste un
+  // ajout volontaire au même cache. Plage de zoom relative au zoom actuel
+  // (zoom courant à zoom courant + 3) plutôt que fixe : quel que soit le
+  // niveau de zoom au moment du tap, le nombre de tuiles reste borné à peu
+  // près à la même fourchette (l'écran couvre toujours à peu près le même
+  // nombre de tuiles à un zoom donné).
+  Future<void> _downloadVisibleAreaOffline() async {
+    final mapProv = context.read<MapProvider>();
+    final bounds = _mapController.camera.visibleBounds;
+    final currentZoom = _mapController.camera.zoom.round().clamp(5, 18);
+    final maxZoom = (currentZoom + 3).clamp(5, 18);
+
+    final region = RectangleRegion(bounds).toDownloadable(
+      minZoom: currentZoom,
+      maxZoom: maxZoom,
+      options: TileLayer(
+        urlTemplate: mapProv.activeLayer.tileUrl,
+        tileProvider: MapTileCache.tileProvider,
+      ),
+    );
+
+    final tileCount = await const FMTCStore(MapTileCache.storeName).download.countTiles(region);
+    if (!mounted) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => OfflineDownloadSheet(region: region, estimatedTileCount: tileCount),
     );
   }
 
