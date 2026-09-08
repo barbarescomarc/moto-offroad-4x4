@@ -62,6 +62,8 @@ mécanisme serait écrit deux fois.
    `flutter_secure_storage`.
 6. **Rien de tout cela ne s'applique aux photos ni aux contenus binaires**, qui
    restent hors périmètre de bout en bout.
+7. **Les installations existantes bénéficient d'un délai de grâce de 30 jours**
+   avant que le mur d'inscription ne s'applique à elles.
 
 ## 4. Modèle de données
 
@@ -184,6 +186,36 @@ Première ouverture :
    ordinateur ouvre l'application sans geste supplémentaire.
 4. **La carte** — et plus jamais de demande de connexion.
 
+### 7.1 Délai de grâce des installations existantes
+
+Un rider qui utilise l'application depuis des semaines ne doit pas trouver un
+mur d'inscription au départ d'une sortie, sans avertissement. La nouvelle
+version reconnaît donc les installations antérieures et leur laisse 30 jours.
+
+**Reconnaître une installation antérieure.** Au premier lancement de la version
+qui introduit les comptes, l'application cherche des données produites par les
+versions précédentes : la base locale des sorties (`sqflite`) ou une préférence
+existante. Si elle en trouve et qu'aucun compte n'est enregistré, elle inscrit
+une échéance à 30 jours dans ses préférences. Une installation neuve n'a rien
+de tout cela et va directement au mur.
+
+**Pendant le délai**, l'application s'ouvre normalement sur la carte. Un bandeau
+non bloquant, refermable et réaffiché à chaque lancement, annonce la date à
+partir de laquelle le compte sera exigé et propose de le créer tout de suite.
+Les fonctions du lot B et suivants restent, elles, réservées aux comptes : le
+délai reporte le mur, il n'ouvre pas de porte dérobée.
+
+**À l'échéance**, le mur s'applique comme pour une installation neuve.
+
+L'échéance est locale, donc manipulable par qui recule l'horloge de son
+téléphone. C'est sans importance : ce délai est une politesse envers les riders
+fidèles, pas un contrôle d'accès.
+
+**Ce chemin est temporaire et doit être écrit comme tel** : isolé dans un seul
+endroit, signalé par un commentaire indiquant sa condition de retrait, et
+supprimé une fois que les installations d'avant les comptes auront disparu du
+parc.
+
 Le jeton est conservé par `flutter_secure_storage` (Trousseau iOS, Keystore
 Android). `shared_preferences` conviendrait techniquement, mais un jeton
 d'identité y est lisible sur un appareil déverrouillé par la racine et part
@@ -272,3 +304,10 @@ les installations de MOTO OFFROAD.
    données personnelles et déconnecte tous les appareils.
 8. La sauvegarde quotidienne produit un fichier restaurable, et `sweep.js` ne
    supprime aucun compte.
+9. Une installation qui contient des données d'une version antérieure s'ouvre
+   sur la carte après la mise à jour, avec le bandeau d'avertissement et sa
+   date d'échéance.
+10. La même installation, passé 30 jours, exige le compte comme une
+    installation neuve.
+11. Une installation neuve ne bénéficie d'aucun délai, même si l'appareil a
+    déjà hébergé l'application par le passé.
