@@ -38,6 +38,7 @@ dependencies:
   # ── Stockage ─────────────────────────────────────────
   shared_preferences: ^2.2.0   # Préférences utilisateur
   sqflite: ^2.3.0              # SQLite local
+  flutter_secure_storage: ^9.2.2  # Jeton de session : Trousseau iOS, Keystore Android
 
   # ── Enregistrement de sorties (lot 1) ───────────────
   flutter_foreground_task: ^8.10.0   # Service d'arrière-plan + notification
