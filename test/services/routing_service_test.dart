@@ -185,4 +185,64 @@ void main() {
       expect(result.totalDistanceMeters, 3000.0);
     });
   });
+
+  group('fetchRouteAlternatives', () {
+    const twoAlternativesResponse = '''
+    {
+      "features": [
+        {
+          "geometry": {"coordinates": [[6.0, 44.0], [6.01, 44.01]]},
+          "properties": {
+            "summary": {"distance": 1000.0, "duration": 200.0},
+            "segments": [{"distance": 1000.0, "duration": 200.0, "steps": [
+              {"distance": 1000.0, "duration": 200.0, "type": 10, "instruction": "Arrivée", "way_points": [0, 1]}
+            ]}]
+          }
+        },
+        {
+          "geometry": {"coordinates": [[6.0, 44.0], [6.005, 44.0], [6.005, 44.01], [6.01, 44.01]]},
+          "properties": {
+            "summary": {"distance": 1500.0, "duration": 260.0},
+            "segments": [{"distance": 1500.0, "duration": 260.0, "steps": [
+              {"distance": 1500.0, "duration": 260.0, "type": 10, "instruction": "Arrivée", "way_points": [0, 3]}
+            ]}]
+          }
+        }
+      ]
+    }
+    ''';
+
+    test('demande target_count alternatives à ORS', () async {
+      late Map<String, dynamic> sentBody;
+      final client = MockClient((request) async {
+        sentBody = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(twoAlternativesResponse, 200);
+      });
+      final service = RoutingService(client: client);
+
+      await service.fetchRouteAlternatives(
+        origin: const LatLng(44.0, 6.0),
+        destination: const LatLng(44.01, 6.01),
+        profile: RoutingProfile.drivingCar,
+        targetCount: 3,
+      );
+
+      expect(sentBody['alternative_routes']['target_count'], 3);
+    });
+
+    test('renvoie un RouteResult par itinéraire alternatif', () async {
+      final client = MockClient((_) async => http.Response(twoAlternativesResponse, 200));
+      final service = RoutingService(client: client);
+
+      final results = await service.fetchRouteAlternatives(
+        origin: const LatLng(44.0, 6.0),
+        destination: const LatLng(44.01, 6.01),
+        profile: RoutingProfile.drivingCar,
+      );
+
+      expect(results, hasLength(2));
+      expect(results[0].polyline, hasLength(2));
+      expect(results[1].polyline, hasLength(4));
+    });
+  });
 }

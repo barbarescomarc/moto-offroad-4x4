@@ -26,7 +26,9 @@ GpsSnapshot _gps(LatLng pos, {int s = 0, double speedKmh = 20}) => GpsSnapshot(
 
 class _FakeRoutingService extends RoutingService {
   int calls = 0;
+  int alternativesCalls = 0;
   RouteResult Function()? nextResult;
+  List<RouteResult> Function()? nextAlternatives;
   bool shouldThrow = false;
 
   @override
@@ -39,6 +41,19 @@ class _FakeRoutingService extends RoutingService {
     calls++;
     if (shouldThrow) throw const RoutingException('pas de réseau');
     return nextResult!();
+  }
+
+  @override
+  Future<List<RouteResult>> fetchRouteAlternatives({
+    required LatLng origin,
+    required LatLng destination,
+    required RoutingProfile profile,
+    Set<AvoidFeature> avoid = const {},
+    int targetCount = 3,
+  }) async {
+    alternativesCalls++;
+    if (shouldThrow) throw const RoutingException('pas de réseau');
+    return nextAlternatives!();
   }
 }
 
@@ -170,6 +185,52 @@ void main() {
     expect(guidance.isActive, isTrue);
     expect(guidance.mode, GuidanceMode.destination);
     expect(guidance.currentStep?.instruction, 'Tournez à droite');
+  });
+
+  test('preferCurvyRoutes demande des alternatives et retient la plus sinueuse', () async {
+    final straight = RouteResult(
+      polyline: [const LatLng(44.00, 6.0), const LatLng(44.02, 6.0)],
+      steps: const [],
+      totalDistanceMeters: 2000, totalDurationSeconds: 200,
+    );
+    final curvy = RouteResult(
+      polyline: [
+        const LatLng(44.00, 6.00),
+        const LatLng(44.01, 6.00),
+        const LatLng(44.01, 6.01),
+        const LatLng(44.02, 6.01),
+        const LatLng(44.02, 6.02),
+        const LatLng(44.01, 6.02),
+      ],
+      steps: const [],
+      totalDistanceMeters: 2500, totalDurationSeconds: 260,
+    );
+    routing.nextAlternatives = () => [straight, curvy];
+
+    final ok = await guidance.startToDestination(
+      origin: const LatLng(44.0, 6.0),
+      destination: const LatLng(44.02, 6.02),
+      profile: RoutingProfile.drivingCar,
+      preferCurvyRoutes: true,
+    );
+
+    expect(ok, isTrue);
+    expect(routing.alternativesCalls, 1);
+    expect(routing.calls, 0);
+    expect(guidance.route?.polyline, curvy.polyline);
+  });
+
+  test('sans preferCurvyRoutes, une seule route est demandée (pas d\'alternatives)', () async {
+    routing.nextResult = _straightRoute;
+
+    await guidance.startToDestination(
+      origin: const LatLng(44.0, 6.0),
+      destination: const LatLng(44.0, 6.01),
+      profile: RoutingProfile.drivingCar,
+    );
+
+    expect(routing.calls, 1);
+    expect(routing.alternativesCalls, 0);
   });
 
   test('échec réseau au démarrage n\'active pas le guidage et remplit error', () async {

@@ -139,3 +139,30 @@ double bearingDeltaDeg(double fromDeg, double toDeg) {
   if (delta < -180) delta += 360;
   return delta;
 }
+
+// Degrés de virage cumulés par kilomètre — proxy de sinuosité d'un
+// itinéraire déjà calculé (géométrie de route propre, pas une trace GPS
+// brute). Une ligne droite vaut 0 ; plus les virages sont fréquents et
+// serrés, plus la valeur monte. Sert à choisir, parmi plusieurs itinéraires
+// alternatifs vers une même destination, celui qui tourne le plus (à
+// défaut d'un véritable algorithme de recherche de routes sinueuses,
+// absent d'ORS).
+double routeSinuosityDegPerKm(List<LatLng> polyline) {
+  if (polyline.length < 3) return 0;
+  const calc = Distance();
+
+  double totalTurningDeg = 0;
+  double totalDistanceMeters = 0;
+  double previousBearing = calc.bearing(polyline[0], polyline[1]);
+
+  for (var i = 1; i < polyline.length - 1; i++) {
+    totalDistanceMeters += calc(polyline[i - 1], polyline[i]);
+    final bearing = calc.bearing(polyline[i], polyline[i + 1]);
+    totalTurningDeg += bearingDeltaDeg(previousBearing, bearing).abs();
+    previousBearing = bearing;
+  }
+  totalDistanceMeters += calc(polyline[polyline.length - 2], polyline.last);
+
+  if (totalDistanceMeters == 0) return 0;
+  return totalTurningDeg / (totalDistanceMeters / 1000);
+}

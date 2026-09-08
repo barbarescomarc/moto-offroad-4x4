@@ -146,4 +146,51 @@ void main() {
       expect(bearingDeltaDeg(350, 10), 20);
     });
   });
+
+  group('routeSinuosityDegPerKm', () {
+    test('une ligne droite a une sinuosité nulle', () {
+      final polyline = [
+        for (var i = 0; i <= 5; i++) LatLng(44.0 + i * 0.01, 6.0),
+      ];
+      expect(routeSinuosityDegPerKm(polyline), 0);
+    });
+
+    test('un tracé en zigzag a une sinuosité positive', () {
+      final polyline = [
+        const LatLng(44.00, 6.00),
+        const LatLng(44.01, 6.00),
+        const LatLng(44.01, 6.01),
+        const LatLng(44.02, 6.01),
+        const LatLng(44.02, 6.02),
+      ];
+      expect(routeSinuosityDegPerKm(polyline), greaterThan(0));
+    });
+
+    test('plus les virages sont fréquents, plus la sinuosité est élevée', () {
+      // Même distance totale, mais deux fois plus de virages sur le second.
+      final fewTurns = [
+        const LatLng(44.00, 6.00),
+        const LatLng(44.01, 6.00),
+        const LatLng(44.01, 6.02),
+      ];
+      final manyTurns = [
+        const LatLng(44.00, 6.00),
+        const LatLng(44.01, 6.00),
+        const LatLng(44.01, 6.01),
+        const LatLng(44.02, 6.01),
+        const LatLng(44.02, 6.02),
+        const LatLng(44.01, 6.02),
+      ];
+      expect(routeSinuosityDegPerKm(manyTurns), greaterThan(routeSinuosityDegPerKm(fewTurns)));
+    });
+
+    test('une trace de moins de 3 points a une sinuosité nulle', () {
+      expect(routeSinuosityDegPerKm([const LatLng(44.0, 6.0), const LatLng(44.01, 6.0)]), 0);
+    });
+
+    // Pas de test de résistance au bruit GPS ici : cette fonction ne
+    // s'applique qu'à des itinéraires déjà calculés par OpenRouteService
+    // (géométrie de route propre), jamais à une trace GPS brute enregistrée
+    // sur le terrain — le bruit GPS n'est pas un cas réel pour cet usage.
+  });
 }

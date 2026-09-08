@@ -178,11 +178,24 @@ class GuidanceProvider extends ChangeNotifier {
     required LatLng destination,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
+    // Faute d'un vrai algorithme de recherche de route sinueuse côté ORS :
+    // demande jusqu'à 3 itinéraires alternatifs et retient celui qui tourne
+    // le plus (voir routeSinuosityDegPerKm), plutôt qu'une vraie recherche
+    // de toutes les routes sinueuses de la région.
+    bool preferCurvyRoutes = false,
   }) async {
     _error = null;
     try {
-      final result = await _routing.fetchRoute(
-          origin: origin, destination: destination, profile: profile, avoid: avoid);
+      final RouteResult result;
+      if (preferCurvyRoutes) {
+        final alternatives = await _routing.fetchRouteAlternatives(
+            origin: origin, destination: destination, profile: profile, avoid: avoid);
+        result = alternatives.reduce((a, b) =>
+            routeSinuosityDegPerKm(a.polyline) >= routeSinuosityDegPerKm(b.polyline) ? a : b);
+      } else {
+        result = await _routing.fetchRoute(
+            origin: origin, destination: destination, profile: profile, avoid: avoid);
+      }
       _route = result;
       _mode = GuidanceMode.destination;
       _destination = destination;

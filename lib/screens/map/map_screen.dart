@@ -1938,6 +1938,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final guidance = context.read<GuidanceProvider>();
     final ok = await guidance.startToDestination(
       origin: origin, destination: destination, profile: profile, avoid: avoid,
+      preferCurvyRoutes: settings.guidancePreferCurvy,
     );
 
     if (ok) {

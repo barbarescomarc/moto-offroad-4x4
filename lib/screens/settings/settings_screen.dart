@@ -590,6 +590,14 @@ class _SettingsScreenState extends State<SettingsScreen>
           onChanged: settings.setGuidanceAvoidFerries,
         ),
         SwitchListTile(
+          title: const Text('Privilégier les routes sinueuses'),
+          subtitle: const Text(
+            'Vers une destination : retient la plus sinueuse parmi plusieurs itinéraires possibles.',
+          ),
+          value: settings.guidancePreferCurvy,
+          onChanged: settings.setGuidancePreferCurvy,
+        ),
+        SwitchListTile(
           title: const Text('Couper la voix du guidage'),
           subtitle: const Text('Les instructions restent visibles à l\'écran.'),
           value: settings.guidanceVoiceMuted,

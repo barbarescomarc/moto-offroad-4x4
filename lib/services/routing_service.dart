@@ -44,25 +44,50 @@ class RoutingService {
     required LatLng destination,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
-  }) => _fetchRoute(waypoints: [origin, destination], profile: profile, avoid: avoid);
+  }) async {
+    final results = await _fetchRoutes(
+      waypoints: [origin, destination], profile: profile, avoid: avoid,
+    );
+    return results.first;
+  }
+
+  // Jusqu'à 3 itinéraires distincts entre deux points (limite imposée par
+  // ORS) — sert à choisir celui qui tourne le plus quand la préférence
+  // "routes sinueuses" est active (voir routeSinuosityDegPerKm), faute
+  // d'un vrai algorithme de recherche de route sinueuse côté ORS.
+  Future<List<RouteResult>> fetchRouteAlternatives({
+    required LatLng origin,
+    required LatLng destination,
+    required RoutingProfile profile,
+    Set<AvoidFeature> avoid = const {},
+    int targetCount = 3,
+  }) =>
+      _fetchRoutes(
+        waypoints: [origin, destination],
+        profile: profile,
+        avoid: avoid,
+        alternativeRoutesTargetCount: targetCount,
+      );
 
   // Trace à main levée : autant d'étapes que de points posés sur la carte.
   // ORS accepte nativement plus de deux coordonnées — chaque paire
   // consécutive devient un « segment » dans la réponse, déjà géré par
-  // _parse qui les parcourt tous pour construire la liste d'étapes.
+  // _parseFeature qui les parcourt tous pour construire la liste d'étapes.
   Future<RouteResult> fetchMultiPointRoute({
     required List<LatLng> waypoints,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
-  }) {
+  }) async {
     assert(waypoints.length >= 2, 'Il faut au moins deux points pour un itinéraire');
-    return _fetchRoute(waypoints: waypoints, profile: profile, avoid: avoid);
+    final results = await _fetchRoutes(waypoints: waypoints, profile: profile, avoid: avoid);
+    return results.first;
   }
 
-  Future<RouteResult> _fetchRoute({
+  Future<List<RouteResult>> _fetchRoutes({
     required List<LatLng> waypoints,
     required RoutingProfile profile,
     required Set<AvoidFeature> avoid,
+    int? alternativeRoutesTargetCount,
   }) async {
     final uri = Uri.parse(
         'https://api.openrouteservice.org/v2/directions/${profile.orsId}/geojson');
@@ -73,6 +98,15 @@ class RoutingService {
       'language': 'fr',
       if (avoid.isNotEmpty)
         'options': {'avoid_features': avoid.map((a) => a.orsId).toList()},
+      // Non cumulable avec plus de deux points ni avec les évitements selon
+      // l'API ORS — n'est demandé que pour un guidage vers une destination
+      // simple (voir GuidanceProvider).
+      if (alternativeRoutesTargetCount != null)
+        'alternative_routes': {
+          'target_count': alternativeRoutesTargetCount,
+          'share_factor': 0.6,
+          'weight_factor': 1.4,
+        },
     };
 
     http.Response resp;
@@ -99,13 +133,18 @@ class RoutingService {
       throw const RoutingException("Impossible de calculer l'itinéraire");
     }
 
-    return _parse(resp.body);
+    return _parseAll(resp.body);
   }
 
-  RouteResult _parse(String rawBody) {
+  List<RouteResult> _parseAll(String rawBody) {
     final json = jsonDecode(rawBody) as Map<String, dynamic>;
-    final feature = (json['features'] as List<dynamic>).first as Map<String, dynamic>;
+    final features = json['features'] as List<dynamic>;
+    return features
+        .map((f) => _parseFeature(f as Map<String, dynamic>))
+        .toList();
+  }
 
+  RouteResult _parseFeature(Map<String, dynamic> feature) {
     final geometry = feature['geometry'] as Map<String, dynamic>;
     final coords = geometry['coordinates'] as List<dynamic>;
     final polyline = coords

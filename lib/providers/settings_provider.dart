@@ -28,6 +28,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kGuidanceAvoidHighways = 'guidance_avoid_highways';
   static const _kGuidanceAvoidTolls    = 'guidance_avoid_tolls';
   static const _kGuidanceAvoidFerries  = 'guidance_avoid_ferries';
+  static const _kGuidancePreferCurvy   = 'guidance_prefer_curvy';
   static const _kGuidanceVoiceMuted    = 'guidance_voice_muted';
   static const _kMapHeadingUp          = 'map_orientation_heading_up';
 
@@ -65,6 +66,7 @@ class SettingsProvider extends ChangeNotifier {
   bool _guidanceAvoidHighways = false;
   bool _guidanceAvoidTolls    = false;
   bool _guidanceAvoidFerries  = false;
+  bool _guidancePreferCurvy   = false;
   bool _guidanceVoiceMuted    = false;
   // false = Nord en haut (défaut) ; true = carte tournée selon le cap du
   // rider, comme un GPS auto — utile à l'arrêt comme en roulant.
@@ -94,6 +96,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get guidanceAvoidHighways => _guidanceAvoidHighways;
   bool get guidanceAvoidTolls    => _guidanceAvoidTolls;
   bool get guidanceAvoidFerries  => _guidanceAvoidFerries;
+  bool get guidancePreferCurvy   => _guidancePreferCurvy;
   bool get guidanceVoiceMuted    => _guidanceVoiceMuted;
   bool get mapHeadingUp          => _mapHeadingUp;
 
@@ -128,6 +131,7 @@ class SettingsProvider extends ChangeNotifier {
     _guidanceAvoidHighways = prefs.getBool(_kGuidanceAvoidHighways) ?? false;
     _guidanceAvoidTolls    = prefs.getBool(_kGuidanceAvoidTolls)    ?? false;
     _guidanceAvoidFerries  = prefs.getBool(_kGuidanceAvoidFerries)  ?? false;
+    _guidancePreferCurvy   = prefs.getBool(_kGuidancePreferCurvy)   ?? false;
     _guidanceVoiceMuted    = prefs.getBool(_kGuidanceVoiceMuted)    ?? false;
     _mapHeadingUp          = prefs.getBool(_kMapHeadingUp)          ?? false;
     notifyListeners();
@@ -279,6 +283,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setGuidanceAvoidFerries(bool v) async {
     _guidanceAvoidFerries = v;
     (await SharedPreferences.getInstance()).setBool(_kGuidanceAvoidFerries, v);
+    notifyListeners();
+  }
+
+  Future<void> setGuidancePreferCurvy(bool v) async {
+    _guidancePreferCurvy = v;
+    (await SharedPreferences.getInstance()).setBool(_kGuidancePreferCurvy, v);
     notifyListeners();
   }
 
