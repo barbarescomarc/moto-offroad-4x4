@@ -186,7 +186,44 @@ Première ouverture :
    ordinateur ouvre l'application sans geste supplémentaire.
 4. **La carte** — et plus jamais de demande de connexion.
 
-### 7.1 Délai de grâce des installations existantes
+### 7.1 Tutoriel de première ouverture
+
+Une fois la carte atteinte, un tutoriel se déclenche, transposé de celui du
+tableau de bord de streaming (`dashboard.html` du projet DRONE 31) : voile
+sombre, projecteur sur l'élément réel de l'interface, carte d'explication
+portant « ÉTAPE n / 6 », un titre, un texte, des pastilles de progression et
+les commandes *Passer*, *Précédent*, *Suivant*, *Terminer*.
+
+Six étapes :
+
+1. **Bienvenue** — sans cible.
+2. **Les modes Solo et Groupe** — sur `ModeSwitchWidget`.
+3. **Le SOS et la détection de chute** — sur `SosButton`.
+4. **Enregistrer une sortie** — sur `RecordingPanel`.
+5. **Le menu d'actions** — itinéraire, points d'intérêt, météo — sur
+   `RadialActionMenu`.
+6. **Les couches et la carte hors ligne** — sur le bouton des calques.
+
+**Mise en œuvre.** Un widget `lib/widgets/tutorial_overlay.dart` dessine le
+voile percé (`Stack` et `CustomPaint`) et la carte d'explication ; une liste
+déclarative `lib/services/tutorial_steps.dart` tient les étapes, à l'image de
+`TUT_STEPS`. Aucune dépendance nouvelle. Les cibles sont désignées par des
+`GlobalKey` posées sur les éléments existants : `map_screen.dart` fait déjà
+2006 lignes, il ne reçoit que les clés, toute la logique reste à l'extérieur.
+
+**Sur téléphone**, la carte d'explication est épinglée en bas, à portée du
+pouce, avec une hauteur maximale qui laisse le pied atteignable — la leçon
+déjà apprise sur le tableau de bord.
+
+**Mémorisation.** Un indicateur dans `shared_preferences`, et une entrée
+« Revoir le tutoriel » dans les réglages, pendant du bouton de rejeu de
+l'en-tête du tableau de bord.
+
+**Déclenchement.** À la première ouverture de la carte, donc après la
+vérification du compte. Les installations en délai de grâce le voient aussi :
+elles ne l'ont jamais vu.
+
+### 7.2 Délai de grâce des installations existantes
 
 Un rider qui utilise l'application depuis des semaines ne doit pas trouver un
 mur d'inscription au départ d'une sortie, sans avertissement. La nouvelle
@@ -311,3 +348,7 @@ les installations de MOTO OFFROAD.
     installation neuve.
 11. Une installation neuve ne bénéficie d'aucun délai, même si l'appareil a
     déjà hébergé l'application par le passé.
+12. Le tutoriel se déclenche une seule fois, à la première arrivée sur la
+    carte, et ne réapparaît plus — y compris après une mise à jour.
+13. Le tutoriel est rejouable depuis les réglages, et reste lisible et
+    utilisable d'une main sur un téléphone.
