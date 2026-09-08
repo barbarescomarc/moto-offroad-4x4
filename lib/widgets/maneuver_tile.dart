@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../app/theme.dart';
 import '../models/route_result.dart';
+import 'maneuver_icon.dart';
 
 // Flèche de manœuvre et distance dans un même bloc, à la manière d'un GPS
 // auto : l'oeil n'a qu'un seul endroit à lire pour "quoi" et "quand".
@@ -31,7 +32,7 @@ class ManeuverTile extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(_iconFor(step?.maneuver), color: AppColors.orange, size: 34),
+          Icon(maneuverIcon(step?.maneuver), color: AppColors.orange, size: 34),
           if (step != null) ...[
             const SizedBox(height: 2),
             Text(
@@ -47,19 +48,5 @@ class ManeuverTile extends StatelessWidget {
   static String _distanceLabel(double meters) {
     if (meters >= 1000) return '${(meters / 1000).toStringAsFixed(1)} km';
     return '${meters.round()} m';
-  }
-
-  IconData _iconFor(ManeuverType? m) {
-    switch (m) {
-      case ManeuverType.turnLeft:   return Icons.turn_left;
-      case ManeuverType.turnRight:  return Icons.turn_right;
-      case ManeuverType.sharpLeft:  return Icons.turn_sharp_left;
-      case ManeuverType.sharpRight: return Icons.turn_sharp_right;
-      case ManeuverType.uturn:      return Icons.u_turn_left;
-      case ManeuverType.arrive:     return Icons.flag;
-      case ManeuverType.depart:     return Icons.navigation;
-      case ManeuverType.straight:
-      case null:                    return Icons.straight;
-    }
   }
 }

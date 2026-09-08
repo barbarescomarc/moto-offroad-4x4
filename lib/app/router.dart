@@ -19,6 +19,7 @@ import '../screens/settings/vibration_calibration_screen.dart';
 import '../screens/settings/call_settings_screen.dart';
 import '../screens/sos/fall_countdown_screen.dart';
 import '../screens/favorites/favorites_screen.dart';
+import '../screens/roadbook/roadbook_screen.dart';
 import '../services/update_checker.dart';
 import '../widgets/glass_control.dart';
 import '../widgets/update_tile.dart';
@@ -40,6 +41,7 @@ class AppRoutes {
   static const String group       = '/group';
   static const String fallCountdown = '/fall-countdown';
   static const String favorites   = '/favorites';
+  static const String roadbook    = '/roadbook';
 }
 
 // ── Router GoRouter ──────────────────────────────────────────
@@ -104,6 +106,11 @@ final GoRouter appRouter = GoRouter(
       path: AppRoutes.favorites,
       pageBuilder: (_, __) =>
           const MaterialPage(fullscreenDialog: true, child: FavoritesScreen()),
+    ),
+    GoRoute(
+      path: AppRoutes.roadbook,
+      pageBuilder: (_, __) =>
+          const MaterialPage(fullscreenDialog: true, child: RoadbookScreen()),
     ),
     GoRoute(
       path: AppRoutes.sendPosition,

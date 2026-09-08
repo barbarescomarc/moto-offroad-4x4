@@ -23,6 +23,8 @@ import '../../models/poi.dart';
 import '../../services/location_service.dart';
 import '../../services/routing_service.dart';
 import '../../services/ride_repository.dart';
+import '../../services/gpx_route_deriver.dart';
+import '../../utils/route_geometry.dart';
 import '../../services/speed_taunt_service.dart';
 import '../../widgets/sos_button.dart';
 import '../../widgets/mode_switch.dart';
@@ -81,6 +83,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   bool _isDrawingTrace = false;
   final List<LatLng> _drawPoints = [];
   bool _isComputingDrawnRoute = false;
+
+  // ── Édition de trace ───────────────────────────────────────
+  bool _isEditingTrace = false;
+  TraceModel? _editingSourceTrace;
+  final List<LatLng> _editWaypoints = [];
+  List<LatLng>? _editedPolyline;
+  bool _isRecomputingEdit = false;
 
   // Détection du masquage de la barre de navigation : flutter_map émet
   // MapEventSource.dragStart dès le premier micro-mouvement d'un doigt sur
@@ -302,6 +311,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // ── Barre de dessin de trace à main levée ────────
             _buildDrawTraceBar(),
 
+            // ── Barre d'édition de trace ──────────────────────
+            _buildEditTraceBar(),
+
             // ── Contrôles carte ──────────────────────────────
             // Recherche d'adresse, Météo et Mode Solo ont rejoint le menu
             // radial de Recentrer (voir _buildMapControls) : appui long
@@ -409,6 +421,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         maxZoom: 18,
         onMapReady: () => setState(() => _mapReady = true),
         onTap: (_, point) {
+          if (_isEditingTrace) {
+            _insertEditPoint(point);
+            return;
+          }
           if (_isDrawingTrace) {
             _addDrawPoint(point);
             return;
@@ -578,6 +594,27 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ))
               .toList(),
         ),
+
+        // ── Trace en cours d'édition ─────────────────────────
+        if (_isEditingTrace) ...[
+          if (_editedPolyline != null)
+            PolylineLayer(polylines: [
+              Polyline(points: _editedPolyline!, strokeWidth: 5, color: AppColors.blue),
+            ]),
+          MarkerLayer(
+            markers: [
+              for (var i = 0; i < _editWaypoints.length; i++)
+                Marker(
+                  point: _editWaypoints[i],
+                  width: 30, height: 30,
+                  child: GestureDetector(
+                    onTap: () => _showEditPointMenu(i),
+                    child: _editPointMarker(i + 1),
+                  ),
+                ),
+            ],
+          ),
+        ],
 
         // ── Trace à main levée en cours de dessin ───────────
         if (_isDrawingTrace && _drawPoints.length >= 2)
@@ -802,6 +839,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   void _startDrawingTrace() {
     setState(() {
+      _isEditingTrace = false;
       _isDrawingTrace = true;
       _drawPoints.clear();
     });
@@ -934,6 +972,194 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                   : const Icon(Icons.check, size: 18),
               label: const Text('Terminer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── ÉDITION DE TRACE ──────────────────────────────────────
+  // Points-clés initiaux = ceux déjà repérés par le guidage virage par
+  // virage (départ, chaque manœuvre, arrivée) : une simplification pratique
+  // de la trace brute, réutilisée telle quelle plutôt que de ré-implémenter
+  // un algorithme de simplification de ligne.
+  void _startEditingTrace(TraceModel trace) {
+    final derived = GpxRouteDeriver.deriveTurnByTurn(trace);
+    final waypoints = <LatLng>[
+      trace.points.first.position,
+      ...derived.steps
+          .where((s) => s.maneuver != ManeuverType.arrive)
+          .map((s) => s.location),
+      trace.points.last.position,
+    ];
+    setState(() {
+      _isDrawingTrace = false;
+      _isEditingTrace = true;
+      _editingSourceTrace = trace;
+      _editWaypoints
+        ..clear()
+        ..addAll(waypoints);
+      _editedPolyline = null;
+    });
+  }
+
+  // Un tap hors marqueur insère un point à l'endroit du tracé édité le
+  // plus proche — pas forcément pile sur la ligne, ce qui permet justement
+  // de forcer un détour pour contourner un passage interdit.
+  void _insertEditPoint(LatLng point) {
+    if (_editWaypoints.length < 2) return;
+    final nearest = nearestPointOnPolyline(point, _editWaypoints);
+    setState(() => _editWaypoints.insert(nearest.segmentIndex + 1, point));
+    _recomputeEditedRoute();
+  }
+
+  void _showEditPointMenu(int index) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.delete_outline, color: AppColors.statusRed),
+              title: const Text('Supprimer ce point', style: TextStyle(color: Colors.white)),
+              enabled: _editWaypoints.length > 2,
+              onTap: () {
+                Navigator.pop(sheetContext);
+                setState(() => _editWaypoints.removeAt(index));
+                _recomputeEditedRoute();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.first_page, color: AppColors.orange),
+              title: const Text('Couper avant ce point', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Supprime tout ce qui précède', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              enabled: index > 0,
+              onTap: () {
+                Navigator.pop(sheetContext);
+                setState(() => _editWaypoints.removeRange(0, index));
+                _recomputeEditedRoute();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.last_page, color: AppColors.orange),
+              title: const Text('Couper après ce point', style: TextStyle(color: Colors.white)),
+              subtitle: const Text('Supprime tout ce qui suit', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              enabled: index < _editWaypoints.length - 1,
+              onTap: () {
+                Navigator.pop(sheetContext);
+                setState(() => _editWaypoints.removeRange(index + 1, _editWaypoints.length));
+                _recomputeEditedRoute();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _recomputeEditedRoute() async {
+    if (_editWaypoints.length < 2) {
+      setState(() => _editedPolyline = null);
+      return;
+    }
+    setState(() => _isRecomputingEdit = true);
+    final mapProv = context.read<MapProvider>();
+    final profile = mapProv.navMode == NavMode.offroad
+        ? RoutingProfile.cyclingMountain
+        : RoutingProfile.drivingCar;
+    try {
+      final route = await RoutingService().fetchMultiPointRoute(
+        waypoints: List.of(_editWaypoints), profile: profile,
+      );
+      if (!mounted) return;
+      setState(() {
+        _editedPolyline = route.polyline;
+        _isRecomputingEdit = false;
+      });
+    } on RoutingException catch (e) {
+      if (!mounted) return;
+      setState(() => _isRecomputingEdit = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
+
+  void _cancelEditingTrace() {
+    setState(() {
+      _isEditingTrace = false;
+      _editingSourceTrace = null;
+      _editWaypoints.clear();
+      _editedPolyline = null;
+    });
+  }
+
+  Future<void> _saveEditedTrace() async {
+    final polyline = _editedPolyline;
+    if (polyline == null) return;
+
+    final source = _editingSourceTrace;
+    final trace = TraceModel(
+      id: source?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+      name: source?.name ?? 'Trace éditée',
+      points: polyline.map((p) => TracePoint(position: p)).toList(),
+      source: 'created',
+    );
+
+    final traceProv = context.read<TraceProvider>();
+    final repo = context.read<RideRepository>();
+    await traceProv.setCreatedTrace(trace, repository: repo);
+
+    if (!mounted) return;
+    setState(() {
+      _isEditingTrace = false;
+      _editingSourceTrace = null;
+      _editWaypoints.clear();
+      _editedPolyline = null;
+    });
+  }
+
+  // Barre flottante affichée pendant l'édition — nombre de points et
+  // actions (annuler, enregistrer).
+  Widget _buildEditTraceBar() {
+    if (!_isEditingTrace) return const SizedBox.shrink();
+    return Positioned(
+      left: 12, right: 12,
+      bottom: AppSizes.statsBarHeight + 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.bgPanel.withValues(alpha: .95),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFF2A2A3E)),
+        ),
+        child: Row(
+          children: [
+            Flexible(
+              child: Text(
+                '${_editWaypoints.length} points — tape un point pour le modifier, ailleurs pour en ajouter un',
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+                overflow: TextOverflow.ellipsis,
+                maxLines: 2,
+              ),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.close, color: AppColors.statusRed, size: 20),
+              onPressed: _cancelEditingTrace,
+              tooltip: 'Annuler',
+            ),
+            FilledButton.icon(
+              onPressed: (_editedPolyline == null || _isRecomputingEdit) ? null : _saveEditedTrace,
+              icon: _isRecomputingEdit
+                  ? const SizedBox(width: 16, height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.check, size: 18),
+              label: const Text('Enregistrer'),
             ),
           ],
         ),
@@ -1370,6 +1596,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     child: Text(poi.category.emoji, style: const TextStyle(fontSize: 16)),
   );
 
+  Widget _editPointMarker(int number) => Container(
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: AppColors.blue,
+      border: Border.all(color: Colors.white, width: 2),
+      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 4)],
+    ),
+    alignment: Alignment.center,
+    child: Text('$number', style: const TextStyle(
+      color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+  );
+
   Widget _drawPointMarker(int number) => Container(
     decoration: BoxDecoration(
       shape: BoxShape.circle,
@@ -1535,6 +1773,30 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 _startGuidanceOnTrace(trace, GuidanceMode.gpxTurnByTurn);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.menu_book_outlined, color: AppColors.orange),
+              title: const Text('Roadbook', style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Cap, distances et pictogrammes façon carnet de rallye.',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.push(AppRoutes.roadbook);
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.edit_road, color: AppColors.orange),
+              title: const Text('Éditer la trace', style: TextStyle(color: Colors.white)),
+              subtitle: const Text(
+                'Couper, ajouter ou supprimer des points, contourner un passage.',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _startEditingTrace(trace);
               },
             ),
           ],

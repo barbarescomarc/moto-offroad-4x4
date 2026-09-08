@@ -104,4 +104,62 @@ void main() {
       expect(result.steps, isEmpty);
     });
   });
+
+  group('deriveRoadbook', () {
+    test('une ligne droite ne produit qu\'un départ et une arrivée', () {
+      final trace = _traceFrom([
+        const LatLng(44.00, 6.0),
+        const LatLng(44.01, 6.0),
+        const LatLng(44.02, 6.0),
+        const LatLng(44.03, 6.0),
+      ]);
+      final entries = GpxRouteDeriver.deriveRoadbook(trace);
+
+      expect(entries.length, 2);
+      expect(entries.first.maneuver, ManeuverType.depart);
+      expect(entries.first.partialDistanceMeters, 0);
+      expect(entries.last.maneuver, ManeuverType.arrive);
+      // Cap plein nord.
+      expect(entries.first.capDeg, closeTo(0, 1));
+    });
+
+    test('les distances cumulées somment les distances partielles', () {
+      final trace = _traceFrom([
+        const LatLng(44.00, 6.00),
+        const LatLng(44.01, 6.00),
+        const LatLng(44.02, 6.00),
+        const LatLng(44.02, 6.01),
+        const LatLng(44.02, 6.02),
+      ]);
+      final entries = GpxRouteDeriver.deriveRoadbook(trace);
+
+      expect(entries.length, 3); // départ, un virage, arrivée
+      double runningTotal = 0;
+      for (final e in entries) {
+        runningTotal += e.partialDistanceMeters;
+        expect(e.cumulativeDistanceMeters, closeTo(runningTotal, 0.01));
+      }
+      expect(entries.last.cumulativeDistanceMeters, closeTo(trace.distanceMeters, 5));
+    });
+
+    test('le cap au virage correspond à la direction prise ensuite', () {
+      // Nord puis est : au virage, le cap doit pointer vers l'est (~90°).
+      final trace = _traceFrom([
+        const LatLng(44.00, 6.00),
+        const LatLng(44.01, 6.00),
+        const LatLng(44.02, 6.00),
+        const LatLng(44.02, 6.01),
+        const LatLng(44.02, 6.02),
+      ]);
+      final entries = GpxRouteDeriver.deriveRoadbook(trace);
+      final turn = entries.firstWhere((e) => e.maneuver != ManeuverType.depart && e.maneuver != ManeuverType.arrive);
+
+      expect(turn.capDeg, closeTo(90, 5));
+    });
+
+    test('une trace de moins de deux points ne produit aucune ligne', () {
+      final entries = GpxRouteDeriver.deriveRoadbook(_traceFrom([const LatLng(44.0, 6.0)]));
+      expect(entries, isEmpty);
+    });
+  });
 }
