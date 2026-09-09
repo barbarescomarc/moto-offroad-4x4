@@ -1,9 +1,12 @@
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:provider/provider.dart';
 import 'package:sensors_plus/sensors_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:go_router/go_router.dart';
 import 'app/theme.dart';
 import 'app/router.dart';
@@ -35,6 +38,7 @@ import 'services/tracker_api_client.dart';
 import 'services/position_uplink_service.dart';
 import 'services/vibration_calibration.dart';
 import 'services/map_tile_cache.dart';
+import 'services/grace_window.dart';
 
 // Références mutables lues par les fermetures de FallAlertService : le
 // service ne change jamais d'identité (ProxyProvider2 renvoie toujours la
@@ -76,6 +80,18 @@ void main() async {
   // le premier rendu de la carte, sinon les toutes premières tuiles
   // échappent au cache.
   await MapTileCache.initialize();
+
+  // CODE TEMPORAIRE (voir GraceWindow) : reconnaît une installation
+  // antérieure aux comptes à ses données locales, sans jamais ouvrir la
+  // base des sorties — l'ouvrir ici serait un effet de bord coûteux pour
+  // une simple détection. Le chemin est reconstruit comme le fait
+  // `RideDatabase.open()`, sans passer par lui.
+  final prefs = await SharedPreferences.getInstance();
+  final cheminRides = p.join(await getDatabasesPath(), RideDatabase.fileName);
+  final aDesDonneesAnterieures = prefs.containsKey('rider_name') ||
+      prefs.containsKey('skill_level') ||
+      await File(cheminRides).exists();
+  await graceWindow.evaluate(hasLegacyData: aDesDonneesAnterieures);
 
   // Base locale des sorties
   final rideRepository = RideRepository(await RideDatabase.open());

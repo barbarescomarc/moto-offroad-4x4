@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import '../app/account_gate.dart';
 import '../app/theme.dart';
+import '../providers/account_provider.dart';
 import '../providers/map_provider.dart';
 import '../providers/settings_provider.dart';
+import '../screens/account/welcome_screen.dart';
+import '../screens/account/register_screen.dart';
+import '../screens/account/login_screen.dart';
+import '../screens/account/verify_screen.dart';
+import '../screens/account/forgot_password_screen.dart';
 import '../screens/map/map_screen.dart';
 import '../screens/sos/sos_screen.dart';
 import '../screens/solo/solo_screen.dart';
@@ -20,6 +27,7 @@ import '../screens/settings/call_settings_screen.dart';
 import '../screens/sos/fall_countdown_screen.dart';
 import '../screens/favorites/favorites_screen.dart';
 import '../screens/roadbook/roadbook_screen.dart';
+import '../services/grace_window.dart';
 import '../services/update_checker.dart';
 import '../widgets/glass_control.dart';
 import '../widgets/update_tile.dart';
@@ -42,92 +50,166 @@ class AppRoutes {
   static const String fallCountdown = '/fall-countdown';
   static const String favorites   = '/favorites';
   static const String roadbook    = '/roadbook';
+  // Écrans du compte (voir account_gate.dart) — hors du ShellRoute : pas de
+  // barre de navigation tant que le rider n'a pas franchi ce mur.
+  static const String welcome = '/bienvenue';
+  static const String register = '/inscription';
+  static const String login = '/connexion';
+  static const String verify = '/verification';
+  static const String forgotPassword = '/mot-de-passe-oublie';
+}
+
+// ── Pont vers refreshListenable ──────────────────────────────
+//
+// GoRouter a besoin d'un `Listenable` dès sa construction, mais le véritable
+// `AccountProvider` n'existe qu'une fois l'arbre de widgets monté (il est
+// créé par le `MultiProvider` de `main.dart`). Ce pont s'abonne au premier
+// `AccountProvider` que `redirect` lui fournit via le `BuildContext` de
+// chaque appel, pour que le routeur se réévalue dès que le statut du
+// compte change — même sans navigation explicite (ex. fin de `restore()`
+// au démarrage).
+class _AccountGateBridge extends ChangeNotifier {
+  AccountProvider? _source;
+
+  void observe(AccountProvider compte) {
+    if (identical(_source, compte)) return;
+    _source?.removeListener(notifyListeners);
+    _source = compte;
+    compte.addListener(notifyListeners);
+  }
 }
 
 // ── Router GoRouter ──────────────────────────────────────────
-final GoRouter appRouter = GoRouter(
-  navigatorKey: rootNavigatorKey,
-  initialLocation: AppRoutes.map,
-  debugLogDiagnostics: false,
-  routes: [
-    ShellRoute(
-      builder: (context, state, child) => MainShell(child: child),
-      routes: [
-        GoRoute(
-          path: AppRoutes.map,
-          pageBuilder: (_, __) => const NoTransitionPage(child: MapScreen()),
-        ),
-        GoRoute(
-          path: AppRoutes.fuel,
-          pageBuilder: (_, __) => const NoTransitionPage(child: FuelScreen()),
-        ),
-        GoRoute(
-          path: AppRoutes.rides,
-          pageBuilder: (_, __) => const NoTransitionPage(child: RidesScreen()),
-          routes: [
-            GoRoute(
-              path: ':id',
-              pageBuilder: (_, state) => MaterialPage(
-                child: RideDetailScreen(rideId: state.pathParameters['id']!),
+//
+// Fonction plutôt que simple constante : l'application se sert de l'unique
+// instance [appRouter], mais les tests ont besoin d'un routeur isolé (voir
+// test/app/router_test.dart), sans partager l'état d'un routeur déjà
+// parcouru par un test précédent. `initialLocation` n'est paramétrable que
+// pour ces tests — l'application ne passe jamais autre chose que la valeur
+// par défaut.
+GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
+  final pont = _AccountGateBridge();
+
+  return GoRouter(
+    navigatorKey: rootNavigatorKey,
+    initialLocation: initialLocation,
+    debugLogDiagnostics: false,
+    refreshListenable: pont,
+    redirect: (context, state) {
+      final compte = context.read<AccountProvider>();
+      pont.observe(compte);
+      return accountRedirect(
+        status: compte.status,
+        location: state.matchedLocation,
+        graceActive: graceWindow.active,
+      );
+    },
+    routes: [
+      ShellRoute(
+        builder: (context, state, child) => MainShell(child: child),
+        routes: [
+          GoRoute(
+            path: AppRoutes.map,
+            pageBuilder: (_, __) => const NoTransitionPage(child: MapScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.fuel,
+            pageBuilder: (_, __) => const NoTransitionPage(child: FuelScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.rides,
+            pageBuilder: (_, __) => const NoTransitionPage(child: RidesScreen()),
+            routes: [
+              GoRoute(
+                path: ':id',
+                pageBuilder: (_, state) => MaterialPage(
+                  child: RideDetailScreen(rideId: state.pathParameters['id']!),
+                ),
               ),
-            ),
-          ],
-        ),
-        GoRoute(
-          path: AppRoutes.weather,
-          pageBuilder: (_, __) => const NoTransitionPage(child: WeatherScreen()),
-        ),
-        GoRoute(
-          path: AppRoutes.settings,
-          pageBuilder: (_, __) => const NoTransitionPage(child: SettingsScreen()),
-        ),
-      ],
-    ),
-    // Modals (hors shell)
-    GoRoute(
-      path: AppRoutes.calibration,
-      pageBuilder: (_, __) => const MaterialPage(
-          fullscreenDialog: true, child: VibrationCalibrationScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.callSettings,
-      pageBuilder: (_, __) => const MaterialPage(
-        fullscreenDialog: true, child: CallSettingsScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.sos,
-      pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SosScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.solo,
-      pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SoloScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.favorites,
-      pageBuilder: (_, __) =>
-          const MaterialPage(fullscreenDialog: true, child: FavoritesScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.roadbook,
-      pageBuilder: (_, __) =>
-          const MaterialPage(fullscreenDialog: true, child: RoadbookScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.sendPosition,
-      pageBuilder: (_, __) => const MaterialPage(
-        fullscreenDialog: true, child: SendPositionScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.group,
-      pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: GroupScreen()),
-    ),
-    GoRoute(
-      path: AppRoutes.fallCountdown,
-      pageBuilder: (_, __) => const MaterialPage(
-        fullscreenDialog: true, child: FallCountdownScreen()),
-    ),
-  ],
-);
+            ],
+          ),
+          GoRoute(
+            path: AppRoutes.weather,
+            pageBuilder: (_, __) => const NoTransitionPage(child: WeatherScreen()),
+          ),
+          GoRoute(
+            path: AppRoutes.settings,
+            pageBuilder: (_, __) => const NoTransitionPage(child: SettingsScreen()),
+          ),
+        ],
+      ),
+      // Modals (hors shell)
+      GoRoute(
+        path: AppRoutes.calibration,
+        pageBuilder: (_, __) => const MaterialPage(
+            fullscreenDialog: true, child: VibrationCalibrationScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.callSettings,
+        pageBuilder: (_, __) => const MaterialPage(
+            fullscreenDialog: true, child: CallSettingsScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.sos,
+        pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SosScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.solo,
+        pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: SoloScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.favorites,
+        pageBuilder: (_, __) =>
+            const MaterialPage(fullscreenDialog: true, child: FavoritesScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.roadbook,
+        pageBuilder: (_, __) =>
+            const MaterialPage(fullscreenDialog: true, child: RoadbookScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.sendPosition,
+        pageBuilder: (_, __) => const MaterialPage(
+          fullscreenDialog: true, child: SendPositionScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.group,
+        pageBuilder: (_, __) => const MaterialPage(fullscreenDialog: true, child: GroupScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.fallCountdown,
+        pageBuilder: (_, __) => const MaterialPage(
+            fullscreenDialog: true, child: FallCountdownScreen()),
+      ),
+      // Écrans du compte (hors ShellRoute : pas de barre de navigation).
+      GoRoute(
+        path: AppRoutes.welcome,
+        pageBuilder: (_, __) => const NoTransitionPage(child: WelcomeScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        pageBuilder: (_, __) => const NoTransitionPage(child: RegisterScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.login,
+        pageBuilder: (_, __) => const NoTransitionPage(child: LoginScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.verify,
+        pageBuilder: (_, __) => const NoTransitionPage(child: VerifyScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.forgotPassword,
+        pageBuilder: (_, __) =>
+            const NoTransitionPage(child: ForgotPasswordScreen()),
+      ),
+    ],
+  );
+}
+
+/// Instance unique utilisée par l'application (voir `main.dart`). Les tests
+/// qui ont besoin d'un routeur isolé appellent [buildAppRouter] directement.
+final GoRouter appRouter = buildAppRouter();
 
 // ── Shell principal avec BottomNavigationBar ─────────────────
 class MainShell extends StatefulWidget {
