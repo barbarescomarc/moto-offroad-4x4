@@ -28,6 +28,9 @@ import '../../services/gpx_route_deriver.dart';
 import '../../services/map_tile_cache.dart';
 import '../../utils/route_geometry.dart';
 import '../../services/speed_taunt_service.dart';
+import '../../services/tutorial_controller.dart';
+import '../../services/tutorial_steps.dart';
+import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/sos_button.dart';
 import '../../widgets/mode_switch.dart';
 import '../../widgets/stats_bar.dart';
@@ -54,6 +57,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   final _mapController = MapController();
   final _locationService = LocationService();
   final _tauntService = SpeedTauntService();
+
+  // ── Tutoriel de première ouverture ────────────────────────
+  // Clés de ciblage posées sur les widgets réels que le tutoriel met en
+  // surbrillance. Toute la logique (étapes, mémorisation, rendu) vit hors
+  // de cet écran, voir services/tutorial_controller.dart et
+  // widgets/tutorial_overlay.dart.
+  final _tutoModeSwitchKey = GlobalKey();
+  final _tutoLayersKey = GlobalKey();
+  final _tutoActionsKey = GlobalKey();
+  final _tutoSosKey = GlobalKey();
+  final _tutoRecordingKey = GlobalKey();
+  late final _tutorial = TutorialController(
+    targets: TutorialTargets(
+      modeSwitch: _tutoModeSwitchKey,
+      sos: _tutoSosKey,
+      recording: _tutoRecordingKey,
+      actions: _tutoActionsKey,
+      layers: _tutoLayersKey,
+    ),
+  );
 
   String? _tauntMessage;
   Timer? _tauntClearTimer;
@@ -106,6 +129,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _initLocation();
+    // Après le mur d'inscription, première arrivée sur la carte : le
+    // contrôleur ne rouvre le tutoriel que s'il n'a jamais été vu.
+    _tutorial.startIfNeeded();
   }
 
   // Dernier état transmis au système, pour ne pas rappeler le canal natif
@@ -116,6 +142,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void dispose() {
     _navBarHideTimer?.cancel();
     _tauntClearTimer?.cancel();
+    _tutorial.dispose();
     WakelockPlus.disable();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -354,6 +381,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               ]),
             ),
           ],
+
+          // ── Tutoriel de première ouverture ─────────────────
+          // Dernier enfant du Stack : au-dessus de tout le reste, quel que
+          // soit le mode (fenêtré ou plein écran).
+          TutorialOverlay(controller: _tutorial),
         ],
       ),
     );
@@ -713,12 +745,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 : const SizedBox.shrink(),
           ),
           // Switch offroad/route
-          const ModeSwitchWidget(),
+          KeyedSubtree(key: _tutoModeSwitchKey, child: const ModeSwitchWidget()),
           const SizedBox(width: 4),
           // Import GPX
           _iconBtn(Icons.upload_file, () => _showImportSheet()),
           // Sélecteur de couche
-          _iconBtn(Icons.layers_outlined, () => _showLayerSelector()),
+          KeyedSubtree(
+            key: _tutoLayersKey,
+            child: _iconBtn(Icons.layers_outlined, () => _showLayerSelector()),
+          ),
           const SizedBox(width: 4),
           // Réglages
           _iconBtn(Icons.settings_outlined, () => context.go(AppRoutes.settings)),
@@ -767,6 +802,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // boutons Radar/Plein écran juste en dessous) révèle Recherche,
         // Météo et Mode Solo.
         RadialActionMenu(
+          key: _tutoActionsKey,
           centerIcon:  mapProv.followPosition ? Icons.my_location : Icons.location_searching,
           centerColor: AppColors.orange,
           centerActive: mapProv.followPosition,
@@ -1547,9 +1583,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SosButton(onPressed: () => context.push(AppRoutes.sos)),
+          SosButton(key: _tutoSosKey, onPressed: () => context.push(AppRoutes.sos)),
           const SizedBox(height: 8),
-          const RecordingPanel(),
+          KeyedSubtree(key: _tutoRecordingKey, child: const RecordingPanel()),
         ],
       ),
     );
