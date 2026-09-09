@@ -9,6 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// un mur d'inscription au départ d'une sortie, sans avertissement. La version
 /// qui introduit les comptes reconnaît son installation à ses données locales
 /// et lui laisse trente jours.
+///
+/// Échéance strictement locale, donc contournable en reculant l'horloge de
+/// l'appareil. C'est assumé : ce délai est une politesse envers les riders
+/// fidèles, pas un contrôle d'accès — ne pas chercher à le durcir.
 class GraceWindow {
   static const String _kDeadline = 'account_grace_deadline_ms';
   static const Duration duration = Duration(days: 30);
@@ -25,16 +29,23 @@ class GraceWindow {
   Future<void> evaluate({required bool hasLegacyData, DateTime? now}) async {
     final maintenant = now ?? DateTime.now();
     final prefs = await SharedPreferences.getInstance();
-    final stocke = prefs.getInt(_kDeadline);
 
-    if (stocke != null) {
-      _deadline = DateTime.fromMillisecondsSinceEpoch(stocke);
-    } else if (hasLegacyData) {
-      _deadline = maintenant.add(duration);
-      await prefs.setInt(_kDeadline, _deadline!.millisecondsSinceEpoch);
-    } else {
+    // Une installation neuve ne recoit aucun delai, meme si une echeance
+    // trainait dans les preferences : la sauvegarde automatique Android les
+    // restaure lors d'une reinstallation, et un delai ressuscite ainsi serait
+    // le moyen de contourner le mur d'inscription.
+    if (!hasLegacyData) {
+      await prefs.remove(_kDeadline);
       _deadline = null;
       return;
+    }
+
+    final stocke = prefs.getInt(_kDeadline);
+    if (stocke != null) {
+      _deadline = DateTime.fromMillisecondsSinceEpoch(stocke);
+    } else {
+      _deadline = maintenant.add(duration);
+      await prefs.setInt(_kDeadline, _deadline!.millisecondsSinceEpoch);
     }
 
     if (!maintenant.isBefore(_deadline!)) _deadline = null;

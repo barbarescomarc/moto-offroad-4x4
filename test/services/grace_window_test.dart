@@ -26,7 +26,7 @@ void main() {
 
     final second = GraceWindow();
     await second.evaluate(hasLegacyData: true, now: depart.add(const Duration(days: 5)));
-    expect(second.deadline, DateTime(2026, 10, 8), reason: 'l echeance ne se repousse pas a chaque lancement');
+    expect(second.deadline, DateTime(2026, 10, 8), reason: 'l\'échéance ne se repousse pas à chaque lancement');
     expect(second.active, isTrue);
   });
 
@@ -40,9 +40,12 @@ void main() {
   });
 
   test('une installation neuve ne recoit pas de delai meme si le telephone en a deja eu un', () async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({
+      'account_grace_deadline_ms': DateTime(2026, 10, 8).millisecondsSinceEpoch,
+    });
     final g = GraceWindow();
     await g.evaluate(hasLegacyData: false, now: DateTime(2026, 9, 8));
     expect(g.active, isFalse);
+    expect(g.deadline, isNull);
   });
 }
