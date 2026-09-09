@@ -21,6 +21,24 @@ void main() {
     expect(p.status, AccountStatus.deconnecte);
   });
 
+  test('serveur injoignable au demarrage, le rider avec jeton reste connecte', () async {
+    // Jeton déjà présent, comme au retour d'une sortie précédente.
+    await AccountStorage().writeToken('jeton');
+    final p = provider(MockClient((_) async => throw Exception('reseau coupe')));
+    await p.restore();
+    expect(p.status, AccountStatus.connecte);
+    expect(await AccountStorage().readToken(), 'jeton',
+        reason: 'garder le statut sans garder le jeton ne servirait a rien');
+  });
+
+  test('jeton revoque au demarrage, le rider est deconnecte', () async {
+    await AccountStorage().writeToken('jeton');
+    final p = provider(MockClient((_) async => http.Response('{}', 401)));
+    await p.restore();
+    expect(p.status, AccountStatus.deconnecte);
+    expect(await AccountStorage().readToken(), isNull);
+  });
+
   test('une inscription laisse le rider non verifie', () async {
     final p = provider(MockClient((_) async =>
         http.Response(jsonEncode({'token': 'jeton', 'verified': false}), 201)));
