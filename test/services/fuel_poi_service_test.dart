@@ -105,6 +105,52 @@ void main() {
     expect(ua, isNot(startsWith('Dart/')));
   });
 
+  test('un premier echec du service est reessaye une fois', () async {
+    var appels = 0;
+    final service = FuelPoiService(
+      client: MockClient((_) async {
+        appels++;
+        // Overpass public est irregulier : la meme requete rend 504 puis 200
+        // quelques secondes plus tard. Sans reessai, le pilote voit un echec
+        // definitif la ou une seconde tentative aurait suffi.
+        if (appels == 1) return http.Response('gateway timeout', 504);
+        return http.Response(
+          _overpassJson([
+            {
+              'type': 'node',
+              'id': 1,
+              'lat': 43.61,
+              'lon': 1.45,
+              'tags': {'amenity': 'fuel', 'name': 'Station du Nord'},
+            },
+          ]),
+          200,
+        );
+      }),
+    );
+
+    final resultats = await service.fetchAround(_toulouse, radiusKm: 20);
+
+    expect(appels, 2);
+    expect(resultats, hasLength(1));
+  });
+
+  test('deux echecs consecutifs finissent par lever', () async {
+    var appels = 0;
+    final service = FuelPoiService(
+      client: MockClient((_) async {
+        appels++;
+        return http.Response('gateway timeout', 504);
+      }),
+    );
+
+    await expectLater(
+      () => service.fetchAround(_toulouse, radiusKm: 20),
+      throwsA(isA<FuelPoiUnavailable>()),
+    );
+    expect(appels, 2, reason: 'un seul reessai, pas une insistance sans fin');
+  });
+
   test('une panne reseau leve, au lieu de se faire passer pour zero station', () async {
     final service = FuelPoiService(
       client: MockClient((_) async => throw Exception('reseau coupe')),

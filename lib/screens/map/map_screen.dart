@@ -39,6 +39,7 @@ import '../../widgets/layer_selector.dart';
 import '../../widgets/gpx_import_sheet.dart';
 import '../../widgets/glass_control.dart';
 import '../../widgets/fuel_poi_button.dart';
+import '../../utils/map_zoom.dart';
 import '../../widgets/map_search_bar.dart';
 import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
@@ -371,6 +372,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     currentCenter: () =>
                         _mapReady ? _mapController.camera.center : mapProv.center,
                     radiusKm: context.read<FuelProvider>().searchRadiusKm,
+                    // Reculer pour montrer ce qu'on vient de trouver : au zoom
+                    // d'une rue, des stations reparties sur vingt kilometres
+                    // sont toutes hors cadre, et le pilote croit que rien ne
+                    // s'est passe.
+                    onResults: (_) {
+                      if (!_mapReady) return;
+                      final rayon = context.read<FuelProvider>().searchRadiusKm;
+                      _mapController.move(
+                        _mapController.camera.center,
+                        zoomPourRayonKm(rayon).toDouble(),
+                      );
+                    },
                   ),
                   const SizedBox(height: 6),
                   _mapCtrlBtn(

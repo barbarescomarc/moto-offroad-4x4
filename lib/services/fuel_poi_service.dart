@@ -34,19 +34,12 @@ class FuelPoiService {
         'nwr($autour)[shop=motorcycle];);'
         'out center;';
 
-    final http.Response response;
-    try {
-      response = await _client
-          .post(
-            Uri.parse(overpassEndpoint),
-            headers: const {'User-Agent': overpassUserAgent},
-            body: {'data': query},
-          )
-          .timeout(const Duration(seconds: 15));
-    } catch (_) {
-      throw const FuelPoiUnavailable();
-    }
-    if (response.statusCode != 200) throw const FuelPoiUnavailable();
+    // Overpass public est tres irregulier : la meme requete rend 200 en cinq
+    // secondes, 504, ou douze secondes, selon sa charge du moment. Une seule
+    // tentative transformait n'importe quel hoquet en echec definitif — d'ou
+    // un unique reessai, et un delai large.
+    final response = await _demander(query) ?? await _demander(query);
+    if (response == null) throw const FuelPoiUnavailable();
 
     final Map<String, dynamic> data;
     try {
@@ -61,6 +54,23 @@ class FuelPoiService {
         .map(_toPoi)
         .whereType<PoiModel>()
         .toList();
+  }
+
+  /// Une tentative. Rend `null` sur echec — reseau, refus ou 504 — pour que
+  /// l'appelant decide de reessayer, plutot que de lever a la premiere alerte.
+  Future<http.Response?> _demander(String query) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse(overpassEndpoint),
+            headers: const {'User-Agent': overpassUserAgent},
+            body: {'data': query},
+          )
+          .timeout(const Duration(seconds: 30));
+      return response.statusCode == 200 ? response : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   PoiModel? _toPoi(Map<String, dynamic> element) {
