@@ -13,9 +13,10 @@ import 'account_error_messages.dart';
 /// le même message de confirmation — annoncer « adresse inconnue » ici
 /// révélerait exactement ce que le serveur refuse de révéler.
 ///
-/// La seule exception honnête est la panne réseau : si l'appel n'a même pas
-/// pu partir, ce n'est pas une question d'existence de compte, et le rider
-/// doit le savoir plutôt que croire à tort qu'un e-mail est en route.
+/// La seule exception honnête est un échec qui n'a rien à voir avec
+/// l'existence du compte (panne réseau, trop de tentatives...) : l'annoncer
+/// ne révèle rien sur l'adresse, et le taire laisserait le rider croire à
+/// tort qu'un e-mail est en route.
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
 
@@ -45,12 +46,9 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     if (!mounted) return;
     setState(() {
       _enCours = false;
-      // `forgotPassword` ne distingue pas la cause d'un échec (le serveur
-      // répond 202 dans tous les autres cas) : un retour négatif ici ne
-      // peut réalistement venir que d'une panne réseau.
       _message = ok
           ? 'Si un compte existe pour cette adresse, le lien vient de partir.'
-          : messagePour(AccountError.reseau);
+          : messagePour(compte.lastError ?? AccountError.inconnue);
     });
   }
 

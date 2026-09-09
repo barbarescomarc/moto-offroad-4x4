@@ -77,6 +77,12 @@ class _AccountGateBridge extends ChangeNotifier {
     _source = compte;
     compte.addListener(notifyListeners);
   }
+
+  @override
+  void dispose() {
+    _source?.removeListener(notifyListeners);
+    super.dispose();
+  }
 }
 
 // ── Router GoRouter ──────────────────────────────────────────

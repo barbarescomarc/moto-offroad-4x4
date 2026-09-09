@@ -66,10 +66,9 @@ class _VerifyScreenState extends State<VerifyScreen> {
     setState(() {
       _enCours = false;
       if (!ok) {
-        // `refreshVerification` ne distingue pas toujours « pas encore
-        // vérifié » d'une panne réseau (voir AccountProvider) : une erreur
-        // fraîchement posée prime, sinon c'est une adresse simplement pas
-        // encore confirmée.
+        // `refreshVerification` efface `lastError` dès qu'il réussit (même
+        // si l'adresse n'est pas encore vérifiée) : une erreur présente ici
+        // vient donc forcément de CET appel, jamais d'un essai précédent.
         _erreur = compte.lastError != null
             ? messagePour(compte.lastError!)
             : 'Ton adresse n\'est pas encore confirmée. As-tu ouvert le lien reçu par e-mail ?';
@@ -83,20 +82,23 @@ class _VerifyScreenState extends State<VerifyScreen> {
       _erreur = null;
       _enCours = true;
     });
-    final ok = await context.read<AccountProvider>().resendVerification();
+    final compte = context.read<AccountProvider>();
+    final ok = await compte.resendVerification();
     if (!mounted) return;
     setState(() {
       _enCours = false;
       _info = ok ? 'E-mail renvoyé.' : null;
-      _erreur = ok ? null : messagePour(AccountError.reseau);
+      _erreur = ok ? null : messagePour(compte.lastError ?? AccountError.inconnue);
     });
   }
 
   Future<void> _validerCorrection() async {
+    setState(() => _enCours = true);
     final compte = context.read<AccountProvider>();
     final ok = await compte.changeEmail(_nouvelleAdresse.text.trim());
     if (!mounted) return;
     setState(() {
+      _enCours = false;
       if (ok) {
         _correctionOuverte = false;
         _erreur = null;

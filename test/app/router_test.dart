@@ -48,33 +48,33 @@ void main() {
     expect(find.byType(MapScreen), findsNothing);
   });
 
-  // Complément naturel du premier test : un rider connecté et vérifié ne
-  // doit plus être bloqué par le mur d'inscription. La carte elle-même
-  // (MapScreen, à l'intérieur du ShellRoute) n'a pas pu servir de cible ici
-  // — une tentative directe échoue sur `ProviderNotFoundException:
-  // MapProvider`, MainShell/MapScreen exigeant une dizaine de providers
-  // (MapProvider, TraceProvider, GroupProvider, FuelProvider, SoloProvider,
-  // SettingsProvider, FavoritesProvider, GuidanceProvider,
-  // PoiSearchProvider, RideRepository) ainsi que des plugins natifs
-  // (MapTileCache/FMTC, backend ObjectBox, wakelock_plus, PackageInfo) que
-  // les corriger un par un ne suffit pas forcément à lever en test widget
-  // pur. À la place, `/sos` — une route hors ShellRoute, sans aucune
-  // dépendance Provider — sert de témoin : elle vérifie exactement la même
-  // logique de redirection (`accountRedirect` avec statut connecté), sans
-  // la lourdeur de la carte.
+  // Complément du premier test, dans l'autre sens : un rider avec un compte
+  // mais une adresse non vérifiée doit être ramené sur l'écran d'attente
+  // depuis N'IMPORTE QUEL écran — pas seulement les écrans de compte. `/sos`
+  // sert de départ : une route hors ShellRoute, sans aucune dépendance
+  // Provider (contrairement à MapScreen/MainShell, qui exigent une dizaine
+  // de providers et plusieurs plugins natifs — MapTileCache/FMTC avec son
+  // backend ObjectBox, wakelock_plus, PackageInfo — hors de portée d'un test
+  // widget pur ; une tentative directe échoue sur
+  // `ProviderNotFoundException: MapProvider`).
+  //
+  // Ce test discrimine réellement le branchement : sans lui, `/sos` est une
+  // route déclarée sans aucune redirection propre, donc atteignable
+  // directement — seul le `redirect` du routeur peut en détourner un rider
+  // non vérifié vers `/verification`.
   testWidgets(
-      'un rider connecte et verifie atteint un ecran hors mur, pas l ecran d accueil du compte',
+      'un rider non verifie est renvoye vers l ecran de verification, meme depuis un ecran hors mur',
       (tester) async {
-    await AccountStorage().writeToken('jeton');
     final compte = AccountProvider(
       api: AccountApiClient(
         baseUrl: 'https://exemple.test',
-        client: MockClient((_) async => http.Response(
-            jsonEncode({'email': 'rider@example.test', 'verified': true}), 200)),
+        client: MockClient((_) async =>
+            http.Response(jsonEncode({'token': 'jeton', 'verified': false}), 201)),
       ),
       storage: AccountStorage(),
     );
-    await compte.restore(); // jeton valide, adresse vérifiée : statut connecté
+    await compte.register(email: 'rider@example.test', password: 'dix caracteres');
+    expect(compte.status, AccountStatus.nonVerifie);
 
     await tester.pumpWidget(
       ChangeNotifierProvider<AccountProvider>.value(
@@ -84,14 +84,9 @@ void main() {
         ),
       ),
     );
-    // Pas de `pumpAndSettle` ici : SosScreen affiche un
-    // CircularProgressIndicator tant que la position GPS n'est pas
-    // disponible (jamais, en test), une animation qui ne « s'installe »
-    // donc jamais. Quelques frames suffisent pour vérifier l'écran affiché.
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
-    expect(find.byType(SosScreen), findsOneWidget);
-    expect(find.byKey(const Key('ecran-bienvenue')), findsNothing);
+    expect(find.byKey(const Key('ecran-verification')), findsOneWidget);
+    expect(find.byType(SosScreen), findsNothing);
   });
 }

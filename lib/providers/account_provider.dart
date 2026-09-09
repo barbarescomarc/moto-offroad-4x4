@@ -105,6 +105,10 @@ class AccountProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+    // Un succès efface une erreur laissée par un appel précédent : sinon un
+    // seul creux réseau passager continuerait d'afficher « connexion
+    // nécessaire » indéfiniment, alors que le serveur répond normalement.
+    _lastError = null;
     _email = profil.value!.email;
     if (profil.value!.verified) {
       _set(AccountStatus.connecte);
@@ -116,7 +120,10 @@ class AccountProvider extends ChangeNotifier {
 
   Future<bool> resendVerification() async {
     if (_token == null) return false;
-    return (await _api.resendVerification(token: _token!)).ok;
+    final res = await _api.resendVerification(token: _token!);
+    _lastError = res.error;
+    notifyListeners();
+    return res.ok;
   }
 
   Future<bool> changeEmail(String email) async {
@@ -128,7 +135,12 @@ class AccountProvider extends ChangeNotifier {
     return res.ok;
   }
 
-  Future<bool> forgotPassword(String email) async => (await _api.forgotPassword(email: email)).ok;
+  Future<bool> forgotPassword(String email) async {
+    final res = await _api.forgotPassword(email: email);
+    _lastError = res.error;
+    notifyListeners();
+    return res.ok;
+  }
 
   Future<void> logout() async {
     if (_token != null) await _api.logout(token: _token!);
