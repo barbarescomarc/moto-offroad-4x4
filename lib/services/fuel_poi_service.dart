@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../models/poi.dart';
+import 'overpass.dart';
 
 // Overpass n'a pas répondu : réseau absent, service indisponible ou saturé.
 // Distingué d'une liste vide à dessein — « aucune station ici » et « je n'ai
@@ -37,7 +38,8 @@ class FuelPoiService {
     try {
       response = await _client
           .post(
-            Uri.parse('https://overpass-api.de/api/interpreter'),
+            Uri.parse(overpassEndpoint),
+            headers: const {'User-Agent': overpassUserAgent},
             body: {'data': query},
           )
           .timeout(const Duration(seconds: 15));

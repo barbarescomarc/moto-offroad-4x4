@@ -44,4 +44,23 @@ void main() {
       expect(cameras, isEmpty);
     });
   });
+
+test('la requete s annonce sous un agent utilisateur propre a l application', () async {
+  late Map<String, String> entetes;
+  final service = SpeedCameraService(
+    client: MockClient((requete) async {
+      entetes = requete.headers;
+      return http.Response(jsonEncode({'elements': []}), 200);
+    }),
+  );
+
+  await service.fetchNearbyCameras(const LatLng(43.6045, 1.4442));
+
+  // Overpass repond 406 a l'agent par defaut de Dart : sans en-tete propre,
+  // aucun radar ne remonte jamais sur un appareil reel, et l'echec est muet
+  // puisque ce service avale ses erreurs.
+  final ua = entetes['user-agent'] ?? entetes['User-Agent'] ?? '';
+  expect(ua, contains('MotoOffroad'));
+});
+
 }

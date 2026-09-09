@@ -100,4 +100,21 @@ void main() {
       expect(limit, isNull);
     });
   });
+
+test('la requete s annonce sous un agent utilisateur propre a l application', () async {
+  late Map<String, String> entetes;
+  final service = SpeedLimitService(
+    client: MockClient((requete) async {
+      entetes = requete.headers;
+      return http.Response(jsonEncode({'elements': []}), 200);
+    }),
+  );
+
+  await service.fetchSpeedLimitKmh(const LatLng(43.6045, 1.4442));
+
+  // Meme cause que pour les radars : 406 sans agent utilisateur propre.
+  final ua = entetes['user-agent'] ?? entetes['User-Agent'] ?? '';
+  expect(ua, contains('MotoOffroad'));
+});
+
 }

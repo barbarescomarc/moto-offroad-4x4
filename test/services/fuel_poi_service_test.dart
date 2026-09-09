@@ -87,6 +87,24 @@ void main() {
     expect(resultats.single.position, const LatLng(43.62, 1.46));
   });
 
+  test('la requete s annonce sous un agent utilisateur propre a l application', () async {
+    late Map<String, String> entetes;
+    final service = FuelPoiService(
+      client: MockClient((requete) async {
+        entetes = requete.headers;
+        return http.Response(_overpassJson([]), 200);
+      }),
+    );
+
+    await service.fetchAround(_toulouse, radiusKm: 20);
+
+    // Overpass repond 406 a l'agent par defaut de Dart : sans en-tete propre,
+    // aucune station ne remonte jamais sur un appareil reel.
+    final ua = entetes['user-agent'] ?? entetes['User-Agent'] ?? '';
+    expect(ua, contains('MotoOffroad'));
+    expect(ua, isNot(startsWith('Dart/')));
+  });
+
   test('une panne reseau leve, au lieu de se faire passer pour zero station', () async {
     final service = FuelPoiService(
       client: MockClient((_) async => throw Exception('reseau coupe')),

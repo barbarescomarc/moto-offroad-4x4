@@ -2,6 +2,8 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+
+import 'overpass.dart';
 import '../utils/route_geometry.dart';
 
 // Limite de vitesse par tronçon (tag OSM maxspeed), via Overpass — aucune
@@ -26,7 +28,10 @@ class SpeedLimitService {
     try {
       final response = await _client
           .post(
-            Uri.parse('https://overpass-api.de/api/interpreter'),
+            Uri.parse(overpassEndpoint),
+            // Sans cet en-tete, Overpass repond 406 et ce service echoue en
+            // silence : voir overpass.dart.
+            headers: const {'User-Agent': overpassUserAgent},
             body: {'data': query},
           )
           .timeout(const Duration(seconds: 10));
