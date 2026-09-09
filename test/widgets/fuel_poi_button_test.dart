@@ -128,4 +128,55 @@ void main() {
     // Un indicateur qui pousse le bouton fait rater la cible au second appui.
     expect(apres, avant);
   });
+
+  testWidgets('un second appui eteint les stations sans redemander au serveur', (tester) async {
+    var appels = 0;
+    final provider = FuelPoiProvider(
+      service: FuelPoiService(client: MockClient((_) async {
+        appels++;
+        return http.Response(
+          jsonEncode({
+            'elements': [
+              {
+                'type': 'node',
+                'id': 1,
+                'lat': 43.61,
+                'lon': 1.45,
+                'tags': {'amenity': 'fuel', 'name': 'Station du Nord'},
+              },
+            ],
+          }),
+          200,
+        );
+      })),
+    );
+
+    await tester.pumpWidget(_monter(provider));
+    await tester.tap(find.byKey(const Key('bouton-stations-proximite')));
+    await tester.pumpAndSettle();
+    expect(provider.results, hasLength(1));
+
+    await tester.tap(find.byKey(const Key('bouton-stations-proximite')));
+    await tester.pumpAndSettle();
+
+    expect(provider.results, isEmpty, reason: 'le second appui doit eteindre');
+    expect(appels, 1, reason: 'eteindre ne doit pas relancer une requete');
+  });
+
+  testWidgets('un appui apres un echec efface l indicateur d indisponibilite', (tester) async {
+    final provider = FuelPoiProvider(
+      service: FuelPoiService(client: MockClient((_) async => throw Exception('reseau coupe'))),
+    );
+
+    await tester.pumpWidget(_monter(provider));
+    await tester.tap(find.byKey(const Key('bouton-stations-proximite')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('stations-indisponible')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('bouton-stations-proximite')));
+    await tester.pumpAndSettle();
+
+    // Sans cela, le nuage barre reste colle a l'ecran sans moyen de l'oter.
+    expect(find.byKey(const Key('stations-indisponible')), findsNothing);
+  });
 }

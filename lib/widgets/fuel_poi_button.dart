@@ -33,8 +33,19 @@ class FuelPoiButton extends StatefulWidget {
 }
 
 class _FuelPoiButtonState extends State<FuelPoiButton> {
-  Future<void> _chercher() async {
+  /// Interrupteur : le bouton allume les stations, et les éteint.
+  ///
+  /// Éteindre ne redemande rien au serveur — et efface aussi l'indicateur
+  /// d'échec, sans quoi le nuage barré resterait collé à l'écran sans moyen
+  /// de s'en débarrasser.
+  Future<void> _basculer() async {
     final poi = context.read<FuelPoiProvider>();
+
+    if (poi.results.isNotEmpty || poi.unavailable) {
+      poi.clear();
+      return;
+    }
+
     await poi.searchAround(widget.currentCenter(), radiusKm: widget.radiusKm);
     if (!mounted) return;
     if (poi.results.isNotEmpty) widget.onResults?.call(poi.results);
@@ -55,7 +66,7 @@ class _FuelPoiButtonState extends State<FuelPoiButton> {
           key: const Key('bouton-stations-proximite'),
           // Pendant une recherche, l'appui est ignoré : sans cela un pilote
           // impatient empilerait les requêtes Overpass, qui limite le débit.
-          onTap: poi.loading ? null : _chercher,
+          onTap: poi.loading ? null : _basculer,
           child: GlassPuck(
             icon: poi.loading ? Icons.hourglass_top : Icons.local_gas_station,
             color: AppColors.orange,
