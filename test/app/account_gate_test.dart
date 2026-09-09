@@ -23,6 +23,7 @@ void main() {
   test('un compte non verifie est retenu sur l ecran d attente', () {
     expect(gate(AccountStatus.nonVerifie, '/'), '/verification');
     expect(gate(AccountStatus.nonVerifie, '/verification'), isNull);
+    expect(gate(AccountStatus.nonVerifie, '/bienvenue'), '/verification');
   });
 
   test('un rider connecte ne voit plus les ecrans de compte', () {
