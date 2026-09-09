@@ -76,4 +76,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('ÉTAPE 6 / 6'), findsNothing);
   });
+
+  testWidgets('la carte reste utilisable sur un ecran bas et large, comme en paysage', (tester) async {
+    // Une rotation peut survenir pendant le tutoriel (OrientationBuilder
+    // rebascule en direct entre portrait et paysage) : la carte, épinglée
+    // en bas avec une hauteur maximale, doit rester lisible et son pied
+    // (les boutons) doit rester atteignable même sur un écran bas et large.
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    const taille = Size(800, 400);
+    tester.view.physicalSize = taille;
+    tester.view.devicePixelRatio = 1.0;
+
+    final c = TutorialController(targets: TutorialTargets(
+      modeSwitch: GlobalKey(), sos: GlobalKey(), recording: GlobalKey(),
+      actions: GlobalKey(), layers: GlobalKey(),
+    ));
+    await c.startIfNeeded();
+    await tester.pumpWidget(MaterialApp(home: Stack(children: [TutorialOverlay(controller: c)])));
+
+    expect(find.text('ÉTAPE 1 / 6'), findsOneWidget);
+    final suivantRect = tester.getRect(find.byKey(const Key('tuto-suivant')));
+    expect(suivantRect.bottom, lessThanOrEqualTo(taille.height),
+        reason: 'le bouton Suivant doit rester dans les limites de l ecran');
+    expect(suivantRect.top, greaterThanOrEqualTo(0));
+
+    await tester.tap(find.byKey(const Key('tuto-suivant')));
+    await tester.pump();
+    expect(find.text('ÉTAPE 2 / 6'), findsOneWidget);
+  });
 }

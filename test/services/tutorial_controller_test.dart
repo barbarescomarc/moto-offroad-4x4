@@ -54,4 +54,15 @@ void main() {
     expect(c.visible, isTrue);
     expect(c.index, 0);
   });
+
+  test('disposer pendant que startIfNeeded attend shared_preferences ne leve pas', () async {
+    // initState ne peut pas attendre startIfNeeded : l ecran peut donc
+    // etre demonte (et le controleur libere) avant que
+    // SharedPreferences.getInstance() n ait rendu la main. Sans garde,
+    // le notifyListeners qui suit leverait sur un ChangeNotifier disposé.
+    final c = TutorialController(targets: cibles());
+    final demarrage = c.startIfNeeded();
+    c.dispose();
+    await demarrage;
+  });
 }

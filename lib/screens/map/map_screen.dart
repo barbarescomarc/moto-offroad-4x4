@@ -424,6 +424,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ],
                 ),
               ),
+
+              // ── Tutoriel de première ouverture ─────────────
+              // Une rotation en cours de tutoriel rebascule _buildPortrait
+              // vers _buildLandscape (OrientationBuilder) : sans cet ajout
+              // ici aussi, l'overlay disparaîtrait au lieu de se
+              // redisposer, laissant le rider sur une carte vivante sans
+              // explication ni moyen de reprendre où il en était.
+              TutorialOverlay(controller: _tutorial),
             ]),
           ),
           // 35% droite = panneau stats
