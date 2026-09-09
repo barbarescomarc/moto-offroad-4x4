@@ -12,6 +12,24 @@ AccountProvider provider(http.Client client) => AccountProvider(
       storage: AccountStorage(),
     );
 
+/// Simule la panne d'`AccountStorage.readToken` (voir account_storage_test.dart
+/// pour la meme classe, cote stockage).
+class _StockageEnPanneALaLecture extends FlutterSecureStorage {
+  const _StockageEnPanneALaLecture();
+
+  @override
+  Future<String?> read({
+    required String key,
+    IOSOptions? iOptions,
+    AndroidOptions? aOptions,
+    LinuxOptions? lOptions,
+    WebOptions? webOptions,
+    MacOsOptions? mOptions,
+    WindowsOptions? wOptions,
+  }) async =>
+      throw Exception('BadPaddingException (jeu de test)');
+}
+
 void main() {
   setUp(() => FlutterSecureStorage.setMockInitialValues({}));
 
@@ -19,6 +37,7 @@ void main() {
     final p = provider(MockClient((_) async => http.Response('{}', 200)));
     await p.restore();
     expect(p.status, AccountStatus.deconnecte);
+    expect(p.lastError, isNull);
   });
 
   test('serveur injoignable au demarrage, le rider avec jeton reste connecte', () async {
@@ -31,12 +50,32 @@ void main() {
         reason: 'garder le statut sans garder le jeton ne servirait a rien');
   });
 
-  test('jeton revoque au demarrage, le rider est deconnecte', () async {
+  test('jeton revoque au demarrage, une session est a renouveler, pas deconnecte', () async {
+    // Le scenario du C1 de la revue finale : reinitialisation de mot de
+    // passe cote serveur (donc revocation de toutes les sessions), le rider
+    // ne doit PAS se retrouver mur-a-mur comme un premier lancement — voir
+    // accountRedirect et le chapitre 6.5 de la spec.
     await AccountStorage().writeToken('jeton');
     final p = provider(MockClient((_) async => http.Response('{}', 401)));
     await p.restore();
-    expect(p.status, AccountStatus.deconnecte);
+    expect(p.status, AccountStatus.sessionARenouveler);
+    expect(p.status, isNot(AccountStatus.deconnecte));
     expect(await AccountStorage().readToken(), isNull);
+    expect(p.lastError, AccountError.identifiants);
+  });
+
+  test('une panne du stockage securise a la lecture mene aussi a une session a renouveler', () async {
+    // flutter_secure_storage peut lever (BadPaddingException) au lieu de
+    // rendre null, par exemple quand une sauvegarde restaure une entree
+    // chiffree sans la cle Keystore correspondante. restore() ne doit ni
+    // rester bloque en "chargement" pour toujours, ni traiter ca comme un
+    // tout premier lancement.
+    final p = AccountProvider(
+      api: AccountApiClient(baseUrl: 'https://exemple.test', client: MockClient((_) async => http.Response('{}', 200))),
+      storage: AccountStorage(storage: const _StockageEnPanneALaLecture()),
+    );
+    await p.restore();
+    expect(p.status, AccountStatus.sessionARenouveler);
   });
 
   test('une inscription laisse le rider non verifie', () async {
@@ -120,12 +159,16 @@ void main() {
     expect(p.lastError, AccountError.reseau);
   });
 
-  test('la deconnexion efface le jeton', () async {
+  test('la deconnexion efface le jeton et mene a deconnecte, pas a sessionARenouveler', () async {
+    // deconnecte reste reserve aux gestes explicites du rider (logout,
+    // deleteAccount) — jamais a une revocation cote serveur, voir le test
+    // "jeton revoque au demarrage" ci-dessus qui prouve l'autre branche.
     final p = provider(MockClient((_) async =>
         http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201)));
     await p.register(email: 'rider@example.test', password: 'dix caracteres');
     await p.logout();
     expect(p.status, AccountStatus.deconnecte);
+    expect(p.status, isNot(AccountStatus.sessionARenouveler));
     expect(await AccountStorage().readToken(), isNull);
   });
 }

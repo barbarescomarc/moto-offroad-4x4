@@ -25,6 +25,14 @@ String? accountRedirect({
       if (graceActive) return null;
       return '/bienvenue';
 
+    case AccountStatus.sessionARenouveler:
+      // Jeton révoqué côté serveur, mais rien ne se ferme pour autant :
+      // carte, GPS, SOS et détection de chute restent accessibles (chapitre
+      // 6.5 de la spec). Ne jamais rediriger — y compris depuis /connexion,
+      // que le rider doit pouvoir atteindre s'il choisit de se reconnecter
+      // de lui-même.
+      return null;
+
     case AccountStatus.nonVerifie:
       // Le délai de grâce ne s'applique pas ici : un compte a été créé, son
       // adresse doit être confirmée.

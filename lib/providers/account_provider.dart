@@ -3,7 +3,16 @@ import '../services/account_api_client.dart';
 import '../services/account_storage.dart';
 
 /// État d'accès au compte rider, tel que vu par le reste de l'application.
-enum AccountStatus { chargement, deconnecte, nonVerifie, connecte }
+///
+/// [sessionARenouveler] est distinct de [deconnecte] : le jeton local a été
+/// révoqué côté serveur (typiquement une réinitialisation de mot de passe,
+/// qui ferme toutes les sessions), mais le rider ne s'est pas déconnecté
+/// lui-même. `accountRedirect` ne ferme rien pour cet état — carte, GPS,
+/// SOS et détection de chute restent accessibles — voir le chapitre 6.5 de
+/// la spec et `AccountProvider.restore`. [deconnecte] reste réservé aux
+/// gestes explicites du rider ([logout], [deleteAccount]) et au tout premier
+/// lancement, sans jeton stocké.
+enum AccountStatus { chargement, deconnecte, sessionARenouveler, nonVerifie, connecte }
 
 /// Porte l'état de session du rider pour toute l'application : relie le
 /// client HTTP du compte ([AccountApiClient]) et le stockage sécurisé du
@@ -42,31 +51,57 @@ class AccountProvider extends ChangeNotifier {
 
   /// Recharge la session au démarrage de l'application depuis le jeton
   /// éventuellement stocké.
+  ///
+  /// Renseigne systématiquement [_lastError] (à `null` s'il n'y a rien à
+  /// signaler) : chaque branche doit être identifiable, pour que l'appelant
+  /// sache laquelle a été prise et affiche le bon message.
   Future<void> restore() async {
-    _token = await _storage.readToken();
+    try {
+      _token = await _storage.readToken();
+    } on AccountStorageFailure {
+      // Le stockage sécurisé lui-même est en panne (ex : BadPaddingException
+      // Android après restauration d'une sauvegarde sans la clé Keystore
+      // correspondante) : impossible de savoir si un jeton existait. Rester
+      // en "chargement" pour toujours fermerait la carte, le GPS, le SOS et
+      // la détection de chute aussi sûrement qu'un mur — et un premier
+      // lancement neuf ("deconnecte") ne conviendrait pas non plus, un
+      // compte existe peut-être. Même issue dégradée qu'un jeton révoqué.
+      _token = null;
+      _lastError = AccountError.inconnue;
+      _set(AccountStatus.sessionARenouveler);
+      return;
+    }
     if (_token == null) {
+      _lastError = null;
       _set(AccountStatus.deconnecte);
       return;
     }
     final profil = await _api.me(token: _token!);
     if (profil.ok) {
+      _lastError = null;
       _email = profil.value!.email;
       _displayName = profil.value!.displayName;
       _set(profil.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
       return;
     }
     if (profil.error == AccountError.identifiants) {
-      // Jeton réellement révoqué par le serveur (401) : le rider doit se
-      // reconnecter, c'est la seule cause qui efface le jeton ici.
-      await _storage.clear();
+      // Jeton réellement révoqué par le serveur (401), typiquement après
+      // une réinitialisation de mot de passe qui ferme toutes les sessions.
+      // Le rider doit se reconnecter, mais sans jamais perdre l'accès à la
+      // carte, au GPS, au SOS ni à la détection de chute (chapitre 6.5 de
+      // la spec) : sessionARenouveler, pas deconnecte, qui fermerait tout.
       _token = null;
-      _set(AccountStatus.deconnecte);
+      _lastError = AccountError.identifiants;
+      _set(AccountStatus.sessionARenouveler);
+      // Effacement au mieux : l'état ci-dessus ne dépend pas de sa réussite.
+      await _storage.clear();
       return;
     }
     // Serveur injoignable ou en erreur (réseau coupé, 5xx, timeout...) :
     // on garde le jeton et on considère la session valide. Casser la
     // session ici verrouillerait l'application en pleine sortie, sans
     // réseau, au pire moment — voir la documentation de la classe.
+    _lastError = profil.error;
     _set(AccountStatus.connecte);
   }
 

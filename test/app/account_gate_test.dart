@@ -40,4 +40,19 @@ void main() {
   test('le delai de grace ne s applique pas a un compte non verifie', () {
     expect(gate(AccountStatus.nonVerifie, '/', grace: true), '/verification');
   });
+
+  // Une session a renouveler (jeton revoque par le serveur, ex. apres une
+  // reinitialisation de mot de passe) ne doit jamais fermer l'acces a
+  // l'application : ni la carte, ni le SOS, ni la detection de chute. Voir
+  // le chapitre 6.5 de la spec et AccountProvider.restore().
+  test('une session a renouveler ne redirige nulle part', () {
+    expect(gate(AccountStatus.sessionARenouveler, '/'), isNull);
+    expect(gate(AccountStatus.sessionARenouveler, '/sos'), isNull);
+    expect(gate(AccountStatus.sessionARenouveler, '/solo'), isNull);
+    expect(gate(AccountStatus.sessionARenouveler, '/fall-countdown'), isNull);
+  });
+
+  test('une session a renouveler peut malgre tout atteindre l ecran de connexion', () {
+    expect(gate(AccountStatus.sessionARenouveler, '/connexion'), isNull);
+  });
 }
