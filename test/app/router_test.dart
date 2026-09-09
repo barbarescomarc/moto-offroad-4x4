@@ -3,10 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'package:provider/provider.dart';
 import 'package:moto_offroad/app/router.dart';
 import 'package:moto_offroad/providers/account_provider.dart';
+import 'package:moto_offroad/providers/map_provider.dart';
+import 'package:moto_offroad/providers/settings_provider.dart';
 import 'package:moto_offroad/services/account_api_client.dart';
 import 'package:moto_offroad/services/account_storage.dart';
 import 'package:moto_offroad/screens/map/map_screen.dart';
@@ -88,5 +92,59 @@ void main() {
 
     expect(find.byKey(const Key('ecran-verification')), findsOneWidget);
     expect(find.byType(SosScreen), findsNothing);
+  });
+
+  // I7 de la revue finale : pendant le tout premier instant du demarrage
+  // (AccountProvider construit mais restore() pas encore resolu), la carte
+  // ne doit pas se monter — sinon son initState demande aussitot la
+  // permission de localisation, avant meme que le mur d'inscription ait pu
+  // s'appliquer. Ce test se garde bien d'appeler restore() : c'est
+  // exactement l'instant qu'il prouve.
+  testWidgets(
+      'pendant le chargement du compte, un ecran neutre remplace la carte',
+      (tester) async {
+    // MainShell (voir router.dart) interroge PackageInfo/SharedPreferences
+    // pour les mises à jour dès son initState, quel que soit l'écran
+    // affiché dans le ShellRoute — sans quoi cet appel non simulé lève une
+    // MissingPluginException dans ce test.
+    SharedPreferences.setMockInitialValues({});
+    PackageInfo.setMockInitialValues(
+      appName: 'test',
+      packageName: 'test',
+      version: '1.0.0',
+      buildNumber: '1',
+      buildSignature: '',
+    );
+
+    final compte = AccountProvider(
+      api: AccountApiClient(
+        baseUrl: 'https://exemple.test',
+        client: MockClient((_) async => http.Response('{}', 200)),
+      ),
+      storage: AccountStorage(),
+    );
+    // Ne pas appeler restore() : le statut reste "chargement", sa valeur
+    // initiale — voir AccountProvider._status.
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<AccountProvider>.value(value: compte),
+          // MainShell les regarde (barre de navigation, réglage
+          // d'auto-masquage) quel que soit l'écran affiché en dessous.
+          ChangeNotifierProvider(create: (_) => MapProvider()),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
+        child: MaterialApp.router(routerConfig: buildAppRouter()),
+      ),
+    );
+    // pump() et non pumpAndSettle() : l'indicateur de chargement anime en
+    // boucle, et la vérification des mises à jour part sur un vrai appel
+    // réseau (silencieux en cas d'échec, voir UpdateChecker) — pumpAndSettle()
+    // ne se terminerait jamais.
+    await tester.pump();
+
+    expect(find.byKey(const Key('ecran-chargement-compte')), findsOneWidget);
+    expect(find.byType(MapScreen), findsNothing);
   });
 }

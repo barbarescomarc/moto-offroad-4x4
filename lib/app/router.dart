@@ -119,7 +119,7 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
         routes: [
           GoRoute(
             path: AppRoutes.map,
-            pageBuilder: (_, __) => const NoTransitionPage(child: MapScreen()),
+            pageBuilder: (_, __) => const NoTransitionPage(child: _MapGate()),
           ),
           GoRoute(
             path: AppRoutes.fuel,
@@ -224,6 +224,49 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
 /// Instance unique utilisée par l'application (voir `main.dart`). Les tests
 /// qui ont besoin d'un routeur isolé appellent [buildAppRouter] directement.
 final GoRouter appRouter = buildAppRouter();
+
+// ── Garde de chargement du compte, devant la carte ───────────
+//
+// AccountProvider est un provider `lazy` (voir main.dart) : sa construction,
+// et l'appel à `restore()` qu'elle déclenche, n'a lieu qu'au premier
+// `redirect` du routeur, et cet appel n'est jamais attendu avant le premier
+// rendu. Sans cette garde, `MapScreen` se montait directement pendant ce
+// court chargement (accountRedirect rend `null` pour `chargement`, exprès
+// pour ne pas transformer cet état en mur) et son `initState` demandait
+// aussitôt la permission de localisation — avant même que le mur
+// d'inscription ait pu s'appliquer. Mauvaise première impression, et sur
+// iOS une demande de permission sans contexte est un motif classique de
+// refus en revue App Store.
+//
+// Neutre et bref : ne dure que le temps de lire le jeton stocké (et, le cas
+// échéant, d'interroger `/me`) — un rider hors ligne avec un jeton valide
+// arrive normalement sur la carte une fois `restore()` résolu, cet écran ne
+// devient pas un second mur.
+class _AccountLoadingScreen extends StatelessWidget {
+  const _AccountLoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      key: Key('ecran-chargement-compte'),
+      backgroundColor: AppColors.bgDark,
+      body: Center(child: CircularProgressIndicator(color: AppColors.orange)),
+    );
+  }
+}
+
+/// Bascule entre l'écran neutre ci-dessus et la carte selon l'état du
+/// compte. Ne porte aucune autre logique : c'est `MapScreen` qui garde toute
+/// la sienne.
+class _MapGate extends StatelessWidget {
+  const _MapGate();
+
+  @override
+  Widget build(BuildContext context) {
+    final statut = context.watch<AccountProvider>().status;
+    return statut == AccountStatus.chargement ? const _AccountLoadingScreen() : const MapScreen();
+  }
+}
 
 // ── Shell principal avec BottomNavigationBar ─────────────────
 class MainShell extends StatefulWidget {
