@@ -50,7 +50,12 @@ class GraceWindow {
       }
       final stocke = prefs.getInt(_kDeadline);
       _deadline = stocke == null ? null : DateTime.fromMillisecondsSinceEpoch(stocke);
-      if (_deadline != null && !maintenant.isBefore(_deadline!)) _deadline = null;
+      if (_deadline != null && !maintenant.isBefore(_deadline!)) {
+        // Échéance dépassée : la clore aussi dans les préférences, sinon la
+        // clé y reste indéfiniment alors que plus rien ne la lit.
+        await prefs.remove(_kDeadline);
+        _deadline = null;
+      }
       return;
     }
     await prefs.setBool(_kDecided, true);
@@ -73,7 +78,12 @@ class GraceWindow {
       await prefs.setInt(_kDeadline, _deadline!.millisecondsSinceEpoch);
     }
 
-    if (!maintenant.isBefore(_deadline!)) _deadline = null;
+    if (!maintenant.isBefore(_deadline!)) {
+      // Même invariant que ci-dessus : une échéance déjà dépassée dès ce
+      // premier verdict ne doit pas non plus laisser traîner la clé.
+      await prefs.remove(_kDeadline);
+      _deadline = null;
+    }
   }
 }
 

@@ -68,6 +68,22 @@ void main() {
     expect(second.deadline, isNull);
   });
 
+  test('la cle d echeance est retiree des preferences une fois le delai expire', () async {
+    // Mineure de la revue finale : _deadline passe a null en memoire des que
+    // l'echeance est depassee, mais la cle restait dans les preferences
+    // indefiniment sans que plus rien ne la lise.
+    final depart = DateTime(2026, 9, 8);
+    await GraceWindow().evaluate(hasLegacyData: true, now: depart);
+
+    final apres = GraceWindow();
+    await apres.evaluate(hasLegacyData: true, now: depart.add(const Duration(days: 31)));
+    expect(apres.deadline, isNull);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getInt('account_grace_deadline_ms'), isNull,
+        reason: 'la cle ne doit pas trainer indefiniment une fois le delai clos');
+  });
+
   test('une reinstallation qui ne restaure que les preferences ne recoit pas de delai', () async {
     // La sauvegarde automatique Android peut restaurer les préférences
     // (donc le verdict déjà rendu ET une échéance) sans restaurer les
