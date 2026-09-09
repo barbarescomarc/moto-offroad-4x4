@@ -17,6 +17,7 @@ import '../../providers/settings_provider.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/guidance_provider.dart';
 import '../../providers/poi_search_provider.dart';
+import '../../providers/fuel_poi_provider.dart';
 import '../../models/trace.dart';
 import '../../models/favorite_place.dart';
 import '../../models/route_result.dart';
@@ -37,6 +38,7 @@ import '../../widgets/stats_bar.dart';
 import '../../widgets/layer_selector.dart';
 import '../../widgets/gpx_import_sheet.dart';
 import '../../widgets/glass_control.dart';
+import '../../widgets/fuel_poi_button.dart';
 import '../../widgets/map_search_bar.dart';
 import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
@@ -358,6 +360,19 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 children: [
                   _buildMapControls(),
                   const SizedBox(height: 6),
+                  // Stations et réparateurs autour du pilote, à la demande :
+                  // pensé pour la panne sèche ou mécanique, quand chercher
+                  // dans un menu n'est pas une option.
+                  FuelPoiButton(
+                    // Suivi actif — le cas en roulant — le centre de la carte
+                    // EST la position du pilote. S'il a déplacé la carte pour
+                    // regarder ailleurs, chercher autour de ce qu'il regarde
+                    // est ce qu'il attend.
+                    currentCenter: () =>
+                        _mapReady ? _mapController.camera.center : mapProv.center,
+                    radiusKm: context.read<FuelProvider>().searchRadiusKm,
+                  ),
+                  const SizedBox(height: 6),
                   _mapCtrlBtn(
                     Icons.explore,
                     _toggleMapOrientation,
@@ -627,9 +642,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               .toList(),
         ),
 
-        // ── Points d'intérêt (DATAtourisme) ─────────────────
+        // ── Points d'intérêt ────────────────────────────────
+        // Deux sources, un seul calque : DATAtourisme pour le tourisme,
+        // Overpass pour le carburant et la mécanique. Elles partagent le
+        // même modèle, donc le même marqueur et la même fiche.
         MarkerLayer(
-          markers: context.watch<PoiSearchProvider>().results
+          markers: [
+            ...context.watch<PoiSearchProvider>().results,
+            ...context.watch<FuelPoiProvider>().results,
+          ]
               .map((poi) => Marker(
                     point: poi.position,
                     width: 34, height: 34,

@@ -22,6 +22,7 @@ import 'providers/quick_reply_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/guidance_provider.dart';
 import 'providers/poi_search_provider.dart';
+import 'providers/fuel_poi_provider.dart';
 import 'providers/account_provider.dart';
 import 'services/ride_database.dart';
 import 'services/ride_repository.dart';
@@ -173,6 +174,7 @@ class MotoOffroadApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => GuidanceProvider()),
         ChangeNotifierProvider(create: (_) => PoiSearchProvider()),
         ChangeNotifierProvider(create: (_) => AccountProvider()..restore()),
+        ChangeNotifierProvider(create: (_) => FuelPoiProvider()),
       ],
       child: _AutoReplyHost(
         child: _SoloUplinkHost(
