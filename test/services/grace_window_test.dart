@@ -67,4 +67,20 @@ void main() {
         reason: 'le verdict du premier lancement doit rester valable, il ne se recalcule pas');
     expect(second.deadline, isNull);
   });
+
+  test('une reinstallation qui ne restaure que les preferences ne recoit pas de delai', () async {
+    // La sauvegarde automatique Android peut restaurer les préférences
+    // (donc le verdict déjà rendu ET une échéance) sans restaurer les
+    // données locales elles-mêmes (rides.db, réglages) : ce scénario sème
+    // les deux clés à la fois, ce que le test précédent ne faisait pas.
+    SharedPreferences.setMockInitialValues({
+      'account_grace_decided': true,
+      'account_grace_deadline_ms': DateTime(2026, 10, 8).millisecondsSinceEpoch,
+    });
+    final g = GraceWindow();
+    await g.evaluate(hasLegacyData: false, now: DateTime(2026, 9, 8));
+    expect(g.active, isFalse);
+    expect(g.deadline, isNull,
+        reason: 'aucune donnee locale, aucun delai — quoi que racontent les preferences restaurees');
+  });
 }

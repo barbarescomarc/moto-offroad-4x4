@@ -37,6 +37,17 @@ class GraceWindow {
     // préférences au fil de son usage, si bien qu'une installation neuve
     // finirait par se faire passer pour ancienne dès le second lancement.
     if (prefs.getBool(_kDecided) ?? false) {
+      // Même déjà décidé, une installation sans données locales ne reçoit
+      // rien : la sauvegarde automatique Android restaure les préférences
+      // (donc ce marqueur ET une échéance) sans forcément restaurer la base
+      // des sorties, et une échéance ressuscitée seule n'aurait aucune
+      // légitimité — invariant à garder simple : aucune donnée locale,
+      // aucun délai, quoi que racontent les préférences.
+      if (!hasLegacyData) {
+        await prefs.remove(_kDeadline);
+        _deadline = null;
+        return;
+      }
       final stocke = prefs.getInt(_kDeadline);
       _deadline = stocke == null ? null : DateTime.fromMillisecondsSinceEpoch(stocke);
       if (_deadline != null && !maintenant.isBefore(_deadline!)) _deadline = null;
