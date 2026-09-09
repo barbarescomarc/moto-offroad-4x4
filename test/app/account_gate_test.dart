@@ -41,9 +41,9 @@ void main() {
     expect(gate(AccountStatus.nonVerifie, '/', grace: true), '/verification');
   });
 
-  // Une session a renouveler (jeton revoque par le serveur, ex. apres une
-  // reinitialisation de mot de passe) ne doit jamais fermer l'acces a
-  // l'application : ni la carte, ni le SOS, ni la detection de chute. Voir
+  // Une session à renouveler (jeton révoqué par le serveur, ex. après une
+  // réinitialisation de mot de passe) ne doit jamais fermer l'accès à
+  // l'application : ni la carte, ni le SOS, ni la détection de chute. Voir
   // le chapitre 6.5 de la spec et AccountProvider.restore().
   test('une session a renouveler ne redirige nulle part', () {
     expect(gate(AccountStatus.sessionARenouveler, '/'), isNull);
@@ -57,8 +57,8 @@ void main() {
   });
 
   // accountBannerKind : quel bandeau MainShell doit afficher, s'il y en a
-  // un (voir AccountBanner et le chapitre 7.2 de la spec pour le delai de
-  // grace, le chapitre 6.5 pour la session a renouveler).
+  // un (voir AccountBanner et le chapitre 7.2 de la spec pour le délai de
+  // grâce, le chapitre 6.5 pour la session à renouveler).
   test('sessionARenouveler prime, peu importe le delai de grace', () {
     expect(
       accountBannerKind(status: AccountStatus.sessionARenouveler, graceActive: true),

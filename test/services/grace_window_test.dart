@@ -69,9 +69,9 @@ void main() {
   });
 
   test('la cle d echeance est retiree des preferences une fois le delai expire', () async {
-    // Mineure de la revue finale : _deadline passe a null en memoire des que
-    // l'echeance est depassee, mais la cle restait dans les preferences
-    // indefiniment sans que plus rien ne la lise.
+    // Mineure de la revue finale : _deadline passe à null en mémoire dès que
+    // l'échéance est dépassée, mais la clé restait dans les préférences
+    // indéfiniment sans que plus rien ne la lise.
     final depart = DateTime(2026, 9, 8);
     await GraceWindow().evaluate(hasLegacyData: true, now: depart);
 

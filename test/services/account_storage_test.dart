@@ -71,14 +71,14 @@ void main() {
 
   test('une panne du stockage a la lecture leve AccountStorageFailure, pas null', () async {
     // Distinction cruciale pour AccountProvider.restore() : une panne ne
-    // doit jamais etre confondue avec une absence de jeton legitime.
+    // doit jamais être confondue avec une absence de jeton légitime.
     final storage = AccountStorage(storage: const _StockageEnPanne());
     await expectLater(storage.readToken(), throwsA(isA<AccountStorageFailure>()));
   });
 
   test('une panne du stockage a l ecriture ne leve rien', () async {
-    // Ecriture au mieux : un jeton deja valide en memoire ne doit pas faire
-    // planter register()/login() si seule sa persistance echoue.
+    // Écriture au mieux : un jeton déjà valide en mémoire ne doit pas faire
+    // planter register()/login() si seule sa persistance échoue.
     final storage = AccountStorage(storage: const _StockageEnPanne());
     await storage.writeToken('jeton-abc');
   });

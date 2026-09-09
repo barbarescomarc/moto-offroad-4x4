@@ -94,10 +94,10 @@ void main() {
     expect(find.byType(SosScreen), findsNothing);
   });
 
-  // I7 de la revue finale : pendant le tout premier instant du demarrage
-  // (AccountProvider construit mais restore() pas encore resolu), la carte
-  // ne doit pas se monter — sinon son initState demande aussitot la
-  // permission de localisation, avant meme que le mur d'inscription ait pu
+  // I7 de la revue finale : pendant le tout premier instant du démarrage
+  // (AccountProvider construit mais restore() pas encore résolu), la carte
+  // ne doit pas se monter — sinon son initState demande aussitôt la
+  // permission de localisation, avant même que le mur d'inscription ait pu
   // s'appliquer. Ce test se garde bien d'appeler restore() : c'est
   // exactement l'instant qu'il prouve.
   testWidgets(

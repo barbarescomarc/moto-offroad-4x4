@@ -13,7 +13,7 @@ AccountProvider provider(http.Client client) => AccountProvider(
     );
 
 /// Simule la panne d'`AccountStorage.readToken` (voir account_storage_test.dart
-/// pour la meme classe, cote stockage).
+/// pour la même classe, côté stockage).
 class _StockageEnPanneALaLecture extends FlutterSecureStorage {
   const _StockageEnPanneALaLecture();
 
@@ -51,9 +51,9 @@ void main() {
   });
 
   test('jeton revoque au demarrage, une session est a renouveler, pas deconnecte', () async {
-    // Le scenario du C1 de la revue finale : reinitialisation de mot de
-    // passe cote serveur (donc revocation de toutes les sessions), le rider
-    // ne doit PAS se retrouver mur-a-mur comme un premier lancement — voir
+    // Le scénario du C1 de la revue finale : réinitialisation de mot de
+    // passe côté serveur (donc révocation de toutes les sessions), le rider
+    // ne doit PAS se retrouver mur-à-mur comme un premier lancement — voir
     // accountRedirect et le chapitre 6.5 de la spec.
     await AccountStorage().writeToken('jeton');
     final p = provider(MockClient((_) async => http.Response('{}', 401)));
@@ -66,9 +66,9 @@ void main() {
 
   test('une panne du stockage securise a la lecture mene aussi a une session a renouveler', () async {
     // flutter_secure_storage peut lever (BadPaddingException) au lieu de
-    // rendre null, par exemple quand une sauvegarde restaure une entree
-    // chiffree sans la cle Keystore correspondante. restore() ne doit ni
-    // rester bloque en "chargement" pour toujours, ni traiter ca comme un
+    // rendre null, par exemple quand une sauvegarde restaure une entrée
+    // chiffrée sans la clé Keystore correspondante. restore() ne doit ni
+    // rester bloqué en "chargement" pour toujours, ni traiter ça comme un
     // tout premier lancement.
     final p = AccountProvider(
       api: AccountApiClient(baseUrl: 'https://exemple.test', client: MockClient((_) async => http.Response('{}', 200))),
@@ -160,9 +160,9 @@ void main() {
   });
 
   test('la deconnexion efface le jeton et mene a deconnecte, pas a sessionARenouveler', () async {
-    // deconnecte reste reserve aux gestes explicites du rider (logout,
-    // deleteAccount) — jamais a une revocation cote serveur, voir le test
-    // "jeton revoque au demarrage" ci-dessus qui prouve l'autre branche.
+    // deconnecte reste réservé aux gestes explicites du rider (logout,
+    // deleteAccount) — jamais à une révocation côté serveur, voir le test
+    // "jeton révoqué au démarrage" ci-dessus qui prouve l'autre branche.
     final p = provider(MockClient((_) async =>
         http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201)));
     await p.register(email: 'rider@example.test', password: 'dix caracteres');
