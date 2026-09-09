@@ -15,6 +15,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// fidèles, pas un contrôle d'accès — ne pas chercher à le durcir.
 class GraceWindow {
   static const String _kDeadline = 'account_grace_deadline_ms';
+  static const String _kDecided  = 'account_grace_decided';
   static const Duration duration = Duration(days: 30);
 
   DateTime? _deadline;
@@ -29,6 +30,19 @@ class GraceWindow {
   Future<void> evaluate({required bool hasLegacyData, DateTime? now}) async {
     final maintenant = now ?? DateTime.now();
     final prefs = await SharedPreferences.getInstance();
+
+    // Le verdict est rendu au tout premier lancement, puis relu — jamais
+    // recalculé. Le recalculer à chaque démarrage serait fautif : c'est
+    // l'application elle-même qui crée ses fichiers (rides.db) et ses
+    // préférences au fil de son usage, si bien qu'une installation neuve
+    // finirait par se faire passer pour ancienne dès le second lancement.
+    if (prefs.getBool(_kDecided) ?? false) {
+      final stocke = prefs.getInt(_kDeadline);
+      _deadline = stocke == null ? null : DateTime.fromMillisecondsSinceEpoch(stocke);
+      if (_deadline != null && !maintenant.isBefore(_deadline!)) _deadline = null;
+      return;
+    }
+    await prefs.setBool(_kDecided, true);
 
     // Une installation neuve ne recoit aucun delai, meme si une echeance
     // trainait dans les preferences : la sauvegarde automatique Android les

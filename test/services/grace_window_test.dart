@@ -48,4 +48,23 @@ void main() {
     expect(g.active, isFalse);
     expect(g.deadline, isNull);
   });
+
+  test('le verdict du premier lancement tient meme si l application cree ensuite ses propres donnees', () async {
+    // Premier lancement : rien n'existe encore (rides.db pas créé, aucune
+    // préférence écrite) : installation neuve, aucun délai.
+    final premier = GraceWindow();
+    await premier.evaluate(hasLegacyData: false);
+    expect(premier.active, isFalse);
+    expect(premier.deadline, isNull);
+
+    // Second lancement : l'application a entre-temps créé rides.db (et ses
+    // propres préférences) au premier lancement — hasLegacyData devient donc
+    // vrai. Mais le verdict a déjà été rendu : une installation neuve ne doit
+    // jamais se faire passer pour ancienne au lancement suivant.
+    final second = GraceWindow();
+    await second.evaluate(hasLegacyData: true);
+    expect(second.active, isFalse,
+        reason: 'le verdict du premier lancement doit rester valable, il ne se recalcule pas');
+    expect(second.deadline, isNull);
+  });
 }
