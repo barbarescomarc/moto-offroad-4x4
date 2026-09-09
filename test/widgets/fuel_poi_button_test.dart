@@ -129,7 +129,7 @@ void main() {
     expect(apres, avant);
   });
 
-  testWidgets('un second appui eteint les stations sans redemander au serveur', (tester) async {
+  testWidgets('un second appui masque les stations sans les oublier', (tester) async {
     var appels = 0;
     final provider = FuelPoiProvider(
       service: FuelPoiService(client: MockClient((_) async {
@@ -154,29 +154,68 @@ void main() {
     await tester.pumpWidget(_monter(provider));
     await tester.tap(find.byKey(const Key('bouton-stations-proximite')));
     await tester.pumpAndSettle();
-    expect(provider.results, hasLength(1));
+    expect(provider.visible, isTrue);
 
     await tester.tap(find.byKey(const Key('bouton-stations-proximite')));
     await tester.pumpAndSettle();
 
-    expect(provider.results, isEmpty, reason: 'le second appui doit eteindre');
-    expect(appels, 1, reason: 'eteindre ne doit pas relancer une requete');
+    expect(provider.visible, isFalse, reason: 'le second appui masque');
+    expect(provider.results, hasLength(1),
+        reason: 'masquer n est pas oublier : le rallumage doit etre instantane');
+    expect(appels, 1, reason: 'masquer ne doit relancer aucune requete');
   });
 
-  testWidgets('un appui apres un echec efface l indicateur d indisponibilite', (tester) async {
+  testWidgets('un troisieme appui les rallume sans redemander au serveur', (tester) async {
+    var appels = 0;
     final provider = FuelPoiProvider(
-      service: FuelPoiService(client: MockClient((_) async => throw Exception('reseau coupe'))),
+      service: FuelPoiService(client: MockClient((_) async {
+        appels++;
+        return http.Response(
+          jsonEncode({
+            'elements': [
+              {
+                'type': 'node',
+                'id': 1,
+                'lat': 43.61,
+                'lon': 1.45,
+                'tags': {'amenity': 'fuel', 'name': 'Station du Nord'},
+              },
+            ],
+          }),
+          200,
+        );
+      })),
+    );
+
+    await tester.pumpWidget(_monter(provider));
+    for (var i = 0; i < 3; i++) {
+      await tester.tap(find.byKey(const Key('bouton-stations-proximite')));
+      await tester.pumpAndSettle();
+    }
+
+    expect(provider.visible, isTrue);
+    expect(appels, 1, reason: 'une seule requete pour allumer, masquer, rallumer');
+  });
+
+  testWidgets('un appui apres un echec relance la recherche', (tester) async {
+    var appels = 0;
+    final provider = FuelPoiProvider(
+      service: FuelPoiService(client: MockClient((_) async {
+        appels++;
+        throw Exception('reseau coupe');
+      })),
     );
 
     await tester.pumpWidget(_monter(provider));
     await tester.tap(find.byKey(const Key('bouton-stations-proximite')));
     await tester.pumpAndSettle();
-    expect(find.byKey(const Key('stations-indisponible')), findsOneWidget);
+    final apresPremier = appels;
 
     await tester.tap(find.byKey(const Key('bouton-stations-proximite')));
     await tester.pumpAndSettle();
 
-    // Sans cela, le nuage barre reste colle a l'ecran sans moyen de l'oter.
-    expect(find.byKey(const Key('stations-indisponible')), findsNothing);
+    // Apres un echec, ce que veut le pilote est reessayer, pas basculer un
+    // affichage vide.
+    expect(appels, greaterThan(apresPremier));
   });
 }

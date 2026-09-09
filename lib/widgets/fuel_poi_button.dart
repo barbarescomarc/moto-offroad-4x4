@@ -33,16 +33,17 @@ class FuelPoiButton extends StatefulWidget {
 }
 
 class _FuelPoiButtonState extends State<FuelPoiButton> {
-  /// Interrupteur : le bouton allume les stations, et les éteint.
+  /// Interrupteur : le bouton affiche les stations, et les masque.
   ///
-  /// Éteindre ne redemande rien au serveur — et efface aussi l'indicateur
-  /// d'échec, sans quoi le nuage barré resterait collé à l'écran sans moyen
-  /// de s'en débarrasser.
+  /// Masquer n'oublie rien et ne redemande rien : le rallumage est instantané.
   Future<void> _basculer() async {
     final poi = context.read<FuelPoiProvider>();
 
-    if (poi.results.isNotEmpty || poi.unavailable) {
-      poi.clear();
+    // Des resultats en memoire : on bascule leur affichage, sans rien
+    // redemander. Apres un echec en revanche, ce que veut le pilote est
+    // reessayer.
+    if (poi.results.isNotEmpty) {
+      poi.toggleVisible();
       return;
     }
 
@@ -70,7 +71,7 @@ class _FuelPoiButtonState extends State<FuelPoiButton> {
           child: GlassPuck(
             icon: poi.loading ? Icons.hourglass_top : Icons.local_gas_station,
             color: AppColors.orange,
-            active: poi.results.isNotEmpty,
+            active: poi.visible && poi.results.isNotEmpty,
           ),
         ),
         if (poi.unavailable)

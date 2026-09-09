@@ -662,7 +662,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         MarkerLayer(
           markers: [
             ...context.watch<PoiSearchProvider>().results,
-            ...context.watch<FuelPoiProvider>().results,
+            // Masquees sans etre oubliees : le bouton bascule leur affichage
+            // sans rien redemander a Overpass.
+            if (context.watch<FuelPoiProvider>().visible)
+              ...context.watch<FuelPoiProvider>().results,
           ]
               .map((poi) => Marker(
                     point: poi.position,

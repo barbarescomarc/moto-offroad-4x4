@@ -17,10 +17,18 @@ class FuelPoiProvider extends ChangeNotifier {
   List<PoiModel> _results = const [];
   bool _loading = false;
   bool _unavailable = false;
+  bool _visible = false;
 
   List<PoiModel> get results => _results;
   bool get loading => _loading;
   bool get unavailable => _unavailable;
+
+  /// Les résultats sont-ils affichés sur la carte ?
+  ///
+  /// Distinct de « y a-t-il des résultats » : masquer n'est pas oublier. Le
+  /// pilote qui éteint puis rallume doit les revoir instantanément, sans
+  /// qu'on redemande à Overpass — service public, gratuit et irrégulier.
+  bool get visible => _visible;
 
   Future<void> searchAround(LatLng center, {required int radiusKm}) async {
     _loading = true;
@@ -32,6 +40,7 @@ class FuelPoiProvider extends ChangeNotifier {
       // seule coupure laisserait le pilote devant un message de panne
       // définitif alors que le réseau est revenu.
       _unavailable = false;
+      _visible = true;
     } on FuelPoiUnavailable {
       _results = const [];
       _unavailable = true;
@@ -41,9 +50,16 @@ class FuelPoiProvider extends ChangeNotifier {
     }
   }
 
+  /// Masque ou réaffiche les résultats déjà en mémoire, sans rien redemander.
+  void toggleVisible() {
+    _visible = !_visible;
+    notifyListeners();
+  }
+
   void clear() {
     _results = const [];
     _unavailable = false;
+    _visible = false;
     notifyListeners();
   }
 
