@@ -70,11 +70,37 @@ void main() {
     );
   });
 
-  test('le delai de grace actif affiche son bandeau hors session a renouveler', () {
+  test('le delai de grace actif affiche son bandeau pour un rider deconnecte', () {
     expect(
       accountBannerKind(status: AccountStatus.deconnecte, graceActive: true),
       AccountBannerKind.delaiDeGrace,
     );
+  });
+
+  // Re-revue de branche : le bandeau ne regardait que graceActive, sans
+  // tenir compte du statut. Parcours réel qui en résultait : installation
+  // ancienne → bandeau → le rider clique « Créer mon compte » → connecte —
+  // et le bandeau revenait quand même à chaque lancement pendant le reste
+  // des trente jours, avec un bouton qui le renvoyait juste sur la carte.
+  // On le harcelait pour une chose déjà faite.
+  test('un rider connecte avec un delai de grace encore actif ne voit aucun bandeau', () {
+    expect(
+      accountBannerKind(status: AccountStatus.connecte, graceActive: true),
+      AccountBannerKind.aucun,
+    );
+  });
+
+  test('le delai de grace ne beneficie qu a un rider deconnecte, quel que soit l autre statut', () {
+    for (final statut in AccountStatus.values) {
+      if (statut == AccountStatus.sessionARenouveler || statut == AccountStatus.deconnecte) {
+        continue;
+      }
+      expect(
+        accountBannerKind(status: statut, graceActive: true),
+        AccountBannerKind.aucun,
+        reason: '$statut avec un delai actif ne doit afficher aucun bandeau',
+      );
+    }
   });
 
   test('aucun bandeau sans session a renouveler ni delai de grace actif', () {

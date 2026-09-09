@@ -58,6 +58,12 @@ AccountBannerKind accountBannerKind({
   required bool graceActive,
 }) {
   if (status == AccountStatus.sessionARenouveler) return AccountBannerKind.sessionExpiree;
-  if (graceActive) return AccountBannerKind.delaiDeGrace;
+  // `graceActive` seul ne suffit pas : c'est une échéance calculée une fois
+  // à l'installation (voir GraceWindow), indépendante du compte — elle reste
+  // vraie pendant tout le reste des trente jours même après l'inscription.
+  // Sans cette garde sur le statut, un rider qui vient de créer son compte
+  // continuait de voir le bandeau à chaque lancement, avec un bouton qui le
+  // renvoyait simplement sur la carte : harcelé pour une chose déjà faite.
+  if (status == AccountStatus.deconnecte && graceActive) return AccountBannerKind.delaiDeGrace;
   return AccountBannerKind.aucun;
 }
