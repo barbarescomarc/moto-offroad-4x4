@@ -7,6 +7,7 @@ import '../../app/router.dart';
 import '../../app/theme.dart';
 import '../../models/moto_preset.dart';
 import '../../models/rider_profile.dart';
+import '../../providers/account_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/fuel_provider.dart';
 import '../../services/alert_channel_unlock.dart';
@@ -72,6 +73,8 @@ class _SettingsScreenState extends State<SettingsScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            GlassPanel(child: _accountSection(context)),
+            const SizedBox(height: 16),
             GlassPanel(child: _riderSection()),
             const SizedBox(height: 16),
             GlassPanel(child: _levelSection()),
@@ -90,6 +93,29 @@ class _SettingsScreenState extends State<SettingsScreen>
           ],
         ),
       ),
+    );
+  }
+
+  // ── Compte rider ───────────────────────────────────────────
+  Widget _accountSection(BuildContext context) {
+    final compte = context.watch<AccountProvider>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('COMPTE'),
+        const SizedBox(height: 8),
+        ListTile(
+          key: const Key('entree-mon-compte'),
+          leading: const Icon(Icons.account_circle_outlined, color: AppColors.textMuted),
+          title: Text(compte.email ?? 'Mon compte',
+            style: const TextStyle(color: Colors.white)),
+          subtitle: const Text('Se déconnecter, supprimer le compte, revoir le tutoriel',
+            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
+          contentPadding: EdgeInsets.zero,
+          onTap: () => context.push(AppRoutes.account),
+        ),
+      ],
     );
   }
 

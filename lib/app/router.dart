@@ -12,6 +12,7 @@ import '../screens/account/register_screen.dart';
 import '../screens/account/login_screen.dart';
 import '../screens/account/verify_screen.dart';
 import '../screens/account/forgot_password_screen.dart';
+import '../screens/account/account_screen.dart';
 import '../screens/map/map_screen.dart';
 import '../screens/sos/sos_screen.dart';
 import '../screens/solo/solo_screen.dart';
@@ -43,6 +44,7 @@ class AppRoutes {
   static const String settings    = '/settings';
   static const String calibration = '/calibration';
   static const String callSettings = '/call-settings';
+  static const String account      = '/mon-compte';
   static const String sos         = '/sos';
   static const String solo        = '/solo';
   static const String sendPosition = '/send-position';
@@ -154,6 +156,11 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
         path: AppRoutes.callSettings,
         pageBuilder: (_, __) => const MaterialPage(
             fullscreenDialog: true, child: CallSettingsScreen()),
+      ),
+      GoRoute(
+        path: AppRoutes.account,
+        pageBuilder: (_, __) => const MaterialPage(
+            fullscreenDialog: true, child: AccountScreen()),
       ),
       GoRoute(
         path: AppRoutes.sos,

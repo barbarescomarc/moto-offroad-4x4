@@ -4,8 +4,16 @@ import 'tutorial_steps.dart';
 
 /// État du tutoriel de première ouverture : quelle étape est affichée, et
 /// mémorisation du fait qu'il a déjà été vu (pour ne pas le rejouer à
-/// chaque lancement). La tâche 18 (réglages) appelle [replay] pour le
-/// revoir volontairement.
+/// chaque lancement).
+///
+/// L'écran « Mon compte » (tâche 18) propose de revoir le tutoriel, mais
+/// n'a pas accès à l'instance vivante de ce contrôleur : elle est
+/// construite et détenue par `MapScreen`, liée aux `GlobalKey` des widgets
+/// qu'elle met en surbrillance. Plutôt que de faire remonter le
+/// contrôleur jusque dans les providers de `main.dart` (qui porte aussi la
+/// détection de chute et l'alerte SOS), cet écran appelle
+/// [forgetCompletion] : le tutoriel se redéclenche alors de lui-même à la
+/// prochaine arrivée sur la carte, via [startIfNeeded].
 class TutorialController extends ChangeNotifier {
   TutorialController({required TutorialTargets targets})
       : _steps = buildTutorialSteps(targets);
@@ -76,5 +84,15 @@ class TutorialController extends ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_kDone, true);
+  }
+
+  /// Efface la mémorisation « tutoriel déjà vu », sans passer par une
+  /// instance vivante du contrôleur — voir la documentation de la classe.
+  /// Un rider qui rappelle cette méthode plusieurs fois avant de revenir
+  /// sur la carte ne fait qu'écrire deux fois la même valeur : sans effet
+  /// de bord à craindre.
+  static Future<void> forgetCompletion() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kDone, false);
   }
 }
