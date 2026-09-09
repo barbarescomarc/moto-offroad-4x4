@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -49,6 +50,25 @@ void main() {
     final api = clientQuiRepond(200, {'email': 'rider@example.test', 'verified': true}, onRequest: (r) => vue = r);
     await api.me(token: 'jeton-abc');
     expect(vue.headers['authorization'], 'Bearer jeton-abc');
+  });
+
+  // Re-revue de branche, correctif I7 : me() gouverne l'écran de chargement
+  // devant la carte ([_MapGate]) — sans borne, un réseau dégradé (portail
+  // captif, TCP qui traîne) y bloquerait indéfiniment le rider, donc son
+  // accès au SOS. `meTimeout` est injectable pour ce test précisément : une
+  // borne réelle mais très courte prouve le comportement sans faire durer
+  // le test (pas de fake_async, absent des dépendances du dépôt).
+  test('me() ne pend pas indefiniment sur un serveur qui ne repond jamais', () async {
+    final api = AccountApiClient(
+      baseUrl: 'https://exemple.test',
+      // Le gestionnaire ne complète jamais : simule une connexion qui
+      // traîne (TCP/TLS en cours), pas une panne immédiate.
+      client: MockClient((_) => Completer<http.Response>().future),
+      meTimeout: const Duration(milliseconds: 20),
+    );
+
+    final res = await api.me(token: 'jeton-abc');
+    expect(res.error, AccountError.reseau);
   });
 
   test('un 429 devient tropDeTentatives', () async {

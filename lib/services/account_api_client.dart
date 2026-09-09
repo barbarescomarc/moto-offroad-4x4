@@ -48,12 +48,17 @@ class AccountResult<T> {
 /// ce qui permet à l'écran d'inscription de choisir entre réessayer et
 /// corriger la saisie.
 class AccountApiClient {
-  AccountApiClient({http.Client? client, String? baseUrl})
+  AccountApiClient({http.Client? client, String? baseUrl, Duration? meTimeout})
       : _client = client ?? http.Client(),
-        _baseUrl = baseUrl ?? 'https://motooffroad.duckdns.org';
+        _baseUrl = baseUrl ?? 'https://motooffroad.duckdns.org',
+        _meTimeout = meTimeout ?? const Duration(seconds: 5);
 
   final http.Client _client;
   final String _baseUrl;
+
+  /// Borne de [me]. Injectable pour les tests uniquement — l'application ne
+  /// passe jamais autre chose que la valeur par défaut.
+  final Duration _meTimeout;
 
   Uri _uri(String path) => Uri.parse('$_baseUrl$path');
 
@@ -113,9 +118,20 @@ class AccountApiClient {
       _sessionCall('/api/account/login', {'email': email, 'password': password});
 
   /// Récupère le profil du compte connecté.
+  ///
+  /// Borné à 5 secondes : cet appel gouverne l'écran de chargement affiché
+  /// devant la carte le temps que `AccountProvider.restore()` résolve (voir
+  /// `_MapGate` dans `lib/app/router.dart`) — sans limite, un réseau dégradé
+  /// (portail captif, TCP qui traîne) bloquerait le rider sur cet écran,
+  /// donc son accès au SOS, aussi longtemps que la connexion resterait
+  /// ouverte. Plus court que les autres appels du dépôt (10-15 s pour la
+  /// météo, le guidage, les mises à jour) précisément parce que celui-ci est
+  /// seul à conditionner l'accès aux fonctions critiques.
   Future<AccountResult<AccountProfile>> me({required String token}) async {
     try {
-      final res = await _client.get(_uri('/api/account/me'), headers: _headers(token));
+      final res = await _client
+          .get(_uri('/api/account/me'), headers: _headers(token))
+          .timeout(_meTimeout);
       if (res.statusCode ~/ 100 != 2) {
         return AccountResult.failure(_errorFor(res.statusCode, res.body));
       }
