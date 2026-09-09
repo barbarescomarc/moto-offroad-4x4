@@ -43,3 +43,21 @@ String? accountRedirect({
       return null;
   }
 }
+
+/// Quel bandeau non bloquant afficher dans `MainShell`, s'il y en a un.
+///
+/// Fonction pure, sur le modèle d'[accountRedirect] : les deux besoins qui
+/// justifient un bandeau (délai de grâce et session à renouveler) partagent
+/// le même mécanisme d'affichage (voir `AccountBanner`), mais jamais en
+/// même temps — une session à renouveler suppose un compte déjà créé, le
+/// délai de grâce ne concerne que les installations qui n'en ont aucun.
+enum AccountBannerKind { aucun, sessionExpiree, delaiDeGrace }
+
+AccountBannerKind accountBannerKind({
+  required AccountStatus status,
+  required bool graceActive,
+}) {
+  if (status == AccountStatus.sessionARenouveler) return AccountBannerKind.sessionExpiree;
+  if (graceActive) return AccountBannerKind.delaiDeGrace;
+  return AccountBannerKind.aucun;
+}

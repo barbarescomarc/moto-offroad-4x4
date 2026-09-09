@@ -55,4 +55,32 @@ void main() {
   test('une session a renouveler peut malgre tout atteindre l ecran de connexion', () {
     expect(gate(AccountStatus.sessionARenouveler, '/connexion'), isNull);
   });
+
+  // accountBannerKind : quel bandeau MainShell doit afficher, s'il y en a
+  // un (voir AccountBanner et le chapitre 7.2 de la spec pour le delai de
+  // grace, le chapitre 6.5 pour la session a renouveler).
+  test('sessionARenouveler prime, peu importe le delai de grace', () {
+    expect(
+      accountBannerKind(status: AccountStatus.sessionARenouveler, graceActive: true),
+      AccountBannerKind.sessionExpiree,
+    );
+    expect(
+      accountBannerKind(status: AccountStatus.sessionARenouveler, graceActive: false),
+      AccountBannerKind.sessionExpiree,
+    );
+  });
+
+  test('le delai de grace actif affiche son bandeau hors session a renouveler', () {
+    expect(
+      accountBannerKind(status: AccountStatus.deconnecte, graceActive: true),
+      AccountBannerKind.delaiDeGrace,
+    );
+  });
+
+  test('aucun bandeau sans session a renouveler ni delai de grace actif', () {
+    for (final statut in AccountStatus.values) {
+      if (statut == AccountStatus.sessionARenouveler) continue;
+      expect(accountBannerKind(status: statut, graceActive: false), AccountBannerKind.aucun);
+    }
+  });
 }

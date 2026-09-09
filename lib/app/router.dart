@@ -30,6 +30,7 @@ import '../screens/favorites/favorites_screen.dart';
 import '../screens/roadbook/roadbook_screen.dart';
 import '../services/grace_window.dart';
 import '../services/update_checker.dart';
+import '../widgets/account_banner.dart';
 import '../widgets/glass_control.dart';
 import '../widgets/update_tile.dart';
 
@@ -236,6 +237,12 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell> {
   UpdateInfo? _maj;
 
+  // Dernier bandeau de compte que le rider a explicitement refermé (voir
+  // AccountBanner) : refermable pour la session en cours seulement, jamais
+  // persisté — il réapparaît à chaque lancement, comme l'exige le chapitre
+  // 7.2 de la spec pour le délai de grâce.
+  AccountBannerKind? _bandeauCompteMasque;
+
   @override
   void initState() {
     super.initState();
@@ -273,6 +280,11 @@ class _MainShellState extends State<MainShell> {
     // quel que soit l'état accumulé de MapProvider.
     final hidden = settings.autoHideNavBar && !mapProv.navBarVisible;
 
+    final compte = context.watch<AccountProvider>();
+    final bandeauCompte = accountBannerKind(status: compte.status, graceActive: graceWindow.active);
+    final afficherBandeauCompte =
+        bandeauCompte != AccountBannerKind.aucun && bandeauCompte != _bandeauCompteMasque;
+
     return Scaffold(
       body: Column(
         children: [
@@ -281,6 +293,7 @@ class _MainShellState extends State<MainShell> {
               maj: maj,
               onDismiss: () => setState(() => _maj = null),
             ),
+          if (afficherBandeauCompte) _buildAccountBanner(context, bandeauCompte),
           Expanded(child: widget.child),
         ],
       ),
@@ -300,6 +313,39 @@ class _MainShellState extends State<MainShell> {
       case 2: context.go(AppRoutes.rides);    break;
       case 3: context.go(AppRoutes.weather);  break;
       case 4: context.go(AppRoutes.settings); break;
+    }
+  }
+
+  // Un seul mécanisme d'affichage (AccountBanner) pour les deux besoins du
+  // lot comptes riders — voir accountBannerKind pour la règle qui choisit
+  // lequel montrer, jamais les deux à la fois.
+  Widget _buildAccountBanner(BuildContext context, AccountBannerKind bandeau) {
+    switch (bandeau) {
+      case AccountBannerKind.sessionExpiree:
+        return AccountBanner(
+          icon: Icons.lock_clock,
+          message: 'Ta session a expiré. Reconnecte-toi quand tu le peux — '
+              'la carte, le GPS, le SOS et la détection de chute restent disponibles.',
+          actionLabel: 'Se reconnecter',
+          onAction: () => context.push(AppRoutes.login),
+          onDismiss: () => setState(() => _bandeauCompteMasque = bandeau),
+        );
+
+      case AccountBannerKind.delaiDeGrace:
+        final echeance = graceWindow.deadline;
+        final message = echeance == null
+            ? 'Un compte sera bientôt nécessaire pour continuer à utiliser l\'application.'
+            : 'Un compte sera nécessaire à partir du ${formatGraceDeadline(echeance)}.';
+        return AccountBanner(
+          icon: Icons.hourglass_bottom,
+          message: message,
+          actionLabel: 'Créer mon compte',
+          onAction: () => context.push(AppRoutes.register),
+          onDismiss: () => setState(() => _bandeauCompteMasque = bandeau),
+        );
+
+      case AccountBannerKind.aucun:
+        return const SizedBox.shrink();
     }
   }
 }
