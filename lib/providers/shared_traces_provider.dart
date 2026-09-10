@@ -66,6 +66,27 @@ class SharedTracesProvider extends ChangeNotifier {
     return refresh();
   }
 
+  /// Efface la recherche en cours — Trouvaille mineure de la revue finale :
+  /// ce provider est fourni une seule fois pour toute l'application (voir
+  /// `main.dart`), donc partagé entre les comptes qui se succèdent sur le
+  /// même téléphone. Sans ceci, [_reference] (souvent une adresse
+  /// recherchée par le rider précédent), [_referenceLabel] et [_traces]
+  /// survivaient à une déconnexion ou une suppression de compte, jusque
+  /// dans la session du rider suivant. À appeler depuis `AccountScreen` au
+  /// même titre que `AccountProvider.logout()`/`deleteAccount()`.
+  void reset() {
+    _traces = const [];
+    _isLoading = false;
+    _error = null;
+    _reference = null;
+    _referenceLabel = null;
+    _radiusKm = 50;
+    _vehicle = null;
+    _difficulty = null;
+    _query = '';
+    notifyListeners();
+  }
+
   /// Relance la recherche depuis le début (page 0).
   Future<void> refresh() => _load(offset: 0, append: false);
 
@@ -96,9 +117,13 @@ class SharedTracesProvider extends ChangeNotifier {
       _traces = append ? [..._traces, ...resultats] : resultats;
       _error = null;
     } on SharedTracesException catch (e) {
+      // Trouvaille mineure de la revue finale : ce provider n'appelle
+      // jamais l'API en dehors de _api.list() ci-dessus, et
+      // SharedTracesApiClient convertit déjà toute panne de transport en
+      // SharedTracesException (voir son _guarded()) — un `catch (_)` ici ne
+      // pouvait donc jamais s'exécuter, et son message contredisait de
+      // toute façon celui, déjà traduit, que le client produit lui-même.
       _error = e.message;
-    } catch (_) {
-      _error = 'Réseau indisponible';
     } finally {
       _isLoading = false;
       notifyListeners();

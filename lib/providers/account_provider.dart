@@ -597,6 +597,11 @@ class AccountProvider extends ChangeNotifier {
     await _effacerCharteEnAttente();
     _token = null;
     _email = null;
+    // Symétrique de logout() (Trouvaille mineure de la revue finale) :
+    // sans ceci, un rider qui supprime son compte puis en crée un autre sur
+    // le même appareil voyait encore l'ancien prénom, le temps qu'un /me
+    // le corrige.
+    _displayName = null;
     _charteVersion = null;
     _set(AccountStatus.deconnecte);
     return true;

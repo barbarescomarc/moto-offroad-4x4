@@ -7,8 +7,11 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:moto_offroad/providers/account_provider.dart';
+import 'package:moto_offroad/providers/shared_traces_provider.dart';
 import 'package:moto_offroad/services/account_api_client.dart';
+import 'package:moto_offroad/services/shared_traces_api_client.dart';
 import 'package:moto_offroad/screens/account/account_screen.dart';
 
 void main() {
@@ -45,8 +48,19 @@ void main() {
     );
     await p.register(email: 'rider@example.test', password: 'dix caracteres');
 
-    await tester.pumpWidget(ChangeNotifierProvider.value(
-        value: p, child: const MaterialApp(home: AccountScreen())));
+    // AccountScreen efface aussi la recherche du catalogue partagé à la
+    // suppression (Trouvaille mineure de la revue finale) : ce provider
+    // doit donc être disponible ici comme il l'est réellement dans
+    // l'application (voir main.dart).
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AccountProvider>.value(value: p),
+        ChangeNotifierProvider<SharedTracesProvider>(
+          create: (_) => SharedTracesProvider(SharedTracesApiClient(readToken: () async => null)),
+        ),
+      ],
+      child: const MaterialApp(home: AccountScreen()),
+    ));
     await tester.tap(find.byKey(const Key('bouton-supprimer-compte')));
     await tester.pumpAndSettle();
 
@@ -57,5 +71,66 @@ void main() {
     await tester.tap(find.byKey(const Key('bouton-confirmer-suppression')));
     await tester.pumpAndSettle();
     expect(suppressionAppelee, isTrue);
+  });
+
+  // Trouvaille mineure de la revue finale : SharedTracesProvider est fourni
+  // une seule fois pour toute l'application, partagé entre les comptes qui
+  // se succèdent sur le même téléphone.
+
+  testWidgets('la suppression de compte reussie efface aussi la recherche du catalogue partage',
+      (tester) async {
+    final p = AccountProvider(
+      api: AccountApiClient(
+          baseUrl: 'https://exemple.test',
+          client: MockClient((req) async {
+            if (req.method == 'DELETE') return http.Response('{}', 200);
+            return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+          })),
+    );
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+
+    final traces = SharedTracesProvider(SharedTracesApiClient(readToken: () async => null));
+    await traces.setReference(const LatLng(43.6, 1.44), label: '12 rue du Sidobre');
+    expect(traces.reference, isNotNull);
+
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AccountProvider>.value(value: p),
+        ChangeNotifierProvider<SharedTracesProvider>.value(value: traces),
+      ],
+      child: const MaterialApp(home: AccountScreen()),
+    ));
+    await tester.tap(find.byKey(const Key('bouton-supprimer-compte')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('bouton-confirmer-suppression')));
+    await tester.pumpAndSettle();
+
+    expect(traces.reference, isNull,
+        reason: 'un compte supprime ne doit pas laisser la recherche du precedent rider derriere lui');
+  });
+
+  testWidgets('se deconnecter efface aussi la recherche du catalogue partage', (tester) async {
+    final p = AccountProvider(
+      api: AccountApiClient(
+          baseUrl: 'https://exemple.test',
+          client: MockClient((_) async => http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201))),
+    );
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+
+    final traces = SharedTracesProvider(SharedTracesApiClient(readToken: () async => null));
+    await traces.setReference(const LatLng(43.6, 1.44), label: '12 rue du Sidobre');
+    expect(traces.reference, isNotNull);
+
+    await tester.pumpWidget(MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AccountProvider>.value(value: p),
+        ChangeNotifierProvider<SharedTracesProvider>.value(value: traces),
+      ],
+      child: const MaterialApp(home: AccountScreen()),
+    ));
+    await tester.tap(find.byKey(const Key('bouton-deconnexion')));
+    await tester.pumpAndSettle();
+
+    expect(traces.reference, isNull);
   });
 }

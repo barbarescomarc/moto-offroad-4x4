@@ -282,6 +282,27 @@ void main() {
     expect(await AccountStorage().readToken(), isNull);
   });
 
+  // Trouvaille mineure de la revue finale : deleteAccount() effaçait le
+  // jeton, l'email et la charte, mais pas le prénom affiché — contrairement
+  // à logout(), qui efface les quatre. Sans ce correctif, un rider qui
+  // supprime son compte puis en crée un autre sur le même appareil voyait
+  // encore l'ancien prénom, le temps qu'un /me le corrige.
+  test('la suppression de compte efface aussi le prenom affiche, comme la deconnexion', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true, 'displayName': 'Marc'}), 201);
+      }
+      return http.Response('{}', 200); // DELETE /api/account/me
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+    expect(p.displayName, 'Marc');
+
+    final ok = await p.deleteAccount();
+
+    expect(ok, isTrue);
+    expect(p.displayName, isNull);
+  });
+
   // ── Filet local de la charte (Tâche 23C) ──────────────────────
   //
   // Correction I7 avait déjà borné l'appel à /me pour que la robustesse du

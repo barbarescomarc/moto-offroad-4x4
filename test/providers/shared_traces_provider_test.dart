@@ -106,4 +106,22 @@ void main() {
     expect(provider.isLoading, isFalse);
     expect(provider.error, contains('serveur'));
   });
+
+  // Trouvaille mineure de la revue finale : ce provider est fourni une
+  // seule fois pour toute l'application (voir main.dart), donc partagé
+  // entre les comptes qui se succèdent sur le même téléphone.
+  test('reset efface la reference, son libelle et les resultats', () async {
+    final api = _ApiFactice()..reponse = [resume('t1')];
+    final provider = SharedTracesProvider(api);
+    await provider.setReference(const LatLng(43.6, 1.44), label: '12 rue du Sidobre');
+    expect(provider.traces, isNotEmpty);
+
+    provider.reset();
+
+    expect(provider.reference, isNull);
+    expect(provider.referenceLabel, isNull,
+        reason: 'souvent une adresse cherchee par le rider precedent, elle ne doit pas survivre a son depart');
+    expect(provider.traces, isEmpty);
+    expect(provider.error, isNull);
+  });
 }

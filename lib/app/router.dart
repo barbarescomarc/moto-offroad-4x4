@@ -106,6 +106,11 @@ class _AccountGateBridge extends ChangeNotifier {
 // par défaut.
 GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
   final pont = _AccountGateBridge();
+  // Trouvaille mineure de la revue finale : trois pageBuilders en
+  // construisaient chacun un exemplaire séparé (donc un http.Client sous-
+  // jacent jamais fermé, à chaque fois) au lieu de partager celui-ci — une
+  // seule instance pour toute la durée de vie de ce routeur.
+  final tracesApi = SharedTracesApiClient(readToken: () => AccountStorage().readToken());
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -152,9 +157,7 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
           GoRoute(
             path: AppRoutes.myPublications,
             pageBuilder: (_, __) => MaterialPage(
-              child: MyPublicationsScreen(
-                api: SharedTracesApiClient(readToken: () => AccountStorage().readToken()),
-              ),
+              child: MyPublicationsScreen(api: tracesApi),
             ),
           ),
           GoRoute(
@@ -162,7 +165,7 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
             pageBuilder: (_, state) => MaterialPage(
               child: SharedTraceDetailScreen(
                 traceId: state.pathParameters['id']!,
-                api: SharedTracesApiClient(readToken: () => AccountStorage().readToken()),
+                api: tracesApi,
               ),
             ),
           ),
@@ -198,7 +201,7 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
           fullscreenDialog: true,
           child: PublishTraceScreen(
             rideId: state.pathParameters['id']!,
-            api: SharedTracesApiClient(readToken: () => AccountStorage().readToken()),
+            api: tracesApi,
           ),
         ),
       ),
