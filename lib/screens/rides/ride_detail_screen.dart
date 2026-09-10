@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import '../../app/router.dart';
 import '../../models/ride.dart';
 import '../../providers/rides_provider.dart';
 import '../../services/ride_export_service.dart';
@@ -36,6 +38,13 @@ class RideDetailScreen extends StatelessWidget {
               await RideExportService().shareGpx(ride, points);
             },
           ),
+          // Une sortie téléchargée depuis le catalogue n'appartient pas au
+          // rider : il ne peut pas republier la trace d'un autre.
+          if (ride.sharedTraceId == null)
+            TextButton(
+              onPressed: () => context.push('${AppRoutes.rides}/${ride.id}/publier'),
+              child: const Text('Publier', style: TextStyle(color: Colors.white)),
+            ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Supprimer',

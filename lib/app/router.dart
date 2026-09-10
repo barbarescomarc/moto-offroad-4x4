@@ -21,6 +21,7 @@ import '../screens/fuel/fuel_screen.dart';
 import '../screens/group/group_screen.dart';
 import '../screens/weather/weather_screen.dart';
 import '../screens/rides/rides_screen.dart';
+import '../screens/rides/publish_trace_screen.dart';
 import '../screens/rides/ride_detail_screen.dart';
 import '../screens/rides/shared_trace_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
@@ -175,6 +176,16 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
         path: AppRoutes.account,
         pageBuilder: (_, __) => const MaterialPage(
             fullscreenDialog: true, child: AccountScreen()),
+      ),
+      GoRoute(
+        path: '${AppRoutes.rides}/:id/publier',
+        pageBuilder: (_, state) => MaterialPage(
+          fullscreenDialog: true,
+          child: PublishTraceScreen(
+            rideId: state.pathParameters['id']!,
+            api: SharedTracesApiClient(readToken: () => AccountStorage().readToken()),
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.sos,
