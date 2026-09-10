@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import '../services/account_api_client.dart';
 import '../services/account_storage.dart';
+import '../services/legal_documents.dart';
 
 /// État d'accès au compte rider, tel que vu par le reste de l'application.
 ///
@@ -36,6 +37,7 @@ class AccountProvider extends ChangeNotifier {
   String? _token;
   String? _email;
   String? _displayName;
+  String? _charteVersion;
   AccountError? _lastError;
 
   AccountStatus get status => _status;
@@ -43,6 +45,12 @@ class AccountProvider extends ChangeNotifier {
   String? get displayName => _displayName;
   AccountError? get lastError => _lastError;
   String? get token => _token;
+
+  /// Version de la charte du pilote acceptée par ce compte côté serveur,
+  /// `null` si jamais acceptée (compte créé avant cette fonctionnalité, ou
+  /// pas encore rechargé depuis le serveur). `AccountGate` s'appuie dessus
+  /// pour interposer `CharteScreen` entre la vérification et la carte.
+  String? get charteVersion => _charteVersion;
 
   void _set(AccountStatus status) {
     _status = status;
@@ -81,6 +89,7 @@ class AccountProvider extends ChangeNotifier {
       _lastError = null;
       _email = profil.value!.email;
       _displayName = profil.value!.displayName;
+      _charteVersion = profil.value!.charteVersion;
       _set(profil.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
       return;
     }
@@ -105,7 +114,7 @@ class AccountProvider extends ChangeNotifier {
     _set(AccountStatus.connecte);
   }
 
-  Future<bool> _apply(AccountResult<AccountSession> res, String email) async {
+  Future<bool> _apply(AccountResult<AccountSession> res, String email, {String? charteVersion}) async {
     _lastError = res.error;
     if (!res.ok) {
       notifyListeners();
@@ -114,13 +123,28 @@ class AccountProvider extends ChangeNotifier {
     _token = res.value!.token;
     _email = email;
     _displayName = res.value!.displayName;
+    // Priorité à la valeur que l'appelant vient d'envoyer (inscription,
+    // voir [register]) : elle ne dépend pas de la réponse du serveur, qui
+    // pourrait ne pas la renvoyer en écho. À défaut (connexion), on s'en
+    // remet à ce que le serveur renvoie, `null` compris pour un compte
+    // antérieur à cette fonctionnalité.
+    _charteVersion = charteVersion ?? res.value!.charteVersion;
     await _storage.writeToken(_token!);
     _set(res.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
     return true;
   }
 
-  Future<bool> register({required String email, required String password, String? displayName}) async =>
-      _apply(await _api.register(email: email, password: password, displayName: displayName), email);
+  Future<bool> register({
+    required String email,
+    required String password,
+    String? displayName,
+    String? charteVersion,
+  }) async =>
+      _apply(
+        await _api.register(email: email, password: password, displayName: displayName, charteVersion: charteVersion),
+        email,
+        charteVersion: charteVersion,
+      );
 
   Future<bool> login({required String email, required String password}) async =>
       _apply(await _api.login(email: email, password: password), email);
@@ -145,12 +169,26 @@ class AccountProvider extends ChangeNotifier {
     // nécessaire » indéfiniment, alors que le serveur répond normalement.
     _lastError = null;
     _email = profil.value!.email;
+    _charteVersion = profil.value!.charteVersion;
     if (profil.value!.verified) {
       _set(AccountStatus.connecte);
       return true;
     }
     _set(AccountStatus.nonVerifie);
     return false;
+  }
+
+  /// Enregistre l'acceptation de la charte du pilote et met à jour l'état
+  /// local. C'est ce qui fait disparaître `CharteScreen` : `accountRedirect`
+  /// réévalue dès la notification déclenchée ici, sans navigation explicite
+  /// à faire depuis l'écran.
+  Future<bool> acceptCharte({String version = LegalDocuments.charteVersion}) async {
+    if (_token == null) return false;
+    final res = await _api.acceptCharte(token: _token!, version: version);
+    _lastError = res.error;
+    if (res.ok) _charteVersion = version;
+    notifyListeners();
+    return res.ok;
   }
 
   Future<bool> resendVerification() async {
@@ -183,6 +221,7 @@ class AccountProvider extends ChangeNotifier {
     _token = null;
     _email = null;
     _displayName = null;
+    _charteVersion = null;
     _set(AccountStatus.deconnecte);
   }
 
@@ -197,6 +236,7 @@ class AccountProvider extends ChangeNotifier {
     await _storage.clear();
     _token = null;
     _email = null;
+    _charteVersion = null;
     _set(AccountStatus.deconnecte);
     return true;
   }

@@ -13,6 +13,7 @@ import '../screens/account/login_screen.dart';
 import '../screens/account/verify_screen.dart';
 import '../screens/account/forgot_password_screen.dart';
 import '../screens/account/account_screen.dart';
+import '../screens/legal/charte_screen.dart';
 import '../screens/map/map_screen.dart';
 import '../screens/sos/sos_screen.dart';
 import '../screens/solo/solo_screen.dart';
@@ -118,6 +119,7 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
         status: compte.status,
         location: state.matchedLocation,
         graceActive: graceWindow.active,
+        charteVersion: compte.charteVersion,
       );
     },
     routes: [
@@ -233,6 +235,10 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
             fullscreenDialog: true, child: FallCountdownScreen()),
       ),
       // Écrans du compte (hors ShellRoute : pas de barre de navigation).
+      GoRoute(
+        path: charteRoute,
+        pageBuilder: (_, __) => const NoTransitionPage(child: CharteScreen()),
+      ),
       GoRoute(
         path: AppRoutes.welcome,
         pageBuilder: (_, __) => const NoTransitionPage(child: WelcomeScreen()),

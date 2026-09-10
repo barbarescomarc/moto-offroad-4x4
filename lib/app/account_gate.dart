@@ -1,8 +1,15 @@
 import '../providers/account_provider.dart';
+import '../services/legal_documents.dart';
 
 /// Chemins accessibles sans compte : les écrans du compte lui-même.
 const Set<String> accountRoutes = {'/bienvenue', '/inscription', '/connexion', '/mot-de-passe-oublie'};
 const String verificationRoute = '/verification';
+
+/// Écran de la charte du pilote (Tâche 23B) : mur interposé entre la
+/// vérification d'adresse et le reste de l'application, y compris pour un
+/// rider inscrit avant l'existence de cette fonctionnalité (charteVersion
+/// `null` côté serveur — voir `AccountProvider.charteVersion`).
+const String charteRoute = '/charte';
 
 /// Règle d'accès à l'application. Fonction pure : c'est la décision la plus
 /// lourde de conséquences du lot, elle se teste sans monter d'interface.
@@ -13,6 +20,7 @@ String? accountRedirect({
   required AccountStatus status,
   required String location,
   required bool graceActive,
+  String? charteVersion,
 }) {
   final surEcranDeCompte = accountRoutes.contains(location);
 
@@ -40,6 +48,17 @@ String? accountRedirect({
 
     case AccountStatus.connecte:
       if (surEcranDeCompte || location == verificationRoute) return '/';
+      // La charte est un mur au même titre que la vérification d'adresse,
+      // juste après elle : tant qu'elle n'est pas acceptée dans sa version
+      // courante, rien d'autre n'est atteignable — carte comprise. Ne
+      // jamais monter la carte avant cette vérification : son initState
+      // demanderait aussitôt la permission de localisation (correctif I7,
+      // voir _MapGate dans router.dart), avant même que ce mur ait pu
+      // s'appliquer.
+      if (charteVersion != LegalDocuments.charteVersion) {
+        return location == charteRoute ? null : charteRoute;
+      }
+      if (location == charteRoute) return '/';
       return null;
   }
 }

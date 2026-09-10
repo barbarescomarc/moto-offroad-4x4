@@ -159,6 +159,68 @@ void main() {
     expect(p.lastError, AccountError.reseau);
   });
 
+  // ── Charte du pilote (Tâche 23B) ──────────────────────────────
+
+  test('un compte cree avant la charte a une version nulle apres restore', () async {
+    // Le serveur ne renvoie aucun champ charteVersion pour ce compte —
+    // exactement le cas d'un rider inscrit avant cette fonctionnalité.
+    await AccountStorage().writeToken('jeton');
+    final p = provider(MockClient((_) async =>
+        http.Response(jsonEncode({'email': 'rider@example.test', 'verified': true}), 200)));
+    await p.restore();
+    expect(p.charteVersion, isNull);
+  });
+
+  test('une inscription envoyant la charte la memorise localement, meme sans echo du serveur', () async {
+    // Le serveur ne renvoie pas charteVersion dans sa reponse : la version
+    // locale doit tout de meme etre celle que le rider vient d'envoyer,
+    // sans dependre d'un contrat d'echo qu'on ne maitrise pas.
+    final p = provider(MockClient((_) async =>
+        http.Response(jsonEncode({'token': 'jeton', 'verified': false}), 201)));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres', charteVersion: '1.0');
+    expect(p.charteVersion, '1.0');
+  });
+
+  test('accepter la charte l enregistre cote serveur et memorise la version', () async {
+    final requetes = <Map<String, dynamic>>[];
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      requetes.add(jsonDecode(req.body) as Map<String, dynamic>);
+      return http.Response('{}', 200);
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+    expect(p.charteVersion, isNull, reason: 'compte enregistre sans charte envoyee par ce test');
+
+    final ok = await p.acceptCharte(version: '1.0');
+    expect(ok, isTrue);
+    expect(p.charteVersion, '1.0');
+    expect(requetes.single['version'], '1.0');
+  });
+
+  test('sans jeton, accepter la charte ne fait rien et rend faux', () async {
+    final p = provider(MockClient((_) async => http.Response('{}', 200)));
+    final ok = await p.acceptCharte(version: '1.0');
+    expect(ok, isFalse);
+    expect(p.charteVersion, isNull);
+  });
+
+  test('un echec serveur en acceptant la charte ne modifie pas la version locale', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 500);
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+
+    final ok = await p.acceptCharte(version: '1.0');
+    expect(ok, isFalse);
+    expect(p.charteVersion, isNull);
+    expect(p.lastError, AccountError.inconnue);
+  });
+
   test('la deconnexion efface le jeton et mene a deconnecte, pas a sessionARenouveler', () async {
     // deconnecte reste réservé aux gestes explicites du rider (logout,
     // deleteAccount) — jamais à une révocation côté serveur, voir le test

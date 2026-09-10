@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../providers/account_provider.dart';
 import '../../services/account_api_client.dart';
+import '../../services/legal_documents.dart';
 import 'account_error_messages.dart';
 
 /// Création de compte : c'est le passage obligé avant tout accès à la
@@ -45,6 +46,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
       email: _email.text.trim(),
       password: _motDePasse.text,
       displayName: _prenom.text.trim(),
+      // Un compte créé depuis cette version n'a donc jamais à repasser par
+      // CharteScreen — voir accountRedirect dans account_gate.dart.
+      charteVersion: LegalDocuments.charteVersion,
     );
     if (!mounted) return;
     setState(() {

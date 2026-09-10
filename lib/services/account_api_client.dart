@@ -2,11 +2,24 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 /// Jeton de session renvoyé par le serveur à l'inscription ou à la connexion.
+///
+/// [charteVersion] est la version de la charte du pilote enregistrée côté
+/// serveur pour ce compte (`null` pour un compte qui ne l'a jamais acceptée
+/// — voir `AccountGate`). Le serveur la renvoie ici comme dans [AccountProfile] :
+/// à l'inscription, elle reflète ce que `RegisterScreen` vient d'envoyer ;
+/// à la connexion, elle reflète ce qui était déjà enregistré, `null` compris
+/// pour un compte créé avant cette fonctionnalité.
 class AccountSession {
   final String token;
   final bool verified;
   final String? displayName;
-  const AccountSession({required this.token, required this.verified, this.displayName});
+  final String? charteVersion;
+  const AccountSession({
+    required this.token,
+    required this.verified,
+    this.displayName,
+    this.charteVersion,
+  });
 }
 
 /// Profil du compte tel que renvoyé par /api/account/me.
@@ -14,7 +27,13 @@ class AccountProfile {
   final String email;
   final bool verified;
   final String? displayName;
-  const AccountProfile({required this.email, required this.verified, this.displayName});
+  final String? charteVersion;
+  const AccountProfile({
+    required this.email,
+    required this.verified,
+    this.displayName,
+    this.charteVersion,
+  });
 }
 
 /// Une panne de réseau et un refus du serveur n'appellent pas la même
@@ -95,6 +114,7 @@ class AccountApiClient {
         token: j['token'] as String,
         verified: j['verified'] as bool? ?? false,
         displayName: j['displayName'] as String?,
+        charteVersion: j['charteVersion'] as String?,
       ));
     } catch (_) {
       return const AccountResult.failure(AccountError.reseau);
@@ -102,15 +122,22 @@ class AccountApiClient {
   }
 
   /// Crée un compte. `displayName` est optionnel côté serveur.
+  ///
+  /// [charteVersion] : `RegisterScreen` envoie systématiquement la version
+  /// courante de la charte du pilote (voir `LegalDocuments.charteVersion`)
+  /// — un compte créé avec ce paramètre n'a donc jamais à repasser par
+  /// `CharteScreen`.
   Future<AccountResult<AccountSession>> register({
     required String email,
     required String password,
     String? displayName,
+    String? charteVersion,
   }) =>
       _sessionCall('/api/account/register', {
         'email': email,
         'password': password,
         if (displayName != null && displayName.isNotEmpty) 'displayName': displayName,
+        if (charteVersion != null) 'charteVersion': charteVersion,
       });
 
   /// Connecte un compte existant.
@@ -140,6 +167,7 @@ class AccountApiClient {
         email: j['email'] as String,
         verified: j['verified'] as bool? ?? false,
         displayName: j['displayName'] as String?,
+        charteVersion: j['charteVersion'] as String?,
       ));
     } catch (_) {
       return const AccountResult.failure(AccountError.reseau);
@@ -187,4 +215,9 @@ class AccountApiClient {
   /// Supprime le compte connecté.
   Future<AccountResult<void>> deleteAccount({required String token}) =>
       _voidCall('/api/account/me', token: token, method: 'DELETE');
+
+  /// Enregistre l'acceptation de la charte du pilote par le compte connecté
+  /// — voir `CharteScreen` et `AccountGate`.
+  Future<AccountResult<void>> acceptCharte({required String token, required String version}) =>
+      _voidCall('/api/account/charte', token: token, body: {'version': version});
 }

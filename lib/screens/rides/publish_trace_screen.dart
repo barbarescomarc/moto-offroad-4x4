@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_map/flutter_map.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,6 +8,7 @@ import '../../models/ride.dart';
 import '../../models/shared_trace.dart';
 import '../../providers/rides_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../services/legal_documents.dart';
 import '../../services/shared_traces_api_client.dart';
 import '../../services/trace_crop_service.dart';
 
@@ -356,18 +356,24 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
 
 // ── Texte complet des conditions ─────────────────────────────
 //
-// Une seule maison pour ce texte : le fichier docs/legal, jamais recopié en
-// dur dans le code Dart, pour qu'une correction n'ait jamais à être faite à
+// Une seule maison pour ce texte : LegalDocuments, jamais recopié en dur
+// dans le code Dart, pour qu'une correction n'ait jamais à être faite à
 // deux endroits.
 class _ConditionsPublicationScreen extends StatelessWidget {
   const _ConditionsPublicationScreen();
+
+  // Chargé une seule fois pour toutes les instances : recréer ce Future à
+  // chaque build() ferait repasser le FutureBuilder en chargement à chaque
+  // reconstruction — voir la même remarque, plus détaillée, sur
+  // CharteScreen._charte.
+  static final Future<String> _texte = LegalDocuments.conditionsPublication();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Conditions de publication')),
       body: FutureBuilder<String>(
-        future: rootBundle.loadString('docs/legal/conditions-publication-traces.md'),
+        future: _texte,
         builder: (context, snap) {
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           return SingleChildScrollView(

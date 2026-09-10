@@ -86,6 +86,7 @@ flutter:
     - assets/icons/
     - assets/maps/
     - docs/legal/conditions-publication-traces.md
+    - docs/legal/charte-du-pilote.md
   # Polices Rajdhani à ajouter quand les fichiers .ttf seront présents dans assets/fonts/
   # fonts:
   #   - family: Rajdhani
