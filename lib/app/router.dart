@@ -22,13 +22,16 @@ import '../screens/group/group_screen.dart';
 import '../screens/weather/weather_screen.dart';
 import '../screens/rides/rides_screen.dart';
 import '../screens/rides/ride_detail_screen.dart';
+import '../screens/rides/shared_trace_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/vibration_calibration_screen.dart';
 import '../screens/settings/call_settings_screen.dart';
 import '../screens/sos/fall_countdown_screen.dart';
 import '../screens/favorites/favorites_screen.dart';
 import '../screens/roadbook/roadbook_screen.dart';
+import '../services/account_storage.dart';
 import '../services/grace_window.dart';
+import '../services/shared_traces_api_client.dart';
 import '../services/update_checker.dart';
 import '../widgets/account_banner.dart';
 import '../widgets/glass_control.dart';
@@ -41,6 +44,7 @@ class AppRoutes {
   static const String map         = '/';
   static const String fuel        = '/fuel';
   static const String rides       = '/rides';
+  static const String traces      = '/traces';
   static const String weather     = '/weather';
   static const String settings    = '/settings';
   static const String calibration = '/calibration';
@@ -136,6 +140,15 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
                 ),
               ),
             ],
+          ),
+          GoRoute(
+            path: '${AppRoutes.traces}/:id',
+            pageBuilder: (_, state) => MaterialPage(
+              child: SharedTraceDetailScreen(
+                traceId: state.pathParameters['id']!,
+                api: SharedTracesApiClient(readToken: () => AccountStorage().readToken()),
+              ),
+            ),
           ),
           GoRoute(
             path: AppRoutes.weather,
@@ -303,7 +316,7 @@ class _MainShellState extends State<MainShell> {
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
-    if (location.startsWith(AppRoutes.rides)) return 2;
+    if (location.startsWith(AppRoutes.rides) || location.startsWith(AppRoutes.traces)) return 2;
     switch (location) {
       case AppRoutes.map:      return 0;
       case AppRoutes.fuel:     return 1;
