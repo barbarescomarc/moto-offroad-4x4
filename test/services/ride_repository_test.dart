@@ -107,4 +107,43 @@ void main() {
     expect(await repo.findRide('r1'), isNull);
     expect(await repo.pointsOf('r1'), isEmpty);
   });
+
+  test('une sortie telechargee retient l identifiant de la trace partagee', () async {
+    await repo.insertRide(Ride(
+      id: 'r1', name: 'Boucle du Sidobre', startedAt: DateTime(2026, 9, 1),
+      source: RideSource.imported, status: RideStatus.finished,
+      stats: RideStats.empty, sharedTraceId: 'abc123',
+    ));
+
+    final relue = await repo.findRide('r1');
+    expect(relue!.sharedTraceId, 'abc123');
+  });
+
+  test('une sortie enregistree n a pas d origine partagee', () async {
+    await repo.insertRide(Ride(
+      id: 'r2', name: 'Sortie du dimanche', startedAt: DateTime(2026, 9, 1),
+      source: RideSource.recorded, status: RideStatus.finished, stats: RideStats.empty,
+    ));
+
+    expect((await repo.findRide('r2'))!.sharedTraceId, isNull);
+  });
+
+  test('la migration v1 vers v2 ajoute la colonne sans perdre les sorties', () async {
+    final ancienne = await databaseFactoryFfi.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(version: 1, onCreate: RideDatabase.onCreate),
+    );
+    await ancienne.insert('rides', {
+      'id': 'ancienne', 'name': 'Avant migration', 'started_at': 1, 'source': 'recorded',
+      'status': 'finished', 'distance_m': 0, 'total_time_s': 0, 'moving_time_s': 0,
+      'avg_speed_kmh': 0, 'max_speed_kmh': 0,
+    });
+    await RideDatabase.onUpgrade(ancienne, 1, 2);
+
+    final rows = await ancienne.query('rides');
+    expect(rows.length, 1);
+    expect(rows.first['shared_trace_id'], isNull);
+
+    await ancienne.close();
+  });
 }

@@ -92,6 +92,7 @@ class RideRepository {
     'moving_time_s': r.stats.movingTime.inSeconds,
     'avg_speed_kmh': r.stats.avgSpeedKmh,
     'max_speed_kmh': r.stats.maxSpeedKmh,
+    'shared_trace_id': r.sharedTraceId,
   };
 
   Ride _toRide(Map<String, Object?> row) => Ride(
@@ -111,6 +112,7 @@ class RideRepository {
       avgSpeedKmh:    (row['avg_speed_kmh'] as num).toDouble(),
       maxSpeedKmh:    (row['max_speed_kmh'] as num).toDouble(),
     ),
+    sharedTraceId: row['shared_trace_id'] as String?,
   );
 
   Map<String, Object?> _toPointRow(RidePoint p) => {

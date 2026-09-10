@@ -99,6 +99,11 @@ class Ride {
   final RideSource source;
   final RideStatus status;
   final RideStats stats;
+  // Id de la trace d'origine sur le catalogue partage, quand cette sortie a
+  // ete telechargee depuis le partage plutot qu'enregistree ou importee
+  // localement. Sert a interdire de republier la trace d'un autre, et a
+  // afficher « telechargee depuis le partage » sur la fiche locale.
+  final String? sharedTraceId;
 
   const Ride({
     required this.id,
@@ -109,6 +114,7 @@ class Ride {
     required this.source,
     required this.status,
     required this.stats,
+    this.sharedTraceId,
   });
 
   bool get isRecording => status == RideStatus.recording;
@@ -119,6 +125,7 @@ class Ride {
     DateTime? endedAt,
     RideStatus? status,
     RideStats? stats,
+    String? sharedTraceId,
   }) => Ride(
     id:        id,
     name:      name      ?? this.name,
@@ -128,5 +135,6 @@ class Ride {
     source:    source,
     status:    status    ?? this.status,
     stats:     stats     ?? this.stats,
+    sharedTraceId: sharedTraceId ?? this.sharedTraceId,
   );
 }

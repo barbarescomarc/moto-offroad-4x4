@@ -4,7 +4,7 @@ import 'package:sqflite/sqflite.dart';
 
 // ── Base de données locale des sorties ───────────────────────
 class RideDatabase {
-  static const int schemaVersion = 1;
+  static const int schemaVersion = 2;
   static const String fileName = 'rides.db';
 
   static Database? _instance;
@@ -37,7 +37,8 @@ class RideDatabase {
         total_time_s  INTEGER NOT NULL DEFAULT 0,
         moving_time_s INTEGER NOT NULL DEFAULT 0,
         avg_speed_kmh REAL    NOT NULL DEFAULT 0,
-        max_speed_kmh REAL    NOT NULL DEFAULT 0
+        max_speed_kmh REAL    NOT NULL DEFAULT 0,
+        shared_trace_id TEXT
       )
     ''');
 
@@ -60,10 +61,24 @@ class RideDatabase {
     );
   }
 
-  // ── Migrations des lots suivants ─────────────────────────
-  // Aucune migration en v1. Les lots 2 à 6 ajouteront leurs colonnes ici,
-  // en incrémentant schemaVersion et en traitant chaque palier.
-  static Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {}
+  // ── Migrations ───────────────────────────────────────────
+  // v2 : origine d'une sortie telechargee depuis le catalogue partage.
+  // Elle empeche de republier la trace d'un autre, et sert a afficher
+  // « telechargee depuis le partage » sur la fiche locale.
+  //
+  // La verification de colonne existante rend le palier idempotent : une
+  // base ouverte via onCreate (qui construit deja le schema courant, colonne
+  // comprise, comme le veut sqflite pour une installation neuve) ne doit pas
+  // faire echouer un ALTER TABLE en double si onUpgrade est rejoue dessus.
+  static Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      final columns = await db.rawQuery('PRAGMA table_info(rides)');
+      final hasSharedTraceId = columns.any((c) => c['name'] == 'shared_trace_id');
+      if (!hasSharedTraceId) {
+        await db.execute('ALTER TABLE rides ADD COLUMN shared_trace_id TEXT');
+      }
+    }
+  }
 
   // ── Taille occupée sur le disque ─────────────────────────
   static Future<int> sizeBytes() async {
