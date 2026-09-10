@@ -22,8 +22,17 @@ const _rayonsKm = [10.0, 25.0, 50.0, 100.0, 200.0];
 /// un onglet de liste serait une régression. Ce volet se contente de la
 /// dernière position connue de [LocationService] ; si elle n'existe pas
 /// encore, le rider choisit un lieu via le sélecteur de favoris.
+///
+/// [estVisible] indique si ce volet est celui actuellement affiché par
+/// `RidesScreen` (qui monte les deux volets en permanence dans un
+/// `IndexedStack`, pour ne jamais relancer `provider.refresh()` sur
+/// `MyRidesPanel` à chaque bascule). Sans ce drapeau, l'amorçage se
+/// déclencherait dès l'ouverture de l'onglet Sorties, même pour un rider
+/// resté sur « Mes sorties » — une requête réseau qu'il n'a pas demandée.
 class SharedTracesPanel extends StatefulWidget {
-  const SharedTracesPanel({super.key});
+  const SharedTracesPanel({super.key, required this.estVisible});
+
+  final bool estVisible;
 
   @override
   State<SharedTracesPanel> createState() => _SharedTracesPanelState();
@@ -36,6 +45,20 @@ class _SharedTracesPanelState extends State<SharedTracesPanel> {
   @override
   void initState() {
     super.initState();
+    if (widget.estVisible) _programmerAmorcage();
+  }
+
+  @override
+  void didUpdateWidget(covariant SharedTracesPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Le volet vient d'être affiché pour la première fois : c'est le seul
+    // moment où on tente l'amorçage. Un aller-retour ultérieur entre les
+    // deux volets ne le redéclenche pas — l'IndexedStack garde l'état de ce
+    // volet, il n'a pas besoin d'être réamorcé.
+    if (widget.estVisible && !oldWidget.estVisible) _programmerAmorcage();
+  }
+
+  void _programmerAmorcage() {
     // Une seule tentative d'amorçage par ouverture du volet : ensuite, seul
     // un geste du rider (choisir un lieu, changer un filtre) doit relancer
     // une recherche.

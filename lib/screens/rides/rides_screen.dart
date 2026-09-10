@@ -39,10 +39,18 @@ class _RidesScreenState extends State<RidesScreen> {
           // remonterait le volet caché à chaque bascule, ce qui relancerait
           // son initState (et donc un nouveau refresh()) à chaque fois —
           // une extraction n'est pas censée changer ce comportement.
+          // SharedTracesPanel reçoit en plus estVisible : l'IndexedStack le
+          // monte dès l'ouverture de l'onglet même si « Mes sorties » est
+          // affiché, et sans ce drapeau son amorçage (position + requête
+          // catalogue) partirait immédiatement au lieu d'attendre que le
+          // rider bascule vraiment sur « Partagées ».
           Expanded(
             child: IndexedStack(
               index: _volet,
-              children: const [MyRidesPanel(), SharedTracesPanel()],
+              children: [
+                const MyRidesPanel(),
+                SharedTracesPanel(estVisible: _volet == 1),
+              ],
             ),
           ),
         ],

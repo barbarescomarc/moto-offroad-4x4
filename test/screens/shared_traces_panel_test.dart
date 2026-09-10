@@ -12,6 +12,7 @@ import 'package:moto_offroad/providers/rides_provider.dart';
 import 'package:moto_offroad/providers/shared_traces_provider.dart';
 import 'package:moto_offroad/screens/rides/rides_screen.dart';
 import 'package:moto_offroad/screens/rides/shared_traces_panel.dart';
+import 'package:moto_offroad/services/location_service.dart';
 import 'package:moto_offroad/services/ride_database.dart';
 import 'package:moto_offroad/services/ride_repository.dart';
 import 'package:moto_offroad/services/shared_traces_api_client.dart';
@@ -78,11 +79,12 @@ class _ApiFactice extends SharedTracesApiClient {
 // suffisant pour vérifier la bascule entre les deux volets. La base doit
 // être ouverte avant l'appel (via `tester.runAsync`, voir le test) : sqflite
 // ffi passe par un isolate réel, incompatible avec l'horloge simulée d'un
-// simple `pumpWidget`.
-Widget appDeTest(RideRepository repository) => MultiProvider(
+// simple `pumpWidget`. Le provider du catalogue partagé est fourni par
+// l'appelant, pour pouvoir observer ensuite les appels de son double API.
+Widget appDeTest(RideRepository repository, SharedTracesProvider sharedTraces) => MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => RidesProvider(repository: repository)),
-        ChangeNotifierProvider(create: (_) => SharedTracesProvider(_ApiFactice())),
+        ChangeNotifierProvider.value(value: sharedTraces),
       ],
       child: const MaterialApp(home: RidesScreen()),
     );
@@ -99,10 +101,12 @@ Future<RideRepository> ouvrirDepotDeTest() async {
   return RideRepository(db);
 }
 
-// Le volet seul, branché sur un provider déjà préparé par le test.
+// Le volet seul, branché sur un provider déjà préparé par le test — toujours
+// le volet visible : ces tests portent sur son contenu, pas sur l'amorçage
+// paresseux (couvert séparément via appDeTest + RidesScreen).
 Widget panneauDeTest(SharedTracesProvider provider) => ChangeNotifierProvider.value(
       value: provider,
-      child: const MaterialApp(home: Scaffold(body: SharedTracesPanel())),
+      child: const MaterialApp(home: Scaffold(body: SharedTracesPanel(estVisible: true))),
     );
 
 void main() {
@@ -117,7 +121,7 @@ void main() {
     // fois le test suivant démarré.
     await tester.runAsync(() async {
       final repository = await ouvrirDepotDeTest();
-      await tester.pumpWidget(appDeTest(repository));
+      await tester.pumpWidget(appDeTest(repository, SharedTracesProvider(_ApiFactice())));
       await tester.pump();
       await Future<void>.delayed(const Duration(milliseconds: 100));
       await tester.pump();
@@ -233,5 +237,57 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(MapSearchBar), findsOneWidget);
+  });
+
+  testWidgets('le catalogue partage n est interroge qu apres bascule sur Partagees', (tester) async {
+    // LocationService est un singleton réel, sans plugin GPS en test : sans
+    // une position connue, l'amorçage tombe systématiquement sur la voie
+    // "Position inconnue" (aucun appel réseau, avec ou sans le correctif) —
+    // ce qui ne prouverait rien. Le débogueur de position simule donc une
+    // position déjà connue, pour que l'amorçage déclenche un vrai appel API
+    // s'il se produit.
+    addTearDown(() => LocationService().debugSetLastSnapshot(null));
+    LocationService().debugSetLastSnapshot(
+      GpsSnapshot(
+        position: const LatLng(43.6, 1.44),
+        accuracyMeters: 5,
+        altitudeMeters: 200,
+        speedKmh: 0,
+        headingDeg: 0,
+        timestamp: DateTime(2026, 1, 1),
+      ),
+    );
+
+    final api = _ApiFactice()..reponse = [];
+    final sharedTraces = SharedTracesProvider(api);
+
+    await tester.runAsync(() async {
+      final repository = await ouvrirDepotDeTest();
+      await tester.pumpWidget(appDeTest(repository, sharedTraces));
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await tester.pump();
+
+      // Ouverture sur « Mes sorties » : aucun appel au catalogue partagé.
+      expect(api.appels, isEmpty);
+
+      await tester.tap(find.text('Partagées'));
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await tester.pump();
+
+      expect(api.appels.length, 1);
+
+      // Un aller-retour ne réamorce pas : l'IndexedStack garde l'état du
+      // volet déjà activé, ce qui est tout le sens du correctif.
+      await tester.tap(find.text('Mes sorties'));
+      await tester.pump();
+      await tester.tap(find.text('Partagées'));
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await tester.pump();
+
+      expect(api.appels.length, 1);
+    });
   });
 }
