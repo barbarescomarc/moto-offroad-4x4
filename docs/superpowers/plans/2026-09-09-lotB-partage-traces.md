@@ -2031,6 +2031,111 @@ git commit -m "feat(traces): consentement aux conditions de publication enregist
 
 ---
 
+### Task 13C: Acceptation de la charte du pilote
+
+**Files:**
+- Modify: `src/db.js` (deux colonnes sur `account`), `src/routes/account.js`
+- Test: `test/account.test.js`
+
+**Interfaces:**
+- Consumes: le routeur de compte du lot A, `authenticate` (Task 1).
+- Produces: colonnes `charte_version TEXT` et `charte_accepted_at INTEGER` sur `account` ; constante exportée `CHARTE_VERSION = '1.0'` ; `POST /api/account/register` exige `charteVersion` et refuse en `400 { error: 'charte non acceptee' }` sinon ; `POST /api/account/charte` (authentifié, corps `{ version }`) enregistre l'acceptation ; `GET /api/account/me` renvoie `charteVersion`.
+
+**Pourquoi.** La charte (`docs/legal/charte-du-pilote.md`) n'a de valeur que si l'on peut prouver qui l'a acceptée, dans quelle version et quand. Elle concerne **tous** les pilotes, pas seulement ceux qui publient : c'est elle qui informe des limites de la détection de chute et de la chaîne d'alerte. Les comptes créés avant cette tâche — il y en a déjà en production — n'ont rien accepté : `GET /me` doit donc pouvoir répondre `charteVersion: null`, et `POST /api/account/charte` existe pour qu'ils se mettent à jour sans recréer de compte.
+
+- [ ] **Step 1: Écrire le test qui échoue**
+
+Ajouter à `test/account.test.js` :
+
+```js
+test('l inscription enregistre la version de charte acceptee', async () => {
+  const { app, db } = buildApp();
+  const { server, base } = await listen(app);
+  try {
+    const res = await post(base, '/api/account/register', {
+      email: 'rider@exemple.test', password: 'dix caracteres', displayName: 'Marc',
+      charteVersion: '1.0',
+    });
+    assert.equal(res.status, 201);
+    const ligne = db.prepare('SELECT * FROM account').get();
+    assert.equal(ligne.charte_version, '1.0');
+    assert.ok(ligne.charte_accepted_at > 0);
+  } finally { server.close(); }
+});
+
+test('s inscrire sans accepter la charte est refuse', async () => {
+  const { app, db } = buildApp();
+  const { server, base } = await listen(app);
+  try {
+    const res = await post(base, '/api/account/register', {
+      email: 'rider@exemple.test', password: 'dix caracteres', displayName: 'Marc',
+    });
+    assert.equal(res.status, 400);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM account').get().n, 0);
+  } finally { server.close(); }
+});
+
+test('un compte anterieur a la charte peut l accepter ensuite', async () => {
+  const { app, db } = buildApp();
+  // Compte cree avant cette tache : aucune charte acceptee.
+  const jeton = creerCompteSansCharte(db);
+  const { server, base } = await listen(app);
+  try {
+    let moi = await (await fetch(`${base}/api/account/me`, {
+      headers: { authorization: `Bearer ${jeton}` } })).json();
+    assert.equal(moi.charteVersion, null);
+
+    const res = await post(base, '/api/account/charte', { version: '1.0' }, jeton);
+    assert.equal(res.status, 200);
+
+    moi = await (await fetch(`${base}/api/account/me`, {
+      headers: { authorization: `Bearer ${jeton}` } })).json();
+    assert.equal(moi.charteVersion, '1.0');
+  } finally { server.close(); }
+});
+
+test('une version de charte inconnue est refusee', async () => {
+  const { app, db } = buildApp();
+  const jeton = creerCompteSansCharte(db);
+  const { server, base } = await listen(app);
+  try {
+    assert.equal((await post(base, '/api/account/charte', { version: '0.9' }, jeton)).status, 400);
+  } finally { server.close(); }
+});
+```
+
+Écrire l'aide `creerCompteSansCharte(db)` dans ce fichier : elle insère un compte vérifié et une session, sans toucher aux colonnes de charte.
+
+- [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
+
+`docker run --rm -v "$PWD":/app -w /app node:20 sh -c "npm install && npm test"`
+Attendu : ÉCHEC — colonnes absentes, route `/charte` en 404, inscription acceptée sans charte.
+
+- [ ] **Step 3: Implémenter**
+
+Dans `src/db.js`, ajouter à `CREATE TABLE account` **et** à `migrate()` — cette table existe déjà en production, `CREATE TABLE IF NOT EXISTS` ne suffira pas :
+
+```js
+  addColumn(db, 'account', 'charte_version', 'TEXT');
+  addColumn(db, 'account', 'charte_accepted_at', 'INTEGER');
+```
+
+Dans `src/routes/account.js` : la constante `CHARTE_VERSION = '1.0'`, le refus de `register` sans `charteVersion` correspondant **avant** toute création de compte, l'enregistrement des deux colonnes à l'inscription, la route `POST /charte` authentifiée, et l'ajout de `charteVersion` à la réponse de `GET /me`.
+
+- [ ] **Step 4: Lancer les tests**
+
+`docker run --rm -v "$PWD":/app -w /app node:20 sh -c "npm install && npm test"`
+Attendu : SUCCÈS. Les tests d'inscription existants devront recevoir `charteVersion: '1.0'` : c'est la seule modification autorisée sur les tests du lot A.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/db.js src/routes/account.js test/account.test.js
+git commit -m "feat(compte): acceptation horodatee de la charte du pilote"
+```
+
+---
+
 # Partie 2 — Application
 
 Toutes les tâches suivantes se font dans `~/Claude/Projects/APP OFFROAD MOTO 4X4/moto_offroad`. Commande de test : `flutter test`.
@@ -3085,6 +3190,84 @@ Attendu : SUCCÈS.
 ```bash
 git add lib/screens/rides/my_publications_screen.dart lib/screens/rides/shared_traces_panel.dart lib/app/router.dart test/screens/my_publications_screen_test.dart
 git commit -m "feat(partage): ecran de mes publications, modification et depublication"
+```
+
+---
+
+### Task 23B: Écran de la charte du pilote
+
+**Files:**
+- Create: `lib/screens/legal/charte_screen.dart`, `lib/services/legal_documents.dart`
+- Modify: `lib/app/account_gate.dart`, `lib/services/account_api_client.dart`, `lib/providers/account_provider.dart`, `lib/screens/account/register_screen.dart`, `pubspec.yaml` (ressources)
+- Test: `test/screens/charte_screen_test.dart`, `test/providers/account_provider_test.dart`
+
+**Interfaces:**
+- Consumes: `POST /api/account/charte`, `charteVersion` dans `GET /me`, `charteVersion` à l'inscription (Task 13C).
+- Produces: `LegalDocuments.charte()` / `.conditionsPublication()` lisant les deux fichiers Markdown embarqués en ressources ; `CharteScreen` ; `AccountApiClient.acceptCharte(version)` ; `AccountProvider.charteVersion` et `acceptCharte()`. `AccountGate` interpose la charte entre le compte vérifié et la carte tant que `charteVersion != '1.0'`.
+
+**Pourquoi.** La charte informe des limites de la détection de chute et de la chaîne d'alerte : elle doit être vue par tous, y compris les pilotes déjà inscrits, avant l'accès à la carte. Le mur d'inscription du lot A (`account_gate.dart`) est le bon endroit — il sait déjà retenir un rider tant qu'une condition n'est pas remplie.
+
+- [ ] **Step 1: Écrire les tests qui échouent**
+
+```dart
+testWidgets('la charte s affiche tant qu elle n est pas acceptee', (tester) async {
+  await tester.pumpWidget(appDeTest(charteVersion: null));
+  await tester.pumpAndSettle();
+  expect(find.byType(CharteScreen), findsOneWidget);
+  expect(find.textContaining('112'), findsWidgets);
+});
+
+testWidgets('le bouton reste inactif tant que la case n est pas cochee', (tester) async {
+  await tester.pumpWidget(appDeTest(charteVersion: null));
+  await tester.pumpAndSettle();
+  final bouton = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'J accepte'));
+  expect(bouton.onPressed, isNull);
+});
+
+testWidgets('accepter la charte ouvre la carte', (tester) async {
+  final api = _ApiFactice();
+  await tester.pumpWidget(appDeTest(charteVersion: null, api: api));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byType(Checkbox));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('J accepte'));
+  await tester.pumpAndSettle();
+  expect(api.chartesAcceptees, ['1.0']);
+  expect(find.byType(CharteScreen), findsNothing);
+});
+
+testWidgets('une charte deja acceptee ne reapparait pas', (tester) async {
+  await tester.pumpWidget(appDeTest(charteVersion: '1.0'));
+  await tester.pumpAndSettle();
+  expect(find.byType(CharteScreen), findsNothing);
+});
+```
+
+- [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
+
+`flutter test test/screens/charte_screen_test.dart`
+Attendu : ÉCHEC, `CharteScreen` introuvable.
+
+- [ ] **Step 3: Implémenter**
+
+Déclarer `docs/legal/charte-du-pilote.md` et `docs/legal/conditions-publication-traces.md` comme ressources dans `pubspec.yaml`, et les lire via `rootBundle` dans `LegalDocuments` — le texte de loi vit dans un seul fichier, versionné avec le code, jamais recopié dans du Dart.
+
+`CharteScreen` affiche le document en entier, défilable, avec une case à cocher non pré-cochée (« J'ai lu et j'accepte la charte du pilote ») et un bouton « J'accepte » inactif tant qu'elle ne l'est pas. Aucun bouton pour passer outre : le rider accepte ou quitte l'application.
+
+`AccountGate` insère la charte après la vérification d'adresse et avant la carte, en s'appuyant sur `AccountProvider.charteVersion`. `RegisterScreen` envoie `charteVersion: '1.0'` — un compte créé depuis cette version n'a donc jamais à repasser par l'écran.
+
+**Attention à ne pas casser le correctif I7 du lot A** : la charte s'affiche avant toute demande de permission GPS, comme le mur d'inscription. Vérifier que les tests existants de `account_gate` passent toujours.
+
+- [ ] **Step 4: Lancer les tests**
+
+`flutter test test/screens/charte_screen_test.dart && flutter test`
+Attendu : SUCCÈS, tests du lot A compris.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/screens/legal lib/services/legal_documents.dart lib/app/account_gate.dart lib/services/account_api_client.dart lib/providers/account_provider.dart lib/screens/account/register_screen.dart pubspec.yaml test/screens/charte_screen_test.dart test/providers/account_provider_test.dart
+git commit -m "feat(legal): la charte du pilote est acceptee avant l acces a la carte"
 ```
 
 ---
