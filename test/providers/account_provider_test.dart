@@ -383,4 +383,138 @@ void main() {
     expect(prefs.getString('account_charte_version_acceptee'), isNull,
         reason: 'un telephone remis a un autre rider ne doit pas heriter de l acceptation precedente');
   });
+
+  // ── Filet local lie au compte (Tache 23C, correctif round 1) ───
+  //
+  // Le filet ci-dessus est memorise par appareil, pas par compte : une
+  // session revoquee (401) ne l effacait pas, et le mur pouvait donc
+  // s ouvrir pour un AUTRE rider se connectant ensuite sur le meme
+  // telephone si son propre /me echouait au mauvais moment — exactement
+  // la panne reseau que toute cette fonctionnalite est censee tolerer,
+  // donc pas un scenario tire par les cheveux. La version memorisee est
+  // desormais liee a l email du compte qui l a accepte, et la revocation
+  // de session efface le filet au meme titre que le jeton.
+
+  // Choix delibere, documente ici explicitement : une session revoquee
+  // (401) n'efface PAS le filet local, contrairement au jeton. L'effacer
+  // casserait le cas legitime (voir le test suivant : le meme rider qui se
+  // reconnecte avec /me toujours en echec doit retrouver sa propre
+  // acceptation). La verification d'identite a la LECTURE (voir
+  // `_charteVersionLocale`) suffit a empecher qu'un autre rider en
+  // profite — c'est elle qui ferme la faille, pas un effacement au moment
+  // de la revocation.
+  test('une session revoquee n efface pas le filet local, seule l identite au moment de la lecture protege',
+      () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+    await p.acceptCharte(version: LegalDocuments.charteVersion);
+
+    final pRevoque = provider(MockClient((_) async => http.Response('{}', 401)));
+    await AccountStorage().writeToken('jeton');
+    await pRevoque.restore();
+    expect(pRevoque.status, AccountStatus.sessionARenouveler);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_acceptee'), LegalDocuments.charteVersion,
+        reason: 'l entree survit a la revocation : c est le test suivant, pas celui-ci, qui prouve '
+            'qu elle reste malgre tout inutilisable par un autre rider');
+  });
+
+  test(
+      'apres une session revoquee, un autre rider qui se connecte alors que me echoue voit le mur de la charte',
+      () async {
+    // Rider A accepte la charte sur cet appareil, puis sa session est
+    // revoquee (ex. reinitialisation de mot de passe).
+    final pA = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton-a', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await pA.register(email: 'rider-a@example.test', password: 'dix caracteres');
+    await pA.acceptCharte(version: LegalDocuments.charteVersion);
+
+    final pRevoque = provider(MockClient((_) async => http.Response('{}', 401)));
+    await AccountStorage().writeToken('jeton-a');
+    await pRevoque.restore();
+    expect(pRevoque.status, AccountStatus.sessionARenouveler);
+
+    // Rider B se connecte avec ses PROPRES identifiants sur ce meme
+    // telephone. /me (l appel qui confirmerait la charte de B) echoue —
+    // sans liaison au compte, B heriterait de l acceptation de A.
+    final pB = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        return http.Response(jsonEncode({'token': 'jeton-b', 'verified': true}), 200);
+      }
+      throw Exception('reseau coupe'); // /me
+    }));
+    final ok = await pB.login(email: 'rider-b@example.test', password: 'dix caracteres');
+
+    expect(ok, isTrue, reason: 'la connexion elle-meme reussit, seul le complement /me pour la charte echoue');
+    expect(pB.charteVersion, isNull,
+        reason: 'l acceptation de A ne doit jamais etre attribuee a B, meme si me echoue pendant la connexion de B');
+  });
+
+  test('apres une session revoquee, le meme rider qui se reconnecte alors que me echoue retrouve son acceptation',
+      () async {
+    final pA = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton-a', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await pA.register(email: 'rider-a@example.test', password: 'dix caracteres');
+    await pA.acceptCharte(version: LegalDocuments.charteVersion);
+
+    final pRevoque = provider(MockClient((_) async => http.Response('{}', 401)));
+    await AccountStorage().writeToken('jeton-a');
+    await pRevoque.restore();
+    expect(pRevoque.status, AccountStatus.sessionARenouveler);
+
+    // Cette fois, c est A lui-meme qui se reconnecte — meme email —
+    // pendant que /me echoue encore.
+    final pReco = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        return http.Response(jsonEncode({'token': 'jeton-a-bis', 'verified': true}), 200);
+      }
+      throw Exception('reseau coupe');
+    }));
+    final ok = await pReco.login(email: 'rider-a@example.test', password: 'dix caracteres');
+
+    expect(ok, isTrue);
+    expect(pReco.charteVersion, LegalDocuments.charteVersion,
+        reason: 'A retrouve sa propre acceptation malgre l echec de me : ce n est pas un autre rider');
+  });
+
+  test('login retombe aussi sur le filet local quand me echoue, pas seulement restore', () async {
+    // Couvre le chemin de secours de login() lui-meme, independamment de
+    // toute revocation de session : une simple deconnexion/reconnexion
+    // classique du meme rider, avec /me qui echoue juste au mauvais
+    // moment pendant la connexion.
+    final p1 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await p1.register(email: 'rider@example.test', password: 'dix caracteres');
+    await p1.acceptCharte(version: LegalDocuments.charteVersion);
+
+    final p2 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        return http.Response(jsonEncode({'token': 'jeton2', 'verified': true}), 200);
+      }
+      throw Exception('reseau coupe'); // /me
+    }));
+    final ok = await p2.login(email: 'rider@example.test', password: 'dix caracteres');
+
+    expect(ok, isTrue);
+    expect(p2.charteVersion, LegalDocuments.charteVersion,
+        reason: 'le filet doit repondre depuis login() lui-meme, pas seulement via restore()');
+  });
 }

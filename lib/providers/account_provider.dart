@@ -71,24 +71,84 @@ class AccountProvider extends ChangeNotifier {
   // clair dans les préférences locales (rien de sensible, contrairement au
   // jeton — voir [AccountStorage]) à chaque confirmation par le serveur, et
   // relue uniquement quand le serveur, lui, reste muet.
+  //
+  // Round 1 de revue : ce filet était mémorisé par APPAREIL, pas par
+  // compte. Sans liaison à une identité, une session révoquée (401) — la
+  // seule façon d'atteindre l'écran de connexion sans être passé par
+  // [logout], voir `accountRedirect` — pouvait laisser une acceptation
+  // utilisable derrière elle, qu'un AUTRE rider se connectant ensuite sur
+  // le même téléphone aurait pu récupérer si son propre /me échouait au
+  // mauvais moment. La version est donc mémorisée avec l'email du compte
+  // qui l'a acceptée, et le filet ne répond que si cette identité
+  // correspond à celle du rider concerné — sinon c'est traité comme si rien
+  // n'était mémorisé, et l'entrée périmée est effacée à ce moment-là.
+  //
+  // [restore] n'efface PAS ce filet à la révocation (401), contrairement au
+  // jeton — voir le commentaire à cet endroit : l'effacer casserait le cas
+  // légitime du même rider qui se reconnecte ensuite avec un /me toujours
+  // en échec. La vérification d'identité à la lecture suffit à empêcher
+  // qu'un AUTRE rider en profite, ce qui est la seule fuite réelle.
   static const String _kCharteVersionLocale = 'account_charte_version_acceptee';
+  static const String _kCharteVersionLocaleCompte = 'account_charte_version_acceptee_compte';
 
-  Future<String?> _charteVersionLocale() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kCharteVersionLocale);
+  /// Normalise une adresse pour comparaison — insensible à la casse et aux
+  /// espaces superflus, pour qu'une même adresse saisie différemment (casse
+  /// du clavier, copier-coller) ne se voie pas refuser le filet à tort.
+  String _normaliserEmail(String email) => email.trim().toLowerCase();
+
+  /// Lit la version mémorisée. [pourEmail] identifie le rider concerné
+  /// quand elle est connue (voir [login]) : une entrée qui appartient à un
+  /// autre compte est alors traitée comme absente, et effacée au passage —
+  /// elle ne doit plus jamais répondre à personne. Quand [pourEmail] est
+  /// `null` (voir [restore], appelée avant tout /me réussi dans cette
+  /// instance, donc sans identité à vérifier), l'entrée est rendue telle
+  /// quelle : aucune fuite inter-compte n'est possible à cet endroit
+  /// puisque la seule bascule de compte sans [logout] explicite (une
+  /// session révoquée) efface déjà ce filet à la source.
+  ///
+  /// Dégrade en `null` si le stockage local lui-même est en panne — une
+  /// telle panne ne doit jamais faire planter [restore] ni [login], au
+  /// même titre qu'une absence de réseau (voir leur documentation).
+  Future<String?> _charteVersionLocale({String? pourEmail}) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final version = prefs.getString(_kCharteVersionLocale);
+      if (version == null) return null;
+      if (pourEmail != null) {
+        final compte = prefs.getString(_kCharteVersionLocaleCompte);
+        if (compte == null || compte != _normaliserEmail(pourEmail)) {
+          await _effacerCharteVersionLocale();
+          return null;
+        }
+      }
+      return version;
+    } catch (e) {
+      debugPrint('AccountProvider._charteVersionLocale en echec : $e');
+      return null;
+    }
   }
 
-  Future<void> _memoriserCharteVersionLocale(String version) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kCharteVersionLocale, version);
+  Future<void> _memoriserCharteVersionLocale(String version, String email) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kCharteVersionLocale, version);
+      await prefs.setString(_kCharteVersionLocaleCompte, _normaliserEmail(email));
+    } catch (e) {
+      debugPrint('AccountProvider._memoriserCharteVersionLocale en echec : $e');
+    }
   }
 
   /// Efface la version locale — à l'image de [AccountStorage.clear] pour le
   /// jeton : un téléphone remis à un autre rider ne doit hériter d'aucune
   /// acceptation précédente.
   Future<void> _effacerCharteVersionLocale() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_kCharteVersionLocale);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kCharteVersionLocale);
+      await prefs.remove(_kCharteVersionLocaleCompte);
+    } catch (e) {
+      debugPrint('AccountProvider._effacerCharteVersionLocale en echec : $e');
+    }
   }
 
   /// Recharge la session au démarrage de l'application depuis le jeton
@@ -124,7 +184,7 @@ class AccountProvider extends ChangeNotifier {
       _email = profil.value!.email;
       _displayName = profil.value!.displayName;
       _charteVersion = profil.value!.charteVersion;
-      if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!);
+      if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!, profil.value!.email);
       _set(profil.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
       return;
     }
@@ -139,6 +199,20 @@ class AccountProvider extends ChangeNotifier {
       _set(AccountStatus.sessionARenouveler);
       // Effacement au mieux : l'état ci-dessus ne dépend pas de sa réussite.
       await _storage.clear();
+      // Round 1 de revue (Tâche 23C) : le filet local n'est délibérément
+      // PAS effacé ici, contrairement au jeton. sessionARenouveler reste,
+      // avec deconnecte, le seul statut qui laisse /connexion atteignable
+      // sans [logout] explicite — donc le seul moyen pour un AUTRE rider de
+      // s'authentifier sur cet appareil après une révocation. Mais cette
+      // acceptation locale est maintenant liée à l'email du rider qui l'a
+      // acceptée (voir `_charteVersionLocale`) : un autre rider qui se
+      // connecte ensuite avec un email différent ne peut jamais la
+      // récupérer, même si son propre /me échoue au mauvais moment — la
+      // vérification d'identité au moment de la lecture suffit à fermer la
+      // faille. L'effacer ici casserait au contraire le cas légitime : LE
+      // MÊME rider qui se reconnecte après cette même révocation, avec /me
+      // qui échoue encore, doit retrouver sa propre acceptation plutôt que
+      // de retomber sur CharteScreen pour rien.
       return;
     }
     // Serveur injoignable ou en erreur (réseau coupé, 5xx, timeout...) :
@@ -169,7 +243,7 @@ class AccountProvider extends ChangeNotifier {
     // remet à ce que le serveur renvoie, `null` compris pour un compte
     // antérieur à cette fonctionnalité.
     _charteVersion = charteVersion ?? res.value!.charteVersion;
-    if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!);
+    if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!, email);
     await _storage.writeToken(_token!);
     _set(res.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
     return true;
@@ -200,7 +274,7 @@ class AccountProvider extends ChangeNotifier {
   /// valeur.
   Future<bool> login({required String email, required String password}) async {
     final res = await _api.login(email: email, password: password);
-    final charteVersion = res.ok ? await _charteVersionDepuisLeServeur(res.value!.token) : null;
+    final charteVersion = res.ok ? await _charteVersionDepuisLeServeur(res.value!.token, email) : null;
     return _apply(res, email, charteVersion: charteVersion);
   }
 
@@ -208,19 +282,21 @@ class AccountProvider extends ChangeNotifier {
   /// Un échec (réseau, serveur) ne doit pas casser une connexion par
   /// ailleurs réussie — même règle de robustesse que le reste de cette
   /// classe. Depuis la Tâche 23C, un échec ne rend plus `null` : il retombe
-  /// sur la dernière version vue localement (voir `_charteVersionLocale`),
-  /// pour qu'un rider déjà accepté par le passé ne soit jamais remuré par
-  /// une simple panne réseau à la connexion.
-  Future<String?> _charteVersionDepuisLeServeur(String token) async {
+  /// sur la dernière version vue localement pour CE compte (voir
+  /// `_charteVersionLocale`), pour qu'un rider déjà accepté par le passé ne
+  /// soit jamais remuré par une simple panne réseau à la connexion — et
+  /// qu'un AUTRE rider se connectant sur le même appareil n'hérite jamais
+  /// de l'acceptation d'un compte qui n'est pas le sien (round 1 de revue).
+  Future<String?> _charteVersionDepuisLeServeur(String token, String email) async {
     final profil = await _api.me(token: token);
     if (!profil.ok) {
-      // Même filet qu'au démarrage (voir [restore]) : une panne de /me
-      // pendant la connexion ne doit pas remurer un rider dont cet
-      // appareil a déjà vu l'acceptation.
-      return _charteVersionLocale();
+      // Même filet qu'au démarrage (voir [restore]), mais identifié cette
+      // fois : [email] est celle du rider qui se connecte réellement, pas
+      // une identité supposée.
+      return _charteVersionLocale(pourEmail: email);
     }
     final version = profil.value!.charteVersion;
-    if (version != null) await _memoriserCharteVersionLocale(version);
+    if (version != null) await _memoriserCharteVersionLocale(version, profil.value!.email);
     return version;
   }
 
@@ -245,7 +321,7 @@ class AccountProvider extends ChangeNotifier {
     _lastError = null;
     _email = profil.value!.email;
     _charteVersion = profil.value!.charteVersion;
-    if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!);
+    if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!, profil.value!.email);
     if (profil.value!.verified) {
       _set(AccountStatus.connecte);
       return true;
@@ -264,7 +340,13 @@ class AccountProvider extends ChangeNotifier {
     _lastError = res.error;
     if (res.ok) {
       _charteVersion = version;
-      await _memoriserCharteVersionLocale(version);
+      // _email peut rester `null` ici dans un cas marginal : une instance
+      // dont le seul restore() a échoué réseau sans jamais avoir vu /me
+      // réussir (voir la branche finale de restore()). Sans identité
+      // connue, mieux vaut ne rien mémoriser localement que mémoriser sous
+      // une identité fausse — l'acceptation reste valable pour la session
+      // en cours, seul le filet d'une future panne réseau s'en passera.
+      if (_email != null) await _memoriserCharteVersionLocale(version, _email!);
     }
     notifyListeners();
     return res.ok;
