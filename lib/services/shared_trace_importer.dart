@@ -61,6 +61,16 @@ class SharedTraceImporter {
         timestamp: horodatage,
       ));
     }
+    // Trouvaille mineure de la revue finale : GpxService rend aujourd'hui
+    // toujours `null` pour un GPX analysé mais sans le moindre point (déjà
+    // intercepté par le FormatException plus haut), mais rien ici ne le
+    // garantit dans ce fichier — `points.first`/`points.last` ci-dessous
+    // lèveraient alors un StateError, pas la FormatException documentée.
+    // Cette garde rend le contrat vrai localement, indépendamment de ce que
+    // fait GpxService de son côté.
+    if (points.isEmpty) {
+      throw const FormatException('GPX illisible');
+    }
 
     final ride = Ride(
       id: rideId,

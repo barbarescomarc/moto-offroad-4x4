@@ -22,7 +22,12 @@ class RideDatabase {
     return _instance!;
   }
 
-  // ── Création du schéma v1 ────────────────────────────────
+  // ── Création du schéma (installation neuve) ──────────────
+  //
+  // Construit directement le schéma courant (schemaVersion, v2 comprise :
+  // shared_trace_id est déjà présente ci-dessous) — sqflite n'appelle
+  // jamais onUpgrade sur une base neuve, qui n'a donc pas besoin de
+  // repasser par les paliers de migration.
   static Future<void> onCreate(Database db, int version) async {
     await db.execute('''
       CREATE TABLE rides (
