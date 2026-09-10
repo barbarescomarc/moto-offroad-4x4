@@ -2,6 +2,7 @@ import 'package:latlong2/latlong.dart';
 import '../models/ride.dart';
 import '../models/trace.dart';
 import 'gpx_service.dart';
+import 'ride_export_service.dart';
 
 // Une sortie enregistrée commence presque toujours devant chez son auteur.
 // Le recadrage produit une copie publiée amputée de ce début, sans jamais
@@ -31,14 +32,7 @@ class TraceCropService {
       description: description,
       date: retenus.first.timestamp,
       source: ride.source.name,
-      points: retenus
-          .map((p) => TracePoint(
-                position: p.position,
-                elevation: p.altitude,
-                time: p.timestamp,
-                speed: p.speedKmh,
-              ))
-          .toList(),
+      points: retenus.map(RideExportService.tracePointFrom).toList(),
     );
     return GpxService().exportToGpx(trace);
   }

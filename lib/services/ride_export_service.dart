@@ -13,20 +13,23 @@ class RideExportService {
 
   final _gpx = GpxService();
 
+  // Mappe un point enregistré vers le format d'export GPX. Partagée avec
+  // TraceCropService.cropToGpx : l'export complet et le recadrage doivent
+  // produire des points strictement identiques, pas deux copies qui dérivent.
+  static TracePoint tracePointFrom(RidePoint point) => TracePoint(
+        position:  point.position,
+        elevation: point.altitude,
+        time:      point.timestamp,
+        speed:     point.speedKmh,
+      );
+
   TraceModel toTraceModel(Ride ride, List<RidePoint> points) => TraceModel(
         id:     ride.id,
         name:   ride.name,
         description: ride.notes,
         date:   ride.startedAt,
         source: ride.source.name,
-        points: points
-            .map((p) => TracePoint(
-                  position:  p.position,
-                  elevation: p.altitude,
-                  time:      p.timestamp,
-                  speed:     p.speedKmh,
-                ))
-            .toList(),
+        points: points.map(tracePointFrom).toList(),
       );
 
   String toGpx(Ride ride, List<RidePoint> points) =>

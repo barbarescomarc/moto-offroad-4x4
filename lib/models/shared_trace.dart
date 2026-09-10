@@ -16,9 +16,13 @@ enum TraceVehicle {
   /// Libellé français pour l'affichage.
   final String libelle;
 
+  // Une valeur inconnue (ajoutée par une future version du serveur) dégrade
+  // vers "mixte" plutôt que de faire planter le décodage : une trace mal
+  // étiquetée reste affichée, alors qu'une exception ici jetterait toute la
+  // page de résultats que le rider attendait.
   static TraceVehicle fromWire(String wire) => values.firstWhere(
         (v) => v.wire == wire,
-        orElse: () => throw ArgumentError('engin inconnu: $wire'),
+        orElse: () => TraceVehicle.mixte,
       );
 }
 
@@ -33,9 +37,12 @@ enum TraceDifficulty {
   final String wire;
   final String libelle;
 
+  // Même raisonnement que TraceVehicle.fromWire : une difficulté inconnue
+  // dégrade vers "moyen" plutôt que de jeter, pour ne pas priver le rider
+  // de toute la page de résultats à cause d'une seule fiche mal étiquetée.
   static TraceDifficulty fromWire(String wire) => values.firstWhere(
         (v) => v.wire == wire,
-        orElse: () => throw ArgumentError('difficulte inconnue: $wire'),
+        orElse: () => TraceDifficulty.moyen,
       );
 }
 

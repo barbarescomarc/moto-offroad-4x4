@@ -70,6 +70,22 @@ void main() {
     expect(traces.single.vehicle, TraceVehicle.moto);
   });
 
+  // Une valeur d engin ou de difficulte inconnue (ajoutee par une future
+  // version du serveur) ne doit pas faire disparaitre toute la page de
+  // resultats : elle degrade vers une valeur par defaut plutot que de jeter.
+  test('un engin ou une difficulte inconnus degradent sans faire disparaitre la trace', () async {
+    final api = clientAvec(MockClient((_) async => http.Response(jsonEncode({'total': 1, 'traces': [{
+      'id': 't1', 'name': 'Boucle', 'authorName': 'Marco31', 'vehicle': 'quad',
+      'difficulty': 'extreme', 'distanceM': 12000.0, 'downloadCount': 0,
+      'startLat': 43.6, 'startLng': 1.44, 'publishedAt': 2000,
+    }]}), 200)));
+
+    final traces = await api.list();
+
+    expect(traces.single.vehicle, TraceVehicle.mixte);
+    expect(traces.single.difficulty, TraceDifficulty.moyen);
+  });
+
   test('detail rend la description et l apercu', () async {
     final api = clientAvec(MockClient((_) async => http.Response(jsonEncode({
       'id': 't1', 'name': 'Boucle', 'authorName': 'Marco31', 'vehicle': 'mixte',
@@ -106,4 +122,21 @@ void main() {
     final api = clientAvec(MockClient((_) async => http.Response('', 200)), jeton: null);
     expect(() => api.mine(), throwsA(isA<SharedTracesException>().having((e) => e.statusCode, 'statusCode', 401)));
   });
+
+  // Une panne de transport (reseau coupe, TLS qui echoue, timeout) ne doit
+  // jamais fuir telle quelle : l ecran n a qu un type a attraper.
+  test('une panne reseau devient une SharedTracesException affichable', () async {
+    final api = clientAvec(MockClient((_) async => throw const SocketExceptionStub()));
+
+    expect(
+      () => api.mine(),
+      throwsA(isA<SharedTracesException>()
+          .having((e) => e.statusCode, 'statusCode', 0)
+          .having((e) => e.message, 'message', contains('Connexion'))),
+    );
+  });
+}
+
+class SocketExceptionStub implements Exception {
+  const SocketExceptionStub();
 }
