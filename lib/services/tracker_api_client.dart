@@ -64,15 +64,31 @@ class PeersResult {
 }
 
 class TrackerApiClient {
-  TrackerApiClient({http.Client? client, String? baseUrl})
+  TrackerApiClient({http.Client? client, String? baseUrl, Future<String?> Function()? readToken})
       : _client = client ?? http.Client(),
-        _baseUrl = baseUrl ?? 'https://motooffroad.duckdns.org';
+        _baseUrl = baseUrl ?? 'https://motooffroad.duckdns.org',
+        _readToken = readToken;
 
   final http.Client _client;
   final String _baseUrl;
+  final Future<String?> Function()? _readToken;
 
   Uri _uri(String path, [Map<String, String>? query]) =>
       Uri.parse('$_baseUrl$path').replace(queryParameters: query);
+
+  // Rattachement, pas authentification : le serveur accepte ces routes sans
+  // jeton, et une panne du stockage securise ne doit jamais empecher une
+  // alerte de partir.
+  Future<Map<String, String>> _headers() async {
+    final headers = {'Content-Type': 'application/json'};
+    final readToken = _readToken;
+    if (readToken == null) return headers;
+    try {
+      final token = await readToken();
+      if (token != null && token.isNotEmpty) headers['Authorization'] = 'Bearer $token';
+    } catch (_) {}
+    return headers;
+  }
 
   Future<SessionCreated?> createSoloSession({
     required String name,
@@ -96,7 +112,7 @@ class TrackerApiClient {
     try {
       final res = await _client.post(
         _uri('/api/sessions'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode(body),
       );
       if (res.statusCode ~/ 100 != 2) return null;
@@ -118,7 +134,7 @@ class TrackerApiClient {
     try {
       final res = await _client.post(
         _uri('/api/sessions/join/$joinCode'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode({'name': name}),
       );
       if (res.statusCode ~/ 100 != 2) return null;
@@ -143,7 +159,7 @@ class TrackerApiClient {
     try {
       final res = await _client.post(
         _uri('/api/sessions/$sessionId/positions'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode({
           'deviceKey': deviceKey,
           'memberId': memberId,
@@ -206,7 +222,7 @@ class TrackerApiClient {
     try {
       final res = await _client.post(
         _uri('/api/sessions/$sessionId/rally'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode({'deviceKey': deviceKey, 'lat': point.latitude, 'lng': point.longitude}),
       );
       return res.statusCode ~/ 100 == 2 ? point : null;
@@ -219,7 +235,7 @@ class TrackerApiClient {
     try {
       final res = await _client.post(
         _uri('/api/sessions/$sessionId/rally'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode({'deviceKey': deviceKey, 'clear': true}),
       );
       return res.statusCode ~/ 100 == 2;
@@ -236,7 +252,7 @@ class TrackerApiClient {
     try {
       final res = await _client.delete(
         _uri('/api/sessions/$sessionId/members/$memberId'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode({'deviceKey': deviceKey}),
       );
       return res.statusCode ~/ 100 == 2;
@@ -249,7 +265,7 @@ class TrackerApiClient {
     try {
       final res = await _client.post(
         _uri('/api/sessions/$sessionId/end'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode({'ownerKey': ownerKey}),
       );
       return res.statusCode ~/ 100 == 2;
@@ -262,7 +278,7 @@ class TrackerApiClient {
     try {
       final res = await _client.post(
         _uri('/api/newsletter/subscribe'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode({'email': email, 'source': source}),
       );
       return res.statusCode ~/ 100 == 2;
@@ -275,7 +291,7 @@ class TrackerApiClient {
     try {
       final res = await _client.post(
         _uri('/api/newsletter/unsubscribe'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode({'email': email}),
       );
       return res.statusCode ~/ 100 == 2;
@@ -293,7 +309,7 @@ class TrackerApiClient {
     try {
       final res = await _client.post(
         _uri('/api/sessions/$sessionId/alert'),
-        headers: {'content-type': 'application/json'},
+        headers: await _headers(),
         body: jsonEncode({'deviceKey': deviceKey, 'memberId': memberId, 'kind': kind}),
       );
       return res.statusCode ~/ 100 == 2;

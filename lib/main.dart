@@ -36,6 +36,7 @@ import 'services/fall_detector.dart';
 import 'services/fall_thresholds.dart';
 import 'services/location_service.dart';
 import 'services/tracker_api_client.dart';
+import 'services/account_storage.dart';
 import 'services/position_uplink_service.dart';
 import 'services/vibration_calibration.dart';
 import 'services/map_tile_cache.dart';
@@ -112,10 +113,14 @@ class MotoOffroadApp extends StatelessWidget {
         Provider<RideRepository>.value(value: rideRepository),
         ChangeNotifierProvider(create: (_) => MapProvider()),
         ChangeNotifierProvider(create: (_) => TraceProvider()),
-        ChangeNotifierProvider(create: (_) => GroupProvider()),
+        ChangeNotifierProvider(create: (_) => GroupProvider(
+          trackerClient: TrackerApiClient(readToken: () => AccountStorage().readToken()),
+        )),
         ChangeNotifierProvider(create: (_) => FuelProvider()),
         ChangeNotifierProvider(create: (_) {
-          final s = SoloProvider();
+          final s = SoloProvider(
+            trackerClient: TrackerApiClient(readToken: () => AccountStorage().readToken()),
+          );
           s.loadContacts();
           return s;
         }),
