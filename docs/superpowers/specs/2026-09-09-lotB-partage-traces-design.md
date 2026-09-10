@@ -125,10 +125,18 @@ CREATE INDEX IF NOT EXISTS idx_trace_report_trace ON trace_report(trace_id);
 
 Notes de conception :
 
-- `ON DELETE CASCADE` sur `account_id` est ici volontaire, contrairement à
-  `session.account_id` : une trace publiée n'appartient qu'à son auteur, et
-  l'effacement RGPD d'un compte doit emporter ses publications. Le fichier
-  GPX correspondant est supprimé du disque dans la même opération.
+- `shared_trace.account_id` ne porte **aucune** clé étrangère, comme
+  `session.account_id` et pour une raison voisine : **une trace publiée
+  survit à la suppression du compte de son auteur** (décision du
+  2026-09-10). Le catalogue est un patrimoine collectif ; ce qui disparaît
+  à l'effacement d'un compte, c'est le lien avec la personne, pas la trace.
+  L'effacement RGPD remet donc `account_id` à `NULL` et remplace
+  `author_name` par `Pilote anonyme` — le pseudonyme affiché identifie son
+  porteur et s'efface avec le reste. Le fichier GPX, lui, reste en place et
+  la trace reste listée et téléchargeable.
+- `trace_report.account_id` et `trace_download.account_id` gardent en
+  revanche leur cascade : ces lignes enregistrent ce qu'une personne a fait,
+  elles partent avec elle.
 - Le chemin du fichier n'est pas stocké : il se déduit de l'identifiant
   (`<TRACES_DIR>/<id>.gpx`). Une colonne de chemin serait une source de
   divergence entre la base et le disque.
@@ -353,7 +361,9 @@ Serveur (`node:test`, comme l'existant) :
 - masquage : invisible dans la liste publique, visible en admin, démasquage
   qui la fait réapparaître ; suppression qui efface aussi le fichier ;
 - signalement : doublon refusé, remontée dans la file admin ;
-- effacement RGPD d'un compte : ses traces et ses fichiers disparaissent ;
+- effacement RGPD d'un compte : ses traces et leurs fichiers restent, mais
+  `account_id` passe à `NULL` et l'auteur affiché devient « Pilote anonyme » ;
+  la trace anonymisée reste listée et téléchargeable ;
 - sauvegarde : les fichiers manquants sont copiés, ceux des traces supprimées
   sont retirés, un échec de copie n'empêche pas la sauvegarde de la base.
 
@@ -400,7 +410,9 @@ résultat qui reste invisible à l'écran.
 6. L'administrateur la démasque : elle réapparaît, compteur intact.
 7. Un rider signale une trace ; le signalement remonte dans la file
    d'administration, et un second signalement du même rider est refusé.
-8. Un rider supprime son compte : ses publications et leurs fichiers
-   disparaissent, les sorties de ceux qui les avaient téléchargées ne bougent
-   pas.
+8. Un rider supprime son compte : ses publications restent au catalogue,
+   listées et téléchargeables, mais affichées sous « Pilote anonyme » et sans
+   lien vers un compte ; ses signalements et son historique de téléchargement
+   disparaissent ; les sorties de ceux qui avaient téléchargé ses traces ne
+   bougent pas.
 9. Une sortie de groupe créée après connexion porte `account_id` en base.
