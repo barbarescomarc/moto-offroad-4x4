@@ -379,6 +379,7 @@ class _TraceTile extends StatelessWidget {
       sousTitre.write(' · à ${(distanceRef / 1000).round()} km');
     }
     return ListTile(
+      onTap: () => context.push('${AppRoutes.traces}/${trace.id}'),
       title: Text(trace.name),
       subtitle: Text(sousTitre.toString()),
       trailing: Row(

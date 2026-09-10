@@ -87,4 +87,36 @@ void main() {
     await expectLater(() => importer.import(ficheFactice(), 'pas du xml <<<'), throwsA(isA<FormatException>()));
     expect(await repo.listRides(), isEmpty);
   });
+
+  // Le premier point porte un horodatage réel tardif (10:00:10), le second
+  // n'en porte aucun et retombe sur fiche.publishedAt (minuit) + 1s — très
+  // antérieur au premier sans le clamp de l'importeur. Couvre la Trouvaille
+  // 3 de la relecture : un GPX mélangeant points horodatés et non horodatés
+  // ne doit jamais produire un temps de déplacement négatif.
+  test('les horodatages restent strictement croissants meme si un point n a pas de time', () async {
+    final importer = SharedTraceImporter(repo);
+    const gpxMixte = '''<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="test" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>Test</name>
+    <trkseg>
+      <trkpt lat="43.60" lon="1.44"><time>2026-01-01T10:00:10Z</time></trkpt>
+      <trkpt lat="43.61" lon="1.45"></trkpt>
+      <trkpt lat="43.62" lon="1.46"><time>2026-01-01T10:00:20Z</time></trkpt>
+    </trkseg>
+  </trk>
+</gpx>''';
+
+    final ride = await importer.import(ficheFactice(id: 't99'), gpxMixte);
+    final points = await repo.pointsOf(ride.id);
+
+    for (var i = 1; i < points.length; i++) {
+      expect(
+        points[i].timestamp.isAfter(points[i - 1].timestamp),
+        isTrue,
+        reason: 'point $i (${points[i].timestamp}) devrait suivre le point ${i - 1} (${points[i - 1].timestamp})',
+      );
+    }
+    expect(ride.stats.movingTime.inSeconds, greaterThanOrEqualTo(0));
+  });
 }

@@ -33,19 +33,34 @@ class SharedTraceImporter {
     // seconde par point pour que RideStats (qui suppose le temps croissant
     // à l'intérieur d'un même segment) reste cohérent.
     final horodatageDepart = fiche.recordedAt ?? fiche.publishedAt;
-    final points = <RidePoint>[
-      for (var i = 0; i < trace.points.length; i++)
-        RidePoint(
-          rideId: rideId,
-          seq: i,
-          segment: 0,
-          lat: trace.points[i].position.latitude,
-          lng: trace.points[i].position.longitude,
-          altitude: trace.points[i].elevation,
-          speedKmh: trace.points[i].speed ?? 0,
-          timestamp: trace.points[i].time ?? horodatageDepart.add(Duration(seconds: i)),
-        ),
-    ];
+    final points = <RidePoint>[];
+    // Un GPX qui mélange des points horodatés et non horodatés peut, avec le
+    // seul repli ci-dessus, produire un horodatage antérieur au point
+    // précédent (le décalage utilise l'index global, pas le dernier
+    // horodatage réellement posé). RideStats.fromPoints soustrait des
+    // horodatages consécutifs sans jamais clamper : un seul pas en arrière
+    // suffit à rendre le temps de déplacement négatif et la sortie
+    // silencieusement corrompue. La séquence est donc forcée strictement
+    // croissante ici, quitte à s'écarter d'une seconde du repli initial.
+    DateTime? dernierHorodatage;
+    for (var i = 0; i < trace.points.length; i++) {
+      final point = trace.points[i];
+      var horodatage = point.time ?? horodatageDepart.add(Duration(seconds: i));
+      if (dernierHorodatage != null && !horodatage.isAfter(dernierHorodatage)) {
+        horodatage = dernierHorodatage.add(const Duration(seconds: 1));
+      }
+      dernierHorodatage = horodatage;
+      points.add(RidePoint(
+        rideId: rideId,
+        seq: i,
+        segment: 0,
+        lat: point.position.latitude,
+        lng: point.position.longitude,
+        altitude: point.elevation,
+        speedKmh: point.speed ?? 0,
+        timestamp: horodatage,
+      ));
+    }
 
     final ride = Ride(
       id: rideId,

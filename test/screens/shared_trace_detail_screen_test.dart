@@ -118,4 +118,38 @@ void main() {
       expect(find.textContaining('Dans tes sorties'), findsOneWidget);
     });
   });
+
+  // Trouvaille 2 de la relecture : sans garde-fou explicite en tête de
+  // _telecharger, deux appuis avant la première reconstruction déclenchaient
+  // chacun leur propre téléchargement + import, donc deux sorties pour un
+  // seul geste accidentel.
+  testWidgets('deux appuis rapides sur Telecharger ne creent qu une seule sortie', (tester) async {
+    await tester.runAsync(() async {
+      await tester.pumpWidget(ficheDeTest(ficheFactice(), repo));
+      await tester.pumpAndSettle();
+
+      // Sans pump entre les deux : le second appui invoque le même closure
+      // (celle capturée à la dernière reconstruction) avant que l état
+      // interne n ait eu la moindre chance d être revu par l arbre.
+      await tester.tap(find.text('Télécharger'));
+      await tester.tap(find.text('Télécharger'));
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await tester.pump();
+
+      expect((await repo.listRides()).length, 1);
+    });
+  });
+
+  // Trouvaille 4 de la relecture : la délégation du bouton Signaler vers
+  // showReportTraceSheet était correcte à l inspection mais non testée —
+  // ce test pin le câblage entre les deux écrans, pas le contenu de la
+  // feuille elle même (déjà couvert par report_trace_sheet_test.dart).
+  testWidgets('le bouton Signaler ouvre la feuille de signalement', (tester) async {
+    await tester.pumpWidget(ficheDeTest(ficheFactice(), repo));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Signaler'));
+    await tester.pumpAndSettle();
+    expect(find.text('Signaler cette trace'), findsOneWidget);
+  });
 }

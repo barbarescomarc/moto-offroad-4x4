@@ -2,15 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
+import 'package:moto_offroad/app/router.dart';
 import 'package:moto_offroad/models/shared_trace.dart';
 import 'package:moto_offroad/providers/rides_provider.dart';
 import 'package:moto_offroad/providers/shared_traces_provider.dart';
 import 'package:moto_offroad/screens/rides/rides_screen.dart';
+import 'package:moto_offroad/screens/rides/shared_trace_detail_screen.dart';
 import 'package:moto_offroad/screens/rides/shared_traces_panel.dart';
 import 'package:moto_offroad/services/location_service.dart';
 import 'package:moto_offroad/services/ride_database.dart';
@@ -108,6 +111,37 @@ Widget panneauDeTest(SharedTracesProvider provider) => ChangeNotifierProvider.va
       value: provider,
       child: const MaterialApp(home: Scaffold(body: SharedTracesPanel(estVisible: true))),
     );
+
+// Même volet, mais sous un vrai GoRouter minimal — juste la route du volet
+// et celle de la fiche, sans le reste de l'application (le routeur complet
+// exige une dizaine de providers et plusieurs plugins natifs, voir
+// test/app/router_test.dart). Sert uniquement à prouver que le onTap d'une
+// trace pousse bien vers /traces/:id ; le contenu de la fiche est couvert
+// par shared_trace_detail_screen_test.dart.
+Widget panneauNavigableDeTest(SharedTracesProvider provider) {
+  final router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, __) => const Scaffold(body: SharedTracesPanel(estVisible: true)),
+      ),
+      GoRoute(
+        path: '${AppRoutes.traces}/:id',
+        builder: (_, state) => SharedTraceDetailScreen(
+          traceId: state.pathParameters['id']!,
+          // Jeton absent : la fiche affiche son état d'erreur, sans requête
+          // réseau — seule la navigation elle-même est sous test ici.
+          api: SharedTracesApiClient(readToken: () async => null),
+        ),
+      ),
+    ],
+  );
+  return ChangeNotifierProvider.value(
+    value: provider,
+    child: MaterialApp.router(routerConfig: router),
+  );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -289,5 +323,25 @@ void main() {
 
       expect(api.appels.length, 1);
     });
+  });
+
+  // Trouvaille 1 de la relecture : sans onTap, la fiche construite et
+  // testée à la Tâche 20 restait inatteignable depuis le catalogue — un
+  // rider qui tapait une trace ne voyait rien se passer. Ce test pin la
+  // navigation, pas le contenu de la fiche (couvert ailleurs).
+  testWidgets('taper une trace ouvre sa fiche', (tester) async {
+    final provider = SharedTracesProvider(
+      _ApiFactice()..reponse = [resume('t1', nom: 'Boucle du Sidobre')],
+    );
+    await provider.setReference(const LatLng(43.6, 1.44));
+
+    await tester.pumpWidget(panneauNavigableDeTest(provider));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Boucle du Sidobre'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SharedTraceDetailScreen), findsOneWidget);
+    expect(find.byType(SharedTracesPanel), findsNothing);
   });
 }

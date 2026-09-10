@@ -32,6 +32,10 @@ class _SharedTraceDetailScreenState extends State<SharedTraceDetailScreen> {
   bool _enCours = false;
 
   Future<void> _telecharger(SharedTraceDetail fiche) async {
+    // Le seul ternaire d'onPressed ne suffit pas : il ne prend effet qu'à
+    // la prochaine reconstruction, donc deux appuis dans la même frame
+    // passeraient tous les deux et créeraient chacun leur propre sortie.
+    if (_enCours || _telechargee) return;
     setState(() => _enCours = true);
     try {
       final gpx = await widget.api.downloadGpx(fiche.id);
