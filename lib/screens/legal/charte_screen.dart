@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:provider/provider.dart';
 
 import '../../providers/account_provider.dart';
@@ -89,10 +90,10 @@ class _CharteScreenState extends State<CharteScreen> {
             );
           }
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Text(snap.data!),
-          );
+          // Trouvaille I2 de la revue finale : le texte est écrit en
+          // Markdown mais était affiché brut (#, **, --- litéraux) — voir la
+          // même remarque, plus détaillée, sur LegalDocumentScreen.
+          return Markdown(data: snap.data!, padding: const EdgeInsets.all(16));
         },
       );
 

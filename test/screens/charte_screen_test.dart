@@ -118,6 +118,17 @@ void main() {
     await appDeTest(tester, compte);
 
     expect(find.byType(CharteScreen), findsOneWidget);
+    // Depuis le passage au rendu Markdown (Trouvaille I2), le texte défile
+    // dans une liste paresseuse (SliverList à délégué paresseux) : le point
+    // 2 n'est construit qu'une fois fait défiler jusqu'à lui, contrairement
+    // à l'ancien Text unique qui rendait tout d'un bloc. dragUntilVisible
+    // avance par petits pas (contrairement à un jumpTo direct, qui saute
+    // par-dessus les éléments intermédiaires sans jamais les construire).
+    await tester.dragUntilVisible(
+      find.textContaining('112'),
+      find.byType(Scrollable),
+      const Offset(0, -80),
+    );
     // Le 112 : point 2 de la charte, sur ce que l'application ne remplace
     // jamais — preuve que le vrai texte (docs/legal/charte-du-pilote.md,
     // lu via LegalDocuments) est bien affiché, pas un texte de test.

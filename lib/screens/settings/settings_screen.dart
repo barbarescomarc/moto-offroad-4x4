@@ -17,6 +17,7 @@ import '../../widgets/glass_control.dart';
 import '../../widgets/update_tile.dart';
 import '../../widgets/map_cache_tile.dart';
 import '../info/info_screen.dart';
+import 'legal_links_section.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -88,6 +89,8 @@ class _SettingsScreenState extends State<SettingsScreen>
             GlassPanel(child: _guidanceSection(context)),
             const SizedBox(height: 16),
             GlassPanel(child: _appSection()),
+            const SizedBox(height: 16),
+            const GlassPanel(child: LegalLinksSection()),
             const SizedBox(height: 16),
             GlassPanel(child: _infoSection()),
           ],

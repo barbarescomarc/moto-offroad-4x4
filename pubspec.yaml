@@ -46,6 +46,7 @@ dependencies:
 
   # ── UI ───────────────────────────────────────────────
   wakelock_plus: ^1.1.0        # Écran actif en navigation
+  flutter_markdown: ^0.7.7+1   # Rendu des textes légaux (charte, conditions de publication)
 
   # ── Guidage ──────────────────────────────────────────
   flutter_tts: ^4.0.0          # Synthèse vocale (guidage)

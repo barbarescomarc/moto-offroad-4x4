@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown/flutter_markdown.dart';
 
 /// Écran de lecture seule d'un texte légal embarqué (charte du pilote,
 /// conditions de publication) : même forme partout où un rider a besoin de
@@ -54,10 +55,12 @@ class _LegalDocumentScreenState extends State<LegalDocumentScreen> {
             );
           }
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Text(snap.data!),
-          );
+          // Trouvaille I2 de la revue finale : ces textes sont écrits en
+          // Markdown (docs/legal/*.md) mais affichés bruts — un rider lisait
+          // littéralement les #, ** et --- du texte qu'on lui demande
+          // d'accepter. Markdown() fait déjà défiler son contenu, inutile
+          // de l'envelopper dans un second SingleChildScrollView.
+          return Markdown(data: snap.data!, padding: const EdgeInsets.all(16));
         },
       ),
     );
