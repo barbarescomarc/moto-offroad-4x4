@@ -24,6 +24,7 @@ import 'providers/guidance_provider.dart';
 import 'providers/poi_search_provider.dart';
 import 'providers/fuel_poi_provider.dart';
 import 'providers/account_provider.dart';
+import 'providers/shared_traces_provider.dart';
 import 'services/ride_database.dart';
 import 'services/ride_repository.dart';
 import 'services/ride_recording_service.dart';
@@ -37,6 +38,7 @@ import 'services/fall_thresholds.dart';
 import 'services/location_service.dart';
 import 'services/tracker_api_client.dart';
 import 'services/account_storage.dart';
+import 'services/shared_traces_api_client.dart';
 import 'services/position_uplink_service.dart';
 import 'services/vibration_calibration.dart';
 import 'services/map_tile_cache.dart';
@@ -180,6 +182,11 @@ class MotoOffroadApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => PoiSearchProvider()),
         ChangeNotifierProvider(create: (_) => AccountProvider()..restore()),
         ChangeNotifierProvider(create: (_) => FuelPoiProvider()),
+        ChangeNotifierProvider(
+          create: (_) => SharedTracesProvider(
+            SharedTracesApiClient(readToken: () => AccountStorage().readToken()),
+          ),
+        ),
       ],
       child: _AutoReplyHost(
         child: _SoloUplinkHost(
