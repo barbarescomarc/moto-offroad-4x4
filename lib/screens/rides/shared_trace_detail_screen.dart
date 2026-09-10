@@ -8,6 +8,7 @@ import '../../providers/rides_provider.dart';
 import '../../services/ride_repository.dart';
 import '../../services/shared_trace_importer.dart';
 import '../../services/shared_traces_api_client.dart';
+import 'report_trace_sheet.dart';
 
 /// Fiche d'une trace du catalogue partagé : aperçu, description, compteur de
 /// téléchargements, puis les deux actions du rider — télécharger la trace
@@ -34,6 +35,7 @@ class _SharedTraceDetailScreenState extends State<SharedTraceDetailScreen> {
     setState(() => _enCours = true);
     try {
       final gpx = await widget.api.downloadGpx(fiche.id);
+      if (!mounted) return;
       final repo = context.read<RideRepository>();
       await SharedTraceImporter(repo).import(fiche, gpx);
       if (!mounted) return;
@@ -53,6 +55,9 @@ class _SharedTraceDetailScreenState extends State<SharedTraceDetailScreen> {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
+
+  Future<void> _signaler(SharedTraceDetail fiche) =>
+      showReportTraceSheet(context, traceId: fiche.id, api: widget.api);
 
   @override
   Widget build(BuildContext context) {
@@ -109,9 +114,8 @@ class _SharedTraceDetailScreenState extends State<SharedTraceDetailScreen> {
           label: Text(_telechargee ? 'Dans tes sorties' : 'Télécharger'),
         ),
         const SizedBox(height: 8),
-        // Câblé sur la feuille de signalement par la Tâche 21.
         OutlinedButton.icon(
-          onPressed: () {},
+          onPressed: () => _signaler(fiche),
           icon: const Icon(Icons.flag_outlined),
           label: const Text('Signaler'),
         ),
