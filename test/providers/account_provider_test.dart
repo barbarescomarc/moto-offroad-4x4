@@ -598,4 +598,155 @@ void main() {
     expect(p2.charteVersion, LegalDocuments.charteVersion,
         reason: 'la casse et les espaces superflus ne doivent pas faire perdre le filet a un rider fidele');
   });
+
+  // ── Acceptation hors ligne de la charte (Critique 3a de la revue finale) ──
+  //
+  // Le mur de la charte est total, SOS et compte a rebours de chute inclus
+  // (voir accountRedirect). Avant ce correctif, acceptCharte() exigeait le
+  // reseau : un rider dont le compte existe deja mais qui n a jamais vu cet
+  // ecran, et dont le premier lancement (ou un redemarrage) tombe hors
+  // couverture, n avait alors aucune sortie — accepter exigeait justement
+  // ce que la panne lui refusait.
+
+  test('accepter la charte hors ligne debloque immediatement l acces (Critique 3a)', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      throw Exception('reseau coupe'); // /charte
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+    expect(p.charteVersion, isNull);
+
+    final ok = await p.acceptCharte(version: LegalDocuments.charteVersion);
+
+    expect(ok, isTrue, reason: 'une panne reseau ne doit plus empecher d accepter la charte');
+    expect(p.charteVersion, LegalDocuments.charteVersion);
+  });
+
+  test(
+      'une acceptation hors ligne survit a un redemarrage qui reste hors ligne, meme sans email jamais resolu',
+      () async {
+    // Jeton deja present (compte cree une fois, precedemment, avec reseau),
+    // mais CETTE instance n a jamais vu /me reussir : email inconnu d elle.
+    await AccountStorage().writeToken('jeton');
+    final p1 = provider(MockClient((_) async => throw Exception('reseau coupe')));
+    await p1.restore();
+    expect(p1.status, AccountStatus.connecte);
+    expect(p1.charteVersion, isNull);
+
+    final ok = await p1.acceptCharte(version: LegalDocuments.charteVersion);
+    expect(ok, isTrue);
+    expect(p1.charteVersion, LegalDocuments.charteVersion);
+
+    // Redemarrage : nouvelle instance, toujours hors ligne, email toujours
+    // inconnu de ce nouveau processus non plus — le filet garde par
+    // identite (_charteVersionLocale) ne peut rien rendre ici, seule
+    // l acceptation en attente (sans condition d identite) le peut.
+    final p2 = provider(MockClient((_) async => throw Exception('reseau coupe')));
+    await p2.restore();
+
+    expect(p2.status, AccountStatus.connecte);
+    expect(p2.charteVersion, LegalDocuments.charteVersion,
+        reason: 'une acceptation faite hors ligne doit survivre a un redemarrage qui reste hors ligne');
+  });
+
+  test('une acceptation hors ligne est rejouee au prochain contact reussi, puis l attente est effacee', () async {
+    final p1 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      throw Exception('reseau coupe'); // /charte
+    }));
+    await p1.register(email: 'rider@example.test', password: 'dix caracteres');
+    final ok = await p1.acceptCharte(version: LegalDocuments.charteVersion);
+    expect(ok, isTrue);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_en_attente'), LegalDocuments.charteVersion);
+
+    var accepteRejoue = false;
+    final p2 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/charte')) {
+        accepteRejoue = true;
+        return http.Response('{}', 200);
+      }
+      // /me : le serveur ne connait pas encore l acceptation faite hors
+      // ligne par la premiere instance.
+      return http.Response(jsonEncode({'email': 'rider@example.test', 'verified': true}), 200);
+    }));
+    await p2.restore();
+
+    expect(accepteRejoue, isTrue,
+        reason: 'un contact serveur reussi (ici /me dans restore()) doit rejouer l acceptation en attente');
+    expect(p2.charteVersion, LegalDocuments.charteVersion);
+    expect(prefs.getString('account_charte_version_en_attente'), isNull,
+        reason: 'un rejeu reussi doit effacer l attente, sinon elle serait rejouee indefiniment');
+  });
+
+  // ── Résolution de l'email a l'acceptation (Critique 3b) ──────────────
+  //
+  // account_provider.dart qualifiait ce cas de "marginal" : _email nul au
+  // moment d'une acceptation reussie. C'est au contraire le chemin courant
+  // : /me echoue au demarrage (email inconnu), le mur de la charte
+  // s'affiche, le reseau revient, le rider accepte — c'est CET appel qui
+  // reussit alors que _email n'a jamais ete resolu par cette instance.
+
+  test('une acceptation reussie sans email connu le resout via me et memorise sous cette adresse (Critique 3b)',
+      () async {
+    var enPanne = true; // restore() echoue reseau, /me jamais vu reussir
+    final p = provider(MockClient((req) async {
+      if (enPanne) throw Exception('reseau coupe');
+      if (req.url.path.endsWith('/me')) {
+        return http.Response(jsonEncode({'email': 'rider@example.test', 'verified': true}), 200);
+      }
+      return http.Response('{}', 200); // /charte
+    }));
+    await AccountStorage().writeToken('jeton');
+    await p.restore();
+    expect(p.status, AccountStatus.connecte);
+    expect(p.charteVersion, isNull);
+
+    enPanne = false; // le reseau revient au moment ou le rider accepte
+    final ok = await p.acceptCharte(version: LegalDocuments.charteVersion);
+
+    expect(ok, isTrue);
+    expect(p.charteVersion, LegalDocuments.charteVersion);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_acceptee'), LegalDocuments.charteVersion,
+        reason: 'sans resoudre l email au moment de l acceptation, rien n etait memorise localement');
+    expect(prefs.getString('account_charte_version_acceptee_compte'), 'rider@example.test');
+  });
+
+  // ── Changement d'email et filet local (Critique 3c) ──────────────────
+
+  test('changer d email re-cle le filet local de la charte, au lieu de le laisser attache a l ancienne adresse',
+      () async {
+    final p1 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await p1.register(email: 'ancien@example.test', password: 'dix caracteres');
+    await p1.acceptCharte(version: LegalDocuments.charteVersion);
+
+    final ok = await p1.changeEmail('nouveau@example.test');
+    expect(ok, isTrue);
+
+    // Reconnexion hors ligne avec la NOUVELLE adresse : le filet doit
+    // reconnaitre ce rider, pas le remurer pour avoir change d email.
+    final p2 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        return http.Response(jsonEncode({'token': 'jeton2', 'verified': true}), 200);
+      }
+      throw Exception('reseau coupe'); // /me
+    }));
+    final ok2 = await p2.login(email: 'nouveau@example.test', password: 'dix caracteres');
+
+    expect(ok2, isTrue);
+    expect(p2.charteVersion, LegalDocuments.charteVersion,
+        reason: 'sans re-cle, changer d email remurrerait ce rider au prochain demarrage hors ligne');
+  });
 }

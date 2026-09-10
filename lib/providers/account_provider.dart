@@ -91,6 +91,28 @@ class AccountProvider extends ChangeNotifier {
   static const String _kCharteVersionLocale = 'account_charte_version_acceptee';
   static const String _kCharteVersionLocaleCompte = 'account_charte_version_acceptee_compte';
 
+  // ── Acceptation hors ligne de la charte (Critique 3a de la revue finale) ──
+  //
+  // Le mur de la charte est total (voir accountRedirect) : SOS et le compte
+  // à rebours de chute inclus. Avant ce correctif, [acceptCharte] appelait
+  // uniquement le serveur — un rider dont le premier lancement (ou un
+  // redémarrage) tombe hors couverture, avec un compte déjà créé mais
+  // jamais passé par cet écran, se retrouvait mur à mur SANS AUCUNE SORTIE :
+  // accepter exigeait le réseau que la panne lui refusait justement. Le
+  // texte de la charte est pourtant un asset embarqué, rien dans sa lecture
+  // n'exige de réseau — seul l'enregistrement côté serveur en dépend.
+  //
+  // La version acceptée hors ligne est donc mémorisée ici, SANS exiger de
+  // connaître l'email du rider (contrairement au filet ci-dessus, qui lui
+  // est gardé par identité) : au moment où elle est posée, cette instance
+  // peut très bien n'avoir jamais vu /me réussir. C'est elle qui est relue
+  // par [restore] quand le serveur reste muet ET qu'aucune entrée du filet
+  // ci-dessus n'existe — voir ce dernier. Elle est rejouée vers le serveur
+  // au prochain contact réussi ([restore], [refreshVerification], [login] —
+  // voir [_rejouerAcceptationCharteEnAttente]), et effacée dès que ce rejeu
+  // aboutit.
+  static const String _kCharteVersionEnAttente = 'account_charte_version_en_attente';
+
   /// Normalise une adresse pour comparaison — insensible à la casse et aux
   /// espaces superflus, pour qu'une même adresse saisie différemment (casse
   /// du clavier, copier-coller) ne se voie pas refuser le filet à tort.
@@ -180,6 +202,75 @@ class AccountProvider extends ChangeNotifier {
     }
   }
 
+  /// Re-clé le filet local sur une nouvelle adresse — Critique 3c de la
+  /// revue finale : sans ce correctif, [changeEmail] laissait l'entrée
+  /// gardée par l'ANCIENNE adresse. Un rider qui change d'email puis
+  /// redémarre hors couverture avec la nouvelle adresse ne se reconnaissait
+  /// plus lui-même (`_charteVersionLocale(pourEmail: ...)` refuse une
+  /// entrée qui ne correspond pas), et se retrouvait remuré pour avoir
+  /// simplement changé d'adresse. Ne re-clé que si l'entrée appartenait
+  /// bien à [ancienEmail] : un compte qui n'avait jamais accepté localement
+  /// n'a rien à re-clé, et une entrée laissée par un AUTRE rider sur ce
+  /// même appareil (voir la note round 1 plus haut) ne doit jamais être
+  /// récupérée par ce changement d'email.
+  Future<void> _reCleCharteVersionLocale(String ancienEmail, String nouvelEmail) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final compte = prefs.getString(_kCharteVersionLocaleCompte);
+      if (compte == null || compte != _normaliserEmail(ancienEmail)) return;
+      await prefs.setString(_kCharteVersionLocaleCompte, _normaliserEmail(nouvelEmail));
+    } catch (e) {
+      debugPrint('AccountProvider._reCleCharteVersionLocale en echec : $e');
+    }
+  }
+
+  Future<String?> _charteEnAttente() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_kCharteVersionEnAttente);
+    } catch (e) {
+      debugPrint('AccountProvider._charteEnAttente en echec : $e');
+      return null;
+    }
+  }
+
+  Future<void> _memoriserCharteEnAttente(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kCharteVersionEnAttente, version);
+    } catch (e) {
+      debugPrint('AccountProvider._memoriserCharteEnAttente en echec : $e');
+    }
+  }
+
+  Future<void> _effacerCharteEnAttente() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kCharteVersionEnAttente);
+    } catch (e) {
+      debugPrint('AccountProvider._effacerCharteEnAttente en echec : $e');
+    }
+  }
+
+  /// Pousse vers le serveur une acceptation faite hors ligne (voir
+  /// [acceptCharte]), au premier contact réussi qui suit — [restore],
+  /// [refreshVerification] et [login] appellent tous ceci juste après un
+  /// `/me` qui aboutit. Ne fait rien si rien n'est en attente, ou sans
+  /// jeton. Un échec (le serveur répond de nouveau muet entre-temps) laisse
+  /// l'entrée en place pour une prochaine tentative — [_charteVersion]
+  /// reste alors sur la valeur déjà acceptée localement, jamais régressée
+  /// vers une réponse serveur plus ancienne (voir les appelants).
+  Future<void> _rejouerAcceptationCharteEnAttente() async {
+    if (_token == null) return;
+    final enAttente = await _charteEnAttente();
+    if (enAttente == null) return;
+    final res = await _api.acceptCharte(token: _token!, version: enAttente);
+    if (!res.ok) return;
+    await _effacerCharteEnAttente();
+    _charteVersion = enAttente;
+    if (_email != null) await _memoriserCharteVersionLocale(enAttente, _email!);
+  }
+
   /// Recharge la session au démarrage de l'application depuis le jeton
   /// éventuellement stocké.
   ///
@@ -214,6 +305,12 @@ class AccountProvider extends ChangeNotifier {
       _displayName = profil.value!.displayName;
       _charteVersion = profil.value!.charteVersion;
       await _synchroniserCharteVersionLocale(_charteVersion, profil.value!.email);
+      // Critique 3a : un contact serveur réussi est un point de rejeu pour
+      // une acceptation faite hors ligne — voir
+      // _rejouerAcceptationCharteEnAttente. Appelé APRÈS avoir posé la
+      // valeur du serveur ci-dessus : s'il y a quelque chose en attente, il
+      // la fait prévaloir ; sinon il ne touche à rien.
+      await _rejouerAcceptationCharteEnAttente();
       _set(profil.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
       return;
     }
@@ -254,6 +351,14 @@ class AccountProvider extends ChangeNotifier {
     // /me antérieur). `??=` ne touche à rien si un appel précédent dans
     // cette même instance a déjà résolu _charteVersion.
     _charteVersion ??= await _charteVersionLocale();
+    // Critique 3a : une acceptation faite hors ligne (voir [acceptCharte])
+    // doit survivre à un redémarrage qui reste hors couverture — y compris
+    // quand cette instance n'a encore jamais résolu l'email du rider,
+    // auquel cas le filet ci-dessus (gardé par identité) ne répond rien.
+    // Sans ce second repli, un rider qui aurait déjà accepté hors ligne se
+    // retrouverait remuré de nouveau au moindre redémarrage tant que le
+    // réseau ne revient pas — exactement le défaut que 3a corrige.
+    _charteVersion ??= await _charteEnAttente();
     _set(AccountStatus.connecte);
   }
 
@@ -304,7 +409,13 @@ class AccountProvider extends ChangeNotifier {
   Future<bool> login({required String email, required String password}) async {
     final res = await _api.login(email: email, password: password);
     final charteVersion = res.ok ? await _charteVersionDepuisLeServeur(res.value!.token, email) : null;
-    return _apply(res, email, charteVersion: charteVersion);
+    final ok = await _apply(res, email, charteVersion: charteVersion);
+    // Critique 3a : la connexion est elle aussi un contact serveur réussi,
+    // donc un point de rejeu pour une acceptation faite hors ligne sur cet
+    // appareil avant que ce rider ne se reconnecte — voir
+    // _rejouerAcceptationCharteEnAttente.
+    if (ok) await _rejouerAcceptationCharteEnAttente();
+    return ok;
   }
 
   /// Seul /me fait foi pour la charte du pilote une fois le jeton en main.
@@ -355,6 +466,8 @@ class AccountProvider extends ChangeNotifier {
     _email = profil.value!.email;
     _charteVersion = profil.value!.charteVersion;
     await _synchroniserCharteVersionLocale(_charteVersion, profil.value!.email);
+    // Critique 3a : voir la même remarque dans restore().
+    await _rejouerAcceptationCharteEnAttente();
     if (profil.value!.verified) {
       _set(AccountStatus.connecte);
       return true;
@@ -367,22 +480,58 @@ class AccountProvider extends ChangeNotifier {
   /// local. C'est ce qui fait disparaître `CharteScreen` : `accountRedirect`
   /// réévalue dès la notification déclenchée ici, sans navigation explicite
   /// à faire depuis l'écran.
+  ///
+  /// Critique 3a de la revue finale : le texte de la charte est un asset
+  /// embarqué, rien dans sa lecture n'exige de réseau — seul l'appel
+  /// serveur ci-dessous en dépend. Un échec réseau (par opposition à un
+  /// refus explicite du serveur) ne bloque donc plus le rider : l'accepta-
+  /// tion est retenue localement et rendue au reste de l'application tout
+  /// de suite (le mur retombe dès la notification), puis rejouée vers le
+  /// serveur au prochain contact réussi — voir
+  /// _rejouerAcceptationCharteEnAttente, appelée depuis [restore],
+  /// [refreshVerification] et [login].
   Future<bool> acceptCharte({String version = LegalDocuments.charteVersion}) async {
     if (_token == null) return false;
     final res = await _api.acceptCharte(token: _token!, version: version);
     _lastError = res.error;
     if (res.ok) {
       _charteVersion = version;
-      // _email peut rester `null` ici dans un cas marginal : une instance
-      // dont le seul restore() a échoué réseau sans jamais avoir vu /me
-      // réussir (voir la branche finale de restore()). Sans identité
-      // connue, mieux vaut ne rien mémoriser localement que mémoriser sous
-      // une identité fausse — l'acceptation reste valable pour la session
-      // en cours, seul le filet d'une future panne réseau s'en passera.
+      await _effacerCharteEnAttente();
+      // Critique 3b : _email peut être encore `null` ici — typiquement une
+      // instance dont le seul restore() a échoué réseau sans jamais avoir
+      // vu /me réussir (voir la branche finale de restore()), puis dont le
+      // réseau est revenu juste à temps pour cet appel. C'est justement le
+      // cas le plus courant, pas marginal : sans résoudre l'identité ici,
+      // rien n'était mémorisé, et le prochain démarrage hors ligne
+      // remurrait ce même rider. Un seul appel à /me suffit à la résoudre.
+      if (_email == null) await _resoudreEmailPourFiletCharte();
       if (_email != null) await _memoriserCharteVersionLocale(version, _email!);
+      notifyListeners();
+      return true;
+    }
+    if (res.error == AccountError.reseau) {
+      // Cette branche EST le succès (Critique 3a) : rien à laisser en erreur
+      // pour un appelant qui recevra `true` juste en dessous.
+      _lastError = null;
+      _charteVersion = version;
+      await _memoriserCharteEnAttente(version);
+      if (_email != null) await _memoriserCharteVersionLocale(version, _email!);
+      notifyListeners();
+      return true;
     }
     notifyListeners();
-    return res.ok;
+    return false;
+  }
+
+  /// Résout l'identité du rider après une acceptation réussie quand elle
+  /// n'était pas encore connue de cette instance (Critique 3b). Best-effort
+  /// : un nouvel échec ici (réseau redevenu indisponible entre les deux
+  /// appels) laisse simplement _email à `null`, sans rien casser d'autre —
+  /// l'acceptation elle-même est déjà actée plus haut.
+  Future<void> _resoudreEmailPourFiletCharte() async {
+    if (_token == null) return;
+    final profil = await _api.me(token: _token!);
+    if (profil.ok) _email = profil.value!.email;
   }
 
   Future<bool> resendVerification() async {
@@ -393,11 +542,21 @@ class AccountProvider extends ChangeNotifier {
     return res.ok;
   }
 
+  /// Critique 3c de la revue finale : le filet local de la charte est gardé
+  /// par email (voir `_charteVersionLocale`). Sans re-clé ici, une
+  /// acceptation déjà mémorisée restait attachée à l'ANCIENNE adresse — une
+  /// prochaine connexion hors ligne avec la nouvelle ne la reconnaissait
+  /// plus, et remurrait un rider dont la seule faute était d'avoir changé
+  /// d'email.
   Future<bool> changeEmail(String email) async {
     if (_token == null) return false;
+    final ancienEmail = _email;
     final res = await _api.changeEmail(token: _token!, email: email);
     _lastError = res.error;
-    if (res.ok) _email = email;
+    if (res.ok) {
+      _email = email;
+      if (ancienEmail != null) await _reCleCharteVersionLocale(ancienEmail, email);
+    }
     notifyListeners();
     return res.ok;
   }
@@ -413,8 +572,11 @@ class AccountProvider extends ChangeNotifier {
     if (_token != null) await _api.logout(token: _token!);
     await _storage.clear();
     // Même geste que pour le jeton : un téléphone remis à un autre rider
-    // ne doit hériter d'aucune acceptation de charte précédente (Tâche 23C).
+    // ne doit hériter d'aucune acceptation de charte précédente (Tâche 23C),
+    // ni d'une acceptation faite hors ligne encore en attente de rejeu
+    // (Critique 3a) — elle appartient au compte qui vient de se déconnecter.
     await _effacerCharteVersionLocale();
+    await _effacerCharteEnAttente();
     _token = null;
     _email = null;
     _displayName = null;
@@ -432,6 +594,7 @@ class AccountProvider extends ChangeNotifier {
     }
     await _storage.clear();
     await _effacerCharteVersionLocale();
+    await _effacerCharteEnAttente();
     _token = null;
     _email = null;
     _charteVersion = null;

@@ -39,6 +39,23 @@ class _ApiFactice extends AccountApiClient {
   }
 }
 
+// Même double, mais dont l'acceptation échoue toujours réseau — simule un
+// rider hors couverture face à l'écran de la charte (Critique 3a de la
+// revue finale).
+class _ApiFacticeHorsLigne extends AccountApiClient {
+  _ApiFacticeHorsLigne()
+      : super(
+          baseUrl: 'https://exemple.test',
+          client: MockClient(
+            (_) async => http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201),
+          ),
+        );
+
+  @override
+  Future<AccountResult<void>> acceptCharte({required String token, required String version}) async =>
+      const AccountResult.failure(AccountError.reseau);
+}
+
 // Compte connecté (adresse vérifiée) dont le rider a — ou non — déjà
 // accepté la charte dans sa version courante.
 Future<AccountProvider> compteDeTest({required String? charteVersion, AccountApiClient? api}) async {
@@ -166,5 +183,39 @@ void main() {
 
     expect(find.byType(CharteScreen), findsNothing);
     expect(find.byType(AccountScreen), findsOneWidget);
+  });
+
+  // ── Critique 3a de la revue finale ────────────────────────────────
+  //
+  // Le mur de la charte est total (SOS et compte a rebours de chute
+  // compris) et, avant ce correctif, la seule sortie exigeait le reseau que
+  // la panne refusait justement — un rider hors couverture n avait alors
+  // aucune sortie. Ce test prouve, au niveau de l ecran, que l acceptation
+  // n echoue plus quand le serveur est injoignable.
+  testWidgets('hors reseau, accepter la charte ne laisse pas le rider bloque sur un message d echec', (tester) async {
+    final api = _ApiFacticeHorsLigne();
+    final compte = await compteDeTest(charteVersion: null, api: api);
+
+    await tester.runAsync(() async {
+      await tester.pumpWidget(
+        ChangeNotifierProvider<AccountProvider>.value(
+          value: compte,
+          child: const MaterialApp(home: CharteScreen()),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byType(Checkbox));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text("J'accepte"));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+    });
+
+    expect(find.textContaining("Impossible d'enregistrer"), findsNothing,
+        reason: 'une panne reseau ne doit plus etre traitee comme un echec (Critique 3a)');
+    expect(compte.charteVersion, '1.0',
+        reason: 'l acceptation doit debloquer l acces localement meme sans reseau, '
+            'sinon le mur reste ferme devant le SOS sans aucune issue hors ligne');
   });
 }
