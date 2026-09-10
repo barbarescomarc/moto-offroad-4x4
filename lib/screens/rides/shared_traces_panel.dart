@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:go_router/go_router.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
 
 import '../../app/router.dart';
@@ -7,6 +9,7 @@ import '../../models/favorite_place.dart';
 import '../../models/shared_trace.dart';
 import '../../providers/shared_traces_provider.dart';
 import '../../services/location_service.dart';
+import '../../widgets/map_search_bar.dart';
 
 /// Rayons de recherche proposés autour du point de référence.
 const _rayonsKm = [10.0, 25.0, 50.0, 100.0, 200.0];
@@ -61,7 +64,77 @@ class _SharedTracesPanelState extends State<SharedTracesPanel> {
     }
   }
 
+  // Deux façons de poser la référence, comme sur la carte (menu radial :
+  // loupe de recherche et étoile des favoris, deux entrées distinctes) :
+  // rechercher une adresse, ou reprendre un favori déjà enregistré. Sans la
+  // recherche, un rider sans favori et sans position connue — justement
+  // celui qui en a le plus besoin — ne pourrait jamais poser de référence.
   Future<void> _choisirLieu() async {
+    await showModalBottomSheet<void>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.search),
+              title: const Text('Rechercher un lieu'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _rechercherLieu();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.star_border),
+              title: const Text('Mes favoris'),
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                _choisirFavori();
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _rechercherLieu() async {
+    LatLng? position;
+    String? label;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (sheetContext) => Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 16,
+          bottom: 16 + MediaQuery.of(sheetContext).viewInsets.bottom,
+        ),
+        child: MapSearchBar(
+          // Jamais attaché à un FlutterMap — sans effet ici puisque
+          // onSelect court-circuite tout appel à mapController.move().
+          mapController: MapController(),
+          startVisible: true,
+          onResultSelected: () => Navigator.of(sheetContext).pop(),
+          onSelect: (pos, resultLabel) {
+            position = pos;
+            label = resultLabel;
+          },
+        ),
+      ),
+    );
+    if (position == null || !mounted) return;
+    context.read<SharedTracesProvider>().setReference(position!, label: label);
+  }
+
+  Future<void> _choisirFavori() async {
     final lieu = await context.push<FavoritePlace>(AppRoutes.favorites);
     if (lieu == null || !mounted) return;
     context.read<SharedTracesProvider>().setReference(lieu.position, label: lieu.name);
@@ -211,10 +284,42 @@ class _SharedTracesPanelState extends State<SharedTracesPanel> {
         ),
       );
     }
-    return ListView.separated(
-      itemCount: provider.traces.length,
-      separatorBuilder: (_, __) => const Divider(height: 1),
-      itemBuilder: (_, i) => _TraceTile(trace: provider.traces[i]),
+
+    // Des résultats existent déjà : ni une panne ni un rechargement ne
+    // doivent les effacer — une liste un peu périmée vaut mieux qu'un écran
+    // vide en pleine cambrousse. Mais le rider doit pouvoir voir qu'elle
+    // l'est : un bandeau pour l'erreur, une barre fine pour le chargement en
+    // cours, jamais les deux en silence.
+    return Column(
+      children: [
+        if (provider.error != null) _bandeauPerime(provider.error!),
+        if (provider.isLoading) const LinearProgressIndicator(minHeight: 2),
+        Expanded(
+          child: ListView.separated(
+            itemCount: provider.traces.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (_, i) => _TraceTile(trace: provider.traces[i]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _bandeauPerime(String message) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      color: scheme.errorContainer,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      child: Row(
+        children: [
+          Icon(Icons.wifi_off, size: 16, color: scheme.onErrorContainer),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(message, style: TextStyle(color: scheme.onErrorContainer)),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +15,7 @@ import 'package:moto_offroad/screens/rides/shared_traces_panel.dart';
 import 'package:moto_offroad/services/ride_database.dart';
 import 'package:moto_offroad/services/ride_repository.dart';
 import 'package:moto_offroad/services/shared_traces_api_client.dart';
+import 'package:moto_offroad/widgets/map_search_bar.dart';
 
 // Fiche minimale, avec les seuls champs que ces tests font varier.
 SharedTraceSummary resume(
@@ -48,6 +51,12 @@ class _ApiFactice extends SharedTracesApiClient {
   List<SharedTraceSummary> reponse = [];
   Object? erreur;
 
+  // Laisse un test geler la réponse en plein vol, pour observer un état de
+  // chargement précis (pump() seul ne le garantit pas : un Future sans
+  // aucun await réel peut se résoudre dans le même passage de microtâches
+  // qu'un pump()).
+  Completer<List<SharedTraceSummary>>? enAttente;
+
   @override
   Future<List<SharedTraceSummary>> list({
     double? lat,
@@ -59,6 +68,7 @@ class _ApiFactice extends SharedTracesApiClient {
     int? offset,
   }) async {
     appels.add({'lat': lat, 'rayon': radiusKm, 'engin': vehicle, 'depuis': offset});
+    if (enAttente != null) return enAttente!.future;
     if (erreur != null) throw erreur!;
     return reponse;
   }
@@ -163,5 +173,65 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('Aucune trace'), findsOneWidget);
+  });
+
+  testWidgets('une erreur apres un chargement reussi garde les resultats et affiche le message', (tester) async {
+    final api = _ApiFactice()..reponse = [resume('t1', nom: 'Boucle du Sidobre')];
+    final provider = SharedTracesProvider(api);
+    await provider.setReference(const LatLng(43.6, 1.44));
+
+    await tester.pumpWidget(panneauDeTest(provider));
+    await tester.pumpAndSettle();
+    expect(find.text('Boucle du Sidobre'), findsOneWidget);
+
+    api.erreur = const SharedTracesException(503, 'Le serveur ne repond pas');
+    await provider.setRadius(25);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Boucle du Sidobre'), findsOneWidget);
+    expect(find.textContaining('Le serveur ne repond pas'), findsOneWidget);
+  });
+
+  testWidgets('un rechargement affiche un indicateur sans vider la liste', (tester) async {
+    final api = _ApiFactice()..reponse = [resume('t1', nom: 'Boucle du Sidobre')];
+    final provider = SharedTracesProvider(api);
+    await provider.setReference(const LatLng(43.6, 1.44));
+
+    await tester.pumpWidget(panneauDeTest(provider));
+    await tester.pumpAndSettle();
+    expect(find.text('Boucle du Sidobre'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+
+    final porte = Completer<List<SharedTraceSummary>>();
+    api.enAttente = porte;
+    final rechargement = provider.setRadius(25);
+    await tester.pump();
+
+    expect(find.text('Boucle du Sidobre'), findsOneWidget);
+    expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    porte.complete([resume('t1', nom: 'Boucle du Sidobre')]);
+    await rechargement;
+    await tester.pump();
+
+    expect(find.byType(LinearProgressIndicator), findsNothing);
+  });
+
+  testWidgets('choisir un lieu propose une recherche et les favoris', (tester) async {
+    final provider = SharedTracesProvider(_ApiFactice());
+
+    await tester.pumpWidget(panneauDeTest(provider));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Choisir un lieu'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Rechercher un lieu'), findsOneWidget);
+    expect(find.text('Mes favoris'), findsOneWidget);
+
+    await tester.tap(find.text('Rechercher un lieu'));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(MapSearchBar), findsOneWidget);
   });
 }

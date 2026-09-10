@@ -35,8 +35,15 @@ class _RidesScreenState extends State<RidesScreen> {
               onSelectionChanged: (s) => setState(() => _volet = s.first),
             ),
           ),
+          // IndexedStack, pas un ternaire : un ternaire démonterait puis
+          // remonterait le volet caché à chaque bascule, ce qui relancerait
+          // son initState (et donc un nouveau refresh()) à chaque fois —
+          // une extraction n'est pas censée changer ce comportement.
           Expanded(
-            child: _volet == 0 ? const MyRidesPanel() : const SharedTracesPanel(),
+            child: IndexedStack(
+              index: _volet,
+              children: const [MyRidesPanel(), SharedTracesPanel()],
+            ),
           ),
         ],
       ),
