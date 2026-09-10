@@ -46,8 +46,18 @@ class _ApiFactice extends SharedTracesApiClient {
   final modifiees = <Map<String, Object?>>[];
   final depubliees = <String>[];
 
+  // Permettent à un test de forcer l'échec d'un appel précis, sans jamais
+  // faire de vraie requête réseau — voir les tests de la Correction 2
+  // (fix round 1) plus bas.
+  Object? erreurMine;
+  Object? erreurUpdate;
+  Object? erreurUnpublish;
+
   @override
-  Future<List<SharedTraceSummary>> mine() async => miennes;
+  Future<List<SharedTraceSummary>> mine() async {
+    if (erreurMine != null) throw erreurMine!;
+    return miennes;
+  }
 
   @override
   Future<void> update(
@@ -58,6 +68,7 @@ class _ApiFactice extends SharedTracesApiClient {
     TraceVehicle? vehicle,
     TraceDifficulty? difficulty,
   }) async {
+    if (erreurUpdate != null) throw erreurUpdate!;
     modifiees.add({
       'id': id,
       if (name != null) 'name': name,
@@ -69,7 +80,10 @@ class _ApiFactice extends SharedTracesApiClient {
   }
 
   @override
-  Future<void> unpublish(String id) async => depubliees.add(id);
+  Future<void> unpublish(String id) async {
+    if (erreurUnpublish != null) throw erreurUnpublish!;
+    depubliees.add(id);
+  }
 }
 
 Widget mesPublicationsDeTest(SharedTracesApiClient api) => MaterialApp(home: MyPublicationsScreen(api: api));
@@ -118,6 +132,62 @@ void main() {
     await tester.tap(find.text('Dépublier définitivement'));
     await tester.pumpAndSettle();
     expect(api.depubliees, ['t1']);
+  });
+
+  // ── Fix round 1, Finding 2 (Important) ────────────────────────
+  // Avant ce correctif : un échec de update()/unpublish() levait après que
+  // la feuille ou le dialogue s'était déjà refermé, sans rien dire au
+  // rider ; et un échec de mine() laissait le FutureBuilder tourner
+  // indéfiniment, sans branche d'erreur.
+
+  testWidgets('un echec de chargement affiche un message et permet de reessayer', (tester) async {
+    final api = _ApiFactice()..erreurMine = const SharedTracesException(500, 'Le serveur ne repond pas');
+    await tester.pumpWidget(mesPublicationsDeTest(api));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Le serveur ne repond pas'), findsOneWidget);
+
+    api.erreurMine = null;
+    api.miennes = [resume('t1', nom: 'Boucle')];
+    await tester.tap(find.text('Réessayer'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Boucle'), findsOneWidget);
+  });
+
+  testWidgets('un echec de modification previent le rider au lieu de le laisser croire que ca a marche',
+      (tester) async {
+    final api = _ApiFactice()
+      ..miennes = [resume('t1', nom: 'Boucle')]
+      ..erreurUpdate = const SharedTracesException(500, 'Le serveur ne repond pas');
+    await tester.pumpWidget(mesPublicationsDeTest(api));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Modifier la fiche'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('champ_description')), 'Nouvelle description');
+    await tester.tap(find.text('Enregistrer'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Le serveur ne repond pas'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('un echec de depublication previent le rider au lieu de le laisser croire que ca a marche',
+      (tester) async {
+    final api = _ApiFactice()
+      ..miennes = [resume('t1', nom: 'Boucle')]
+      ..erreurUnpublish = const SharedTracesException(500, 'Le serveur ne repond pas');
+    await tester.pumpWidget(mesPublicationsDeTest(api));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Dépublier'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dépublier définitivement'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('Le serveur ne repond pas'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
   // Le brief n'exigeait pas explicitement ce test, mais le lot a déjà été

@@ -146,8 +146,32 @@ class AccountProvider extends ChangeNotifier {
         charteVersion: charteVersion,
       );
 
-  Future<bool> login({required String email, required String password}) async =>
-      _apply(await _api.login(email: email, password: password), email);
+  /// Contrairement à l'inscription, la connexion ne connaît pas localement
+  /// la charte du pilote déjà acceptée par ce compte — et le serveur ne la
+  /// renvoie ni au login ni au register, seuls token/verified/displayName
+  /// (fait confirmé après coup, voir le correctif ci-dessous). Sans
+  /// l'appel à /me, `_apply` retombait sur `res.value!.charteVersion`, qui
+  /// vaut toujours `null` à ce point : chaque connexion effaçait donc la
+  /// charte pourtant déjà acceptée depuis longtemps, et renvoyait un rider
+  /// fidèle sur `CharteScreen` (Finding 1 du premier tour de revue). /me
+  /// est interrogé avant [_apply], donc avant la notification qui fait
+  /// réagir le routeur — pas de flash intermédiaire vers la mauvaise
+  /// valeur.
+  Future<bool> login({required String email, required String password}) async {
+    final res = await _api.login(email: email, password: password);
+    final charteVersion = res.ok ? await _charteVersionDepuisLeServeur(res.value!.token) : null;
+    return _apply(res, email, charteVersion: charteVersion);
+  }
+
+  /// Seul /me fait foi pour la charte du pilote une fois le jeton en main.
+  /// Un échec (réseau, serveur) ne doit pas casser une connexion par
+  /// ailleurs réussie — même règle de robustesse que le reste de cette
+  /// classe : `null` reste alors la valeur locale, qu'un futur `restore()`
+  /// ou `refreshVerification()` rattrapera.
+  Future<String?> _charteVersionDepuisLeServeur(String token) async {
+    final profil = await _api.me(token: token);
+    return profil.ok ? profil.value!.charteVersion : null;
+  }
 
   /// Interroge le serveur pour savoir si l'adresse a été vérifiée entre
   /// temps. Si l'appel échoue (réseau absent ou erreur serveur), le statut

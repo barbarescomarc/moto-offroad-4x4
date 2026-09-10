@@ -36,7 +36,16 @@ class _MyPublicationsScreenState extends State<MyPublicationsScreen> {
     setState(() {
       _futur = futur;
     });
-    await futur;
+    // Un échec ici est déjà visible via le FutureBuilder, qui observe
+    // directement _futur (voir sa branche d'erreur dans build()) : ne pas
+    // laisser l'exception se propager, sinon un appelant qui enchaîne juste
+    // après (_modifier, _depublier) planterait sur ce rechargement raté
+    // alors que sa propre action, elle, a réussi.
+    try {
+      await futur;
+    } on SharedTracesException {
+      // Rien de plus à faire ici, voir le commentaire ci-dessus.
+    }
   }
 
   Future<void> _modifier(SharedTraceSummary trace) async {
@@ -50,16 +59,24 @@ class _MyPublicationsScreenState extends State<MyPublicationsScreen> {
     // formulaire enregistré tel quel (map vide) ne justifient un appel
     // serveur — voir la décision "seuls les champs changés partent".
     if (champs == null || champs.isEmpty || !mounted) return;
-    await widget.api.update(
-      trace.id,
-      name: champs['name'] as String?,
-      description: champs['description'] as String?,
-      authorName: champs['authorName'] as String?,
-      vehicle: champs['vehicle'] as TraceVehicle?,
-      difficulty: champs['difficulty'] as TraceDifficulty?,
-    );
-    if (!mounted) return;
-    await _rafraichir();
+    try {
+      await widget.api.update(
+        trace.id,
+        name: champs['name'] as String?,
+        description: champs['description'] as String?,
+        authorName: champs['authorName'] as String?,
+        vehicle: champs['vehicle'] as TraceVehicle?,
+        difficulty: champs['difficulty'] as TraceDifficulty?,
+      );
+      if (!mounted) return;
+      await _rafraichir();
+    } on SharedTracesException catch (e) {
+      // Le formulaire est déjà fermé à ce stade (showModalBottomSheet a
+      // rendu son résultat) : sans ceci, le rider croirait sa correction
+      // enregistrée alors que le serveur l'a refusée.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   Future<void> _depublier(SharedTraceSummary trace) async {
@@ -81,9 +98,17 @@ class _MyPublicationsScreenState extends State<MyPublicationsScreen> {
       ),
     );
     if (confirme != true || !mounted) return;
-    await widget.api.unpublish(trace.id);
-    if (!mounted) return;
-    await _rafraichir();
+    try {
+      await widget.api.unpublish(trace.id);
+      if (!mounted) return;
+      await _rafraichir();
+    } on SharedTracesException catch (e) {
+      // Même raisonnement que _modifier : le dialogue est déjà fermé, le
+      // rider doit être prévenu explicitement d'un échec plutôt que de
+      // croire la trace retirée à tort.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+    }
   }
 
   @override
@@ -93,6 +118,23 @@ class _MyPublicationsScreenState extends State<MyPublicationsScreen> {
       body: FutureBuilder<List<SharedTraceSummary>>(
         future: _futur,
         builder: (context, snap) {
+          if (snap.hasError) {
+            final message =
+                snap.error is SharedTracesException ? (snap.error as SharedTracesException).message : 'Une erreur est survenue.';
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(message, textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(onPressed: () => _rafraichir(), child: const Text('Réessayer')),
+                  ],
+                ),
+              ),
+            );
+          }
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final traces = snap.data!;
           if (traces.isEmpty) {

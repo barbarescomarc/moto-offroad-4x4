@@ -181,6 +181,49 @@ void main() {
     expect(p.charteVersion, '1.0');
   });
 
+  // Fix round 1, Finding 1 (Critical) : le serveur reel ne renvoie
+  // charteVersion ni au login ni au register (fait verifie par le
+  // controleur) — seul GET /me le porte. Avant ce correctif, login()
+  // passait par _apply sans jamais interroger /me, et _charteVersion
+  // retombait donc systematiquement a null apres CHAQUE connexion, meme
+  // pour un rider ayant deja accepte la charte depuis longtemps : nouveau
+  // telephone, reinstallation, deconnexion/reconnexion, session renouvelee.
+  // Ce test est celui qui aurait attrape le defaut : la reponse de login
+  // ne porte pas charteVersion (comme le vrai serveur), seul /me le fait.
+  test('une connexion sans charteVersion dans sa reponse va chercher la verite sur me, pas de mur pour un rider deja accepte',
+      () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        // Reponse conforme au serveur reel : token/verified/displayName
+        // seulement, jamais charteVersion.
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 200);
+      }
+      return http.Response(
+          jsonEncode({'email': 'rider@example.test', 'verified': true, 'charteVersion': '1.0'}), 200);
+    }));
+
+    final ok = await p.login(email: 'rider@example.test', password: 'dix caracteres');
+
+    expect(ok, isTrue);
+    expect(p.charteVersion, '1.0',
+        reason: 'sans l appel a /me, une connexion efface toujours la charte deja acceptee (Finding 1)');
+  });
+
+  test('une connexion reste connectee meme si l appel a me pour la charte echoue', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 200);
+      }
+      return http.Response('{}', 500);
+    }));
+
+    final ok = await p.login(email: 'rider@example.test', password: 'dix caracteres');
+
+    expect(ok, isTrue, reason: 'un echec du complement /me ne doit pas casser une connexion par ailleurs reussie');
+    expect(p.status, AccountStatus.connecte);
+    expect(p.charteVersion, isNull);
+  });
+
   test('accepter la charte l enregistre cote serveur et memorise la version', () async {
     final requetes = <Map<String, dynamic>>[];
     final p = provider(MockClient((req) async {

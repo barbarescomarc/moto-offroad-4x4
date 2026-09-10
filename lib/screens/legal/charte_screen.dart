@@ -23,13 +23,15 @@ class _CharteScreenState extends State<CharteScreen> {
   bool _enCours = false;
   String? _erreur;
 
-  // Chargée une seule fois en mémoire : appeler LegalDocuments.charte()
-  // directement dans build() recréerait un nouveau Future à chaque
-  // reconstruction (ex. AccountProvider qui notifie), et le FutureBuilder
-  // qui l'attend repasserait alors en chargement à chaque fois — jusqu'à
-  // tourner indéfiniment si une reconstruction se déclenche pendant que le
-  // précédent chargement se termine.
-  late final Future<String> _charte = LegalDocuments.charte();
+  // Chargée une seule fois en mémoire (pas dans build()) : appeler
+  // LegalDocuments.charte() directement dans build() recréerait un nouveau
+  // Future à chaque reconstruction (ex. AccountProvider qui notifie), et le
+  // FutureBuilder qui l'attend repasserait alors en chargement à chaque
+  // fois — jusqu'à tourner indéfiniment si une reconstruction se déclenche
+  // pendant que le précédent chargement se termine. Champ mutable (pas
+  // `late final`) pour permettre un nouvel essai depuis _texte() si la
+  // ressource embarquée échoue à charger.
+  Future<String> _charte = LegalDocuments.charte();
 
   Future<void> _accepter() async {
     setState(() {
@@ -68,6 +70,24 @@ class _CharteScreenState extends State<CharteScreen> {
   Widget _texte() => FutureBuilder<String>(
         future: _charte,
         builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Impossible de charger la charte du pilote.', textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: () => setState(() => _charte = LegalDocuments.charte()),
+                      child: const Text('Réessayer'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),

@@ -359,14 +359,20 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
 // Une seule maison pour ce texte : LegalDocuments, jamais recopié en dur
 // dans le code Dart, pour qu'une correction n'ait jamais à être faite à
 // deux endroits.
-class _ConditionsPublicationScreen extends StatelessWidget {
+class _ConditionsPublicationScreen extends StatefulWidget {
   const _ConditionsPublicationScreen();
 
-  // Chargé une seule fois pour toutes les instances : recréer ce Future à
-  // chaque build() ferait repasser le FutureBuilder en chargement à chaque
-  // reconstruction — voir la même remarque, plus détaillée, sur
-  // CharteScreen._charte.
-  static final Future<String> _texte = LegalDocuments.conditionsPublication();
+  @override
+  State<_ConditionsPublicationScreen> createState() => _ConditionsPublicationScreenState();
+}
+
+class _ConditionsPublicationScreenState extends State<_ConditionsPublicationScreen> {
+  // Chargé une seule fois en mémoire (pas dans build()) : recréer ce Future
+  // à chaque build() ferait repasser le FutureBuilder en chargement à
+  // chaque reconstruction — voir la même remarque, plus détaillée, sur
+  // CharteScreen._charte. Champ mutable pour permettre un nouvel essai si
+  // la ressource embarquée échoue à charger.
+  Future<String> _texte = LegalDocuments.conditionsPublication();
 
   @override
   Widget build(BuildContext context) {
@@ -375,6 +381,24 @@ class _ConditionsPublicationScreen extends StatelessWidget {
       body: FutureBuilder<String>(
         future: _texte,
         builder: (context, snap) {
+          if (snap.hasError) {
+            return Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Impossible de charger les conditions de publication.', textAlign: TextAlign.center),
+                    const SizedBox(height: 12),
+                    FilledButton(
+                      onPressed: () => setState(() => _texte = LegalDocuments.conditionsPublication()),
+                      child: const Text('Réessayer'),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
