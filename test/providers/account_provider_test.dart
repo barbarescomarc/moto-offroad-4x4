@@ -989,6 +989,83 @@ void main() {
     expect(prefs.getString('account_charte_version_en_attente'), LegalDocuments.charteVersion);
   });
 
+  // ── Suivi 1 : un 400 qui ne vient pas de NOTRE API ──────────────────
+  //
+  // Un 400 etait pris pour un refus de fond sur le seul code de statut. Or
+  // un proxy transparent, un filtrage d entreprise ou un portail captif
+  // repondent eux aussi 400 a un POST qu ils ne comprennent pas — et le
+  // rider hors-piste sur un reseau douteux est justement la population des
+  // portails captifs. Il se retrouvait mure, sans SOS ni detection de
+  // chute, pour une cause qui n est meme pas la notre. Un 400 ne vaut
+  // desormais refus que si le corps est celui de notre API (objet JSON
+  // portant `error`) ; voir AccountApiClient._vientDeNotreApi.
+
+  test('un 400 de portail captif (page HTML) en acceptant la charte ne mure pas le rider', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      // La page de connexion du portail, servie a la place de notre reponse.
+      return http.Response('<html><body>Connectez-vous au reseau Wi-Fi</body></html>', 400,
+          headers: {'content-type': 'text/html'});
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+
+    final ok = await p.acceptCharte(version: LegalDocuments.charteVersion);
+
+    expect(ok, isTrue, reason: 'un 400 qui ne vient pas de notre API n est pas un refus de la charte');
+    expect(p.charteVersion, LegalDocuments.charteVersion);
+    expect(p.lastError, isNull);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_en_attente'), LegalDocuments.charteVersion,
+        reason: 'l acceptation doit etre rejouee des que le chemin reseau redevient propre');
+  });
+
+  test('un 400 a corps vide en acceptant la charte ne mure pas le rider non plus', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('', 400); // intermediaire muet
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+
+    final ok = await p.acceptCharte(version: LegalDocuments.charteVersion);
+
+    expect(ok, isTrue);
+    expect(p.charteVersion, LegalDocuments.charteVersion);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_en_attente'), LegalDocuments.charteVersion);
+  });
+
+  // ── Suivi 2 : refreshVerification() et le rejeu en echec ─────────────
+
+  test('un rejeu en echec pendant refreshVerification ne remure pas un rider ayant accepte hors ligne', () async {
+    // Meme forme que restore() (test ci-dessous), meme correctif : /me
+    // repond et ne connait pas encore l acceptation, mais le POST de rejeu
+    // echoue. Sans repli sur l attente, _charteVersion retombait sur le
+    // `null` du serveur et _set(connecte) remurait un rider qui avait
+    // pourtant deja accepte hors ligne — mur pour rien, SOS ferme.
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      if (req.url.path.endsWith('/charte')) return http.Response('{}', 500);
+      // /me : le compte est verifie, sans acceptation connue du serveur.
+      return http.Response(jsonEncode({'email': 'rider@example.test', 'verified': true}), 200);
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+    expect(await p.acceptCharte(version: LegalDocuments.charteVersion), isTrue);
+
+    await p.refreshVerification();
+
+    expect(p.status, AccountStatus.connecte);
+    expect(p.charteVersion, LegalDocuments.charteVersion,
+        reason: 'un rejeu qui echoue ne doit jamais faire regresser la version deja acceptee localement');
+  });
+
   test('un rejeu en echec apres un /me reussi ne remure pas un rider ayant accepte hors ligne', () async {
     // Le rejeu est au mieux : /me peut reussir alors que le POST /charte,
     // lui, echoue encore (serveur partiellement en panne). Sans repli sur

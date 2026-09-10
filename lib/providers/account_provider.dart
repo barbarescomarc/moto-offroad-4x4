@@ -561,6 +561,14 @@ class AccountProvider extends ChangeNotifier {
     await _synchroniserCharteVersionLocale(_charteVersion, profil.value!.email);
     // Critique 3a : voir la même remarque dans restore().
     await _rejouerAcceptationCharteEnAttente();
+    // Même repli, à la même place et pour la même raison que dans
+    // [restore] (Critique 2) : le rejeu ci-dessus est au mieux — le POST
+    // peut échouer alors que le /me juste avant vient de réussir. Sans ce
+    // `??=`, _charteVersion restait sur le `null` du serveur et le _set()
+    // ci-dessous remurait, pour rien, un rider qui avait pourtant déjà
+    // accepté hors ligne. Une réponse du serveur qui dit quelque chose
+    // garde la priorité.
+    _charteVersion ??= await _charteEnAttente();
     if (profil.value!.verified) {
       _set(AccountStatus.connecte);
       return true;
@@ -587,6 +595,13 @@ class AccountProvider extends ChangeNotifier {
   /// » à l'écran, et un redémarrage qui rejouait la même impasse à
   /// l'identique aussi longtemps que durait la panne. [restore] range
   /// pourtant déjà, elle, « 5xx, timeout » avec « réseau coupé ».
+  ///
+  /// Suivi de cette même revue : ces deux erreurs ne naissent plus d'un 400
+  /// quelconque, mais d'un 400 que `AccountApiClient` sait attribuer à notre
+  /// API (voir `_vientDeNotreApi`). Un 400 de portail captif, de proxy ou de
+  /// WAF devient `inconnue` et retombe donc, comme il se doit, sur le repli
+  /// local ci-dessous. L'attribution se fait là-bas, où le corps de la
+  /// réponse existe encore : ici, l'énumération l'a déjà oublié.
   static bool _estUnRefusDeLaCharte(AccountError? error) =>
       error == AccountError.adresseInvalide || error == AccountError.motDePasseTropCourt;
 

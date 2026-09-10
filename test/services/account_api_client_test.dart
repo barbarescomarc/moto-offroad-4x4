@@ -87,6 +87,39 @@ void main() {
     expect(res.error, AccountError.reseau);
   });
 
+  // Suivi 1 de la revue finale : un 400 ne vaut refus de fond que s il vient
+  // de NOTRE API (objet JSON portant `error`). Un portail captif, un proxy
+  // ou un WAF qui repond 400 est une panne du chemin reseau, pas un refus —
+  // et AccountProvider.acceptCharte fait du refus le seul echec qui laisse
+  // le mur de la charte en place, donc le SOS ferme.
+  test('un 400 qui ne vient pas de notre API n est pas pris pour un refus', () async {
+    final api = AccountApiClient(
+      baseUrl: 'https://exemple.test',
+      client: MockClient((_) async => http.Response(
+            '<html><body>Connectez-vous au reseau Wi-Fi</body></html>',
+            400,
+            headers: {'content-type': 'text/html'},
+          )),
+    );
+    final res = await api.acceptCharte(token: 'jeton-abc', version: '1.0');
+    expect(res.error, AccountError.inconnue);
+  });
+
+  test('un 400 a corps vide n est pas pris pour un refus non plus', () async {
+    final api = AccountApiClient(
+      baseUrl: 'https://exemple.test',
+      client: MockClient((_) async => http.Response('', 400)),
+    );
+    final res = await api.acceptCharte(token: 'jeton-abc', version: '1.0');
+    expect(res.error, AccountError.inconnue);
+  });
+
+  test('un 400 de notre API reste un refus de fond', () async {
+    final api = clientQuiRepond(400, {'error': 'version de charte inconnue'});
+    final res = await api.acceptCharte(token: 'jeton-abc', version: '1.0');
+    expect(res.error, AccountError.adresseInvalide);
+  });
+
   test('un 429 devient tropDeTentatives', () async {
     final api = clientQuiRepond(429, {'error': 'trop de tentatives'});
     final res = await api.login(email: 'rider@example.test', password: 'dix caracteres');

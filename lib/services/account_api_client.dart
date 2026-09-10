@@ -87,6 +87,31 @@ class AccountApiClient {
         if (token != null) 'authorization': 'Bearer $token',
       };
 
+  /// Le corps de la réponse est-il bien celui de NOTRE API ? Le serveur
+  /// moto-tracker répond à chacun de ses refus par un objet JSON portant un
+  /// champ `error` ; rien d'autre sur le chemin ne le fait.
+  ///
+  /// Suivi de la revue finale : un 400 est le seul statut dont
+  /// [_errorFor] déduit un refus DE FOND (voir ci-dessous), et
+  /// `AccountProvider.acceptCharte` en fait le seul échec qui laisse le mur
+  /// de la charte en place — donc le SOS et la détection de chute fermés.
+  /// Or un 400 peut venir de tout autre chose que de nous : proxy
+  /// transparent, filtrage d'entreprise ou WAF, portail captif qui répond
+  /// une page de connexion HTML à un POST qu'il ne comprend pas. Le rider
+  /// hors-piste sur un réseau douteux est précisément la population des
+  /// portails captifs, et l'ordre de déploiement n'y peut rien : la cause
+  /// n'est pas notre serveur. Sans cette attribution, ces réponses étaient
+  /// indistinguables d'un vrai refus, et muraient le rider sans sortie
+  /// locale.
+  static bool _vientDeNotreApi(String body) {
+    try {
+      final j = jsonDecode(body);
+      return j is Map<String, dynamic> && j['error'] != null;
+    } catch (_) {
+      return false;
+    }
+  }
+
   AccountError _errorFor(int status, String body) {
     switch (status) {
       case 401:
@@ -96,6 +121,11 @@ class AccountApiClient {
       case 429:
         return AccountError.tropDeTentatives;
       case 400:
+        // Un refus de fond ne se déduit que d'une réponse qu'on peut
+        // positivement attribuer à notre API (voir [_vientDeNotreApi]) :
+        // sinon c'est une panne du chemin réseau comme une autre, à ranger
+        // avec les 5xx et les timeouts.
+        if (!_vientDeNotreApi(body)) return AccountError.inconnue;
         return body.contains('mot de passe')
             ? AccountError.motDePasseTropCourt
             : AccountError.adresseInvalide;
