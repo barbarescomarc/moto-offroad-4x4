@@ -6,12 +6,19 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:moto_offroad/providers/account_provider.dart';
 import 'package:moto_offroad/services/account_api_client.dart';
 import 'package:moto_offroad/screens/account/account_screen.dart';
 
 void main() {
-  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+  setUp(() {
+    FlutterSecureStorage.setMockInitialValues({});
+    // deleteAccount() efface aussi la charte memorisee localement (Tache
+    // 23C) : sans ce mock, l'appel a SharedPreferences leverait une
+    // MissingPluginException (meme raison que dans router_test.dart).
+    SharedPreferences.setMockInitialValues({});
+  });
 
   testWidgets('la suppression de compte demande confirmation avant d agir',
       (tester) async {

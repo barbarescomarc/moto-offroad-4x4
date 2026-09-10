@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/account_api_client.dart';
 import '../services/account_storage.dart';
 import '../services/legal_documents.dart';
@@ -46,15 +47,48 @@ class AccountProvider extends ChangeNotifier {
   AccountError? get lastError => _lastError;
   String? get token => _token;
 
-  /// Version de la charte du pilote acceptée par ce compte côté serveur,
-  /// `null` si jamais acceptée (compte créé avant cette fonctionnalité, ou
-  /// pas encore rechargé depuis le serveur). `AccountGate` s'appuie dessus
+  /// Version de la charte du pilote acceptée par ce compte, telle que
+  /// confirmée par le serveur ou, à défaut d'une réponse (Tâche 23C, voir
+  /// `_charteVersionLocale`), telle que vue lors d'un précédent succès sur
+  /// cet appareil. `null` seulement si aucune acceptation n'a jamais été
+  /// vue, ni par le serveur ni localement. `AccountGate` s'appuie dessus
   /// pour interposer `CharteScreen` entre la vérification et la carte.
   String? get charteVersion => _charteVersion;
 
   void _set(AccountStatus status) {
     _status = status;
     notifyListeners();
+  }
+
+  // ── Filet local de la charte (Tâche 23C) ────────────────────────────
+  //
+  // /me est la seule source de [_charteVersion] côté serveur — exactement
+  // ce que corrige déjà [restore] pour la session elle-même (correctif I7,
+  // voir la documentation de la classe) : sans ce filet, un simple creux
+  // réseau au démarrage renverrait un rider ayant accepté la charte il y a
+  // des mois vers CharteScreen, et donc lui fermerait la carte, le SOS et
+  // la détection de chute. La version acceptée est donc aussi mémorisée en
+  // clair dans les préférences locales (rien de sensible, contrairement au
+  // jeton — voir [AccountStorage]) à chaque confirmation par le serveur, et
+  // relue uniquement quand le serveur, lui, reste muet.
+  static const String _kCharteVersionLocale = 'account_charte_version_acceptee';
+
+  Future<String?> _charteVersionLocale() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kCharteVersionLocale);
+  }
+
+  Future<void> _memoriserCharteVersionLocale(String version) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kCharteVersionLocale, version);
+  }
+
+  /// Efface la version locale — à l'image de [AccountStorage.clear] pour le
+  /// jeton : un téléphone remis à un autre rider ne doit hériter d'aucune
+  /// acceptation précédente.
+  Future<void> _effacerCharteVersionLocale() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kCharteVersionLocale);
   }
 
   /// Recharge la session au démarrage de l'application depuis le jeton
@@ -90,6 +124,7 @@ class AccountProvider extends ChangeNotifier {
       _email = profil.value!.email;
       _displayName = profil.value!.displayName;
       _charteVersion = profil.value!.charteVersion;
+      if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!);
       _set(profil.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
       return;
     }
@@ -111,6 +146,11 @@ class AccountProvider extends ChangeNotifier {
     // session ici verrouillerait l'application en pleine sortie, sans
     // réseau, au pire moment — voir la documentation de la classe.
     _lastError = profil.error;
+    // Filet Tâche 23C : /me muet ne doit pas remurer un rider dont ce même
+    // appareil a déjà vu l'acceptation (accepté ici ou confirmé par un
+    // /me antérieur). `??=` ne touche à rien si un appel précédent dans
+    // cette même instance a déjà résolu _charteVersion.
+    _charteVersion ??= await _charteVersionLocale();
     _set(AccountStatus.connecte);
   }
 
@@ -129,6 +169,7 @@ class AccountProvider extends ChangeNotifier {
     // remet à ce que le serveur renvoie, `null` compris pour un compte
     // antérieur à cette fonctionnalité.
     _charteVersion = charteVersion ?? res.value!.charteVersion;
+    if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!);
     await _storage.writeToken(_token!);
     _set(res.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
     return true;
@@ -166,11 +207,21 @@ class AccountProvider extends ChangeNotifier {
   /// Seul /me fait foi pour la charte du pilote une fois le jeton en main.
   /// Un échec (réseau, serveur) ne doit pas casser une connexion par
   /// ailleurs réussie — même règle de robustesse que le reste de cette
-  /// classe : `null` reste alors la valeur locale, qu'un futur `restore()`
-  /// ou `refreshVerification()` rattrapera.
+  /// classe. Depuis la Tâche 23C, un échec ne rend plus `null` : il retombe
+  /// sur la dernière version vue localement (voir `_charteVersionLocale`),
+  /// pour qu'un rider déjà accepté par le passé ne soit jamais remuré par
+  /// une simple panne réseau à la connexion.
   Future<String?> _charteVersionDepuisLeServeur(String token) async {
     final profil = await _api.me(token: token);
-    return profil.ok ? profil.value!.charteVersion : null;
+    if (!profil.ok) {
+      // Même filet qu'au démarrage (voir [restore]) : une panne de /me
+      // pendant la connexion ne doit pas remurer un rider dont cet
+      // appareil a déjà vu l'acceptation.
+      return _charteVersionLocale();
+    }
+    final version = profil.value!.charteVersion;
+    if (version != null) await _memoriserCharteVersionLocale(version);
+    return version;
   }
 
   /// Interroge le serveur pour savoir si l'adresse a été vérifiée entre
@@ -194,6 +245,7 @@ class AccountProvider extends ChangeNotifier {
     _lastError = null;
     _email = profil.value!.email;
     _charteVersion = profil.value!.charteVersion;
+    if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!);
     if (profil.value!.verified) {
       _set(AccountStatus.connecte);
       return true;
@@ -210,7 +262,10 @@ class AccountProvider extends ChangeNotifier {
     if (_token == null) return false;
     final res = await _api.acceptCharte(token: _token!, version: version);
     _lastError = res.error;
-    if (res.ok) _charteVersion = version;
+    if (res.ok) {
+      _charteVersion = version;
+      await _memoriserCharteVersionLocale(version);
+    }
     notifyListeners();
     return res.ok;
   }
@@ -242,6 +297,9 @@ class AccountProvider extends ChangeNotifier {
   Future<void> logout() async {
     if (_token != null) await _api.logout(token: _token!);
     await _storage.clear();
+    // Même geste que pour le jeton : un téléphone remis à un autre rider
+    // ne doit hériter d'aucune acceptation de charte précédente (Tâche 23C).
+    await _effacerCharteVersionLocale();
     _token = null;
     _email = null;
     _displayName = null;
@@ -258,6 +316,7 @@ class AccountProvider extends ChangeNotifier {
       return false;
     }
     await _storage.clear();
+    await _effacerCharteVersionLocale();
     _token = null;
     _email = null;
     _charteVersion = null;

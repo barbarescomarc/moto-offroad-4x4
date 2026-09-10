@@ -3,9 +3,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:moto_offroad/providers/account_provider.dart';
 import 'package:moto_offroad/services/account_api_client.dart';
 import 'package:moto_offroad/services/account_storage.dart';
+import 'package:moto_offroad/services/legal_documents.dart';
 
 AccountProvider provider(http.Client client) => AccountProvider(
       api: AccountApiClient(baseUrl: 'https://exemple.test', client: client),
@@ -31,7 +33,10 @@ class _StockageEnPanneALaLecture extends FlutterSecureStorage {
 }
 
 void main() {
-  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+  setUp(() {
+    FlutterSecureStorage.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({});
+  });
 
   test('sans jeton stocke le rider est deconnecte', () async {
     final p = provider(MockClient((_) async => http.Response('{}', 200)));
@@ -275,5 +280,107 @@ void main() {
     expect(p.status, AccountStatus.deconnecte);
     expect(p.status, isNot(AccountStatus.sessionARenouveler));
     expect(await AccountStorage().readToken(), isNull);
+  });
+
+  // ── Filet local de la charte (Tâche 23C) ──────────────────────
+  //
+  // Correction I7 avait déjà borné l'appel à /me pour que la robustesse du
+  // compte ne referme jamais SOS ni la détection de chute. La Tâche 23B a
+  // rouvert la même faille sous une forme nouvelle : /me est aussi la seule
+  // source de charteVersion, et un échec réseau au démarrage laissait
+  // _charteVersion à `null`, remurant un rider ayant pourtant déjà accepté
+  // la charte par le passé. Le filet ci-dessous mémorise localement la
+  // dernière version confirmée (acceptation ou /me), et ne sert de réponse
+  // que quand le serveur, lui, reste muet.
+
+  test('un rider ayant deja accepte la charte reste connecte meme si /me echoue au demarrage', () async {
+    // Premier lancement (reseau present) : la charte est acceptee, donc
+    // memorisee localement.
+    final p1 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200); // acceptCharte
+    }));
+    await p1.register(email: 'rider@example.test', password: 'dix caracteres');
+    await p1.acceptCharte(version: LegalDocuments.charteVersion);
+    expect(p1.charteVersion, LegalDocuments.charteVersion);
+
+    // Redemarrage a froid (nouvelle instance, comme au lancement de
+    // l'application) avec un reseau coupe : /me echoue, mais le rider a
+    // deja accepte par le passe sur cet appareil — il doit atteindre la
+    // carte (et donc SOS/detection de chute), pas le mur de la charte.
+    final p2 = provider(MockClient((_) async => throw Exception('reseau coupe')));
+    await p2.restore();
+
+    expect(p2.status, AccountStatus.connecte);
+    expect(p2.charteVersion, LegalDocuments.charteVersion,
+        reason: 'une panne reseau au demarrage ne doit pas remurer un rider ayant deja accepte la charte');
+  });
+
+  test('un rider qui n a jamais accepte la charte reste mure meme si /me echoue au demarrage', () async {
+    // Aucune acceptation, ni cote serveur ni localement : le filet ne doit
+    // rien inventer — sinon il deviendrait un moyen de contourner le mur.
+    await AccountStorage().writeToken('jeton');
+    final p = provider(MockClient((_) async => throw Exception('reseau coupe')));
+    await p.restore();
+
+    expect(p.status, AccountStatus.connecte,
+        reason: 'une panne reseau ne doit pas deconnecter un rider deja muni d un jeton');
+    expect(p.charteVersion, isNull,
+        reason: 'sans acceptation jamais vue, meme localement, le filet ne doit pas ouvrir un mur qui n existe pas');
+  });
+
+  test('une reponse de me plus recente que la version memorisee localement l emporte', () async {
+    final p1 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await p1.register(email: 'rider@example.test', password: 'dix caracteres');
+    await p1.acceptCharte(version: '1.0');
+
+    // Le serveur repond desormais avec une nouvelle version de charte : le
+    // filet local ('1.0') ne doit jamais l emporter sur une reponse reelle
+    // du serveur — seul son silence justifie de s en remettre a lui.
+    final p2 = provider(MockClient((_) async =>
+        http.Response(jsonEncode({'email': 'rider@example.test', 'verified': true, 'charteVersion': '2.0'}), 200)));
+    await p2.restore();
+
+    expect(p2.charteVersion, '2.0',
+        reason: 'le serveur fait toujours foi quand il repond, meme contre une valeur locale plus ancienne');
+  });
+
+  test('accepter la charte la memorise dans les preferences locales, pas seulement en memoire', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+    await p.acceptCharte(version: LegalDocuments.charteVersion);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_acceptee'), LegalDocuments.charteVersion,
+        reason: 'la version acceptee doit survivre en dehors de la seule instance en memoire');
+  });
+
+  test('la deconnexion efface aussi la version de charte memorisee localement', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+    await p.acceptCharte(version: LegalDocuments.charteVersion);
+
+    await p.logout();
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_acceptee'), isNull,
+        reason: 'un telephone remis a un autre rider ne doit pas heriter de l acceptation precedente');
   });
 }

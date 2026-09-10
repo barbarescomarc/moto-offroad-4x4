@@ -87,7 +87,14 @@ Future<void> appDeTest(WidgetTester tester, AccountProvider compte) async {
 }
 
 void main() {
-  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+  setUp(() {
+    FlutterSecureStorage.setMockInitialValues({});
+    // compteDeTest() accepte parfois la charte avant que appDeTest() ne
+    // pose son propre mock plus bas (voir tester.runAsync) : sans celui-ci
+    // en place des le depart, memoriser la version localement (Tache 23C)
+    // leverait une MissingPluginException.
+    SharedPreferences.setMockInitialValues({});
+  });
 
   testWidgets('la charte s affiche tant qu elle n est pas acceptee, et bloque l acces', (tester) async {
     final compte = await compteDeTest(charteVersion: null);
