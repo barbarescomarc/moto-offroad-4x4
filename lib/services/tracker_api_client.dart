@@ -77,7 +77,7 @@ class TrackerApiClient {
       Uri.parse('$_baseUrl$path').replace(queryParameters: query);
 
   // Rattachement, pas authentification : le serveur accepte ces routes sans
-  // jeton, et une panne du stockage securise ne doit jamais empecher une
+  // jeton, et une panne du stockage sécurisé ne doit jamais empêcher une
   // alerte de partir.
   Future<Map<String, String>> _headers() async {
     final headers = {'Content-Type': 'application/json'};

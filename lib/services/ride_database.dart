@@ -62,14 +62,14 @@ class RideDatabase {
   }
 
   // ── Migrations ───────────────────────────────────────────
-  // v2 : origine d'une sortie telechargee depuis le catalogue partage.
-  // Elle empeche de republier la trace d'un autre, et sert a afficher
-  // « telechargee depuis le partage » sur la fiche locale.
+  // v2 : origine d'une sortie téléchargée depuis le catalogue partagé.
+  // Elle empêche de republier la trace d'un autre, et sert à afficher
+  // « téléchargée depuis le partage » sur la fiche locale.
   //
-  // La verification de colonne existante rend le palier idempotent : une
-  // base ouverte via onCreate (qui construit deja le schema courant, colonne
+  // La vérification de colonne existante rend le palier idempotent : une
+  // base ouverte via onCreate (qui construit déjà le schéma courant, colonne
   // comprise, comme le veut sqflite pour une installation neuve) ne doit pas
-  // faire echouer un ALTER TABLE en double si onUpgrade est rejoue dessus.
+  // faire échouer un ALTER TABLE en double si onUpgrade est rejoué dessus.
   static Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
     if (oldVersion < 2) {
       final columns = await db.rawQuery('PRAGMA table_info(rides)');

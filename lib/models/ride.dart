@@ -99,10 +99,10 @@ class Ride {
   final RideSource source;
   final RideStatus status;
   final RideStats stats;
-  // Id de la trace d'origine sur le catalogue partage, quand cette sortie a
-  // ete telechargee depuis le partage plutot qu'enregistree ou importee
-  // localement. Sert a interdire de republier la trace d'un autre, et a
-  // afficher « telechargee depuis le partage » sur la fiche locale.
+  // Id de la trace d'origine sur le catalogue partagé, quand cette sortie a
+  // été téléchargée depuis le partage plutôt qu'enregistrée ou importée
+  // localement. Sert à interdire de republier la trace d'un autre, et à
+  // afficher « téléchargée depuis le partage » sur la fiche locale.
   final String? sharedTraceId;
 
   const Ride({
