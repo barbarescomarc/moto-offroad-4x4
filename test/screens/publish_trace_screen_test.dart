@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -14,6 +18,18 @@ import 'package:moto_offroad/screens/rides/ride_detail_screen.dart';
 import 'package:moto_offroad/services/ride_database.dart';
 import 'package:moto_offroad/services/ride_repository.dart';
 import 'package:moto_offroad/services/shared_traces_api_client.dart';
+
+// L'aperçu de la fiche est un vrai FlutterMap : son cache tuiles intégré
+// (activé par défaut, voulu tel quel en production — voir publish_trace_
+// screen.dart) appelle path_provider, dont aucune implémentation n'est
+// enregistrée en test. On fournit une implémentation factice plutôt que de
+// désactiver le cache dans l'écran lui-même : ce que le test contourne doit
+// rester dans le test.
+class _PathProviderFactice extends PathProviderPlatform {
+  @override
+  Future<String?> getApplicationCachePath() async =>
+      (await Directory.systemTemp.createTemp('publish_trace_screen_test_')).path;
+}
 
 // ── Fabriques ─────────────────────────────────────────────────
 Ride rideFactice({String id = 'r1', String? sharedTraceId}) => Ride(
@@ -104,6 +120,7 @@ void agrandirEcran(WidgetTester tester) {
 
 void main() {
   sqfliteFfiInit();
+  setUpAll(() => PathProviderPlatform.instance = _PathProviderFactice());
 
   // Une seule base par test, refermée à la fin — même stratégie que
   // rides_provider_test.dart et shared_trace_detail_screen_test.dart. Le
@@ -137,6 +154,43 @@ void main() {
     return ChangeNotifierProvider<RidesProvider>.value(
       value: provider,
       child: MaterialApp(home: RideDetailScreen(rideId: ride.id)),
+    );
+  }
+
+  // Même fiche, mais routée pour de vrai (GoRouter avec les deux mêmes
+  // chemins que router.dart) : seule façon de prouver que le bouton Publier
+  // mène réellement à PublishTraceScreen, pas seulement que les deux chaînes
+  // de route se correspondent à la lecture.
+  Future<Widget> ficheAvecNavigationDeTest(
+    Ride ride,
+    List<RidePoint> points, {
+    SharedTracesApiClient? api,
+  }) async {
+    final ridesProvider = await providerAvec(ride, points);
+    final settings = SettingsProvider();
+    await settings.load();
+    final router = GoRouter(
+      initialLocation: '/rides/${ride.id}',
+      routes: [
+        GoRoute(
+          path: '/rides/:id',
+          builder: (_, state) => RideDetailScreen(rideId: state.pathParameters['id']!),
+        ),
+        GoRoute(
+          path: '/rides/:id/publier',
+          builder: (_, state) => PublishTraceScreen(
+            rideId: state.pathParameters['id']!,
+            api: api ?? _ApiFactice(),
+          ),
+        ),
+      ],
+    );
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider<RidesProvider>.value(value: ridesProvider),
+        ChangeNotifierProvider<SettingsProvider>.value(value: settings),
+      ],
+      child: MaterialApp.router(routerConfig: router),
     );
   }
 
@@ -184,6 +238,50 @@ void main() {
     });
   });
 
+  // Deux écrans finis mais reliés à rien : déjà arrivé deux fois dans ce lot.
+  // Un test qui tape réellement sur Publier et vérifie l'écran qui apparaît,
+  // pas seulement que les deux chaînes de route se correspondent.
+  testWidgets('taper sur Publier mene a PublishTraceScreen', (tester) async {
+    SharedPreferences.setMockInitialValues({'partage_avertissement_vu': true});
+    await tester.runAsync(() async {
+      await tester.pumpWidget(await ficheAvecNavigationDeTest(rideFactice(), pointsFactices(10)));
+      await asseoir(tester);
+      expect(find.byType(PublishTraceScreen), findsNothing);
+
+      await tester.tap(find.text('Publier'));
+      await asseoir(tester);
+
+      // context.push empile la route : RideDetailScreen reste monté sous
+      // PublishTraceScreen (pile de navigation), c'est PublishTraceScreen
+      // qui doit être au sommet — visible et destinataire des taps.
+      expect(find.byType(PublishTraceScreen), findsOneWidget);
+      expect(find.text('Publier la trace'), findsOneWidget);
+    });
+  });
+
+  // Trouvaille critique de la relecture : ni _apercu (sublist, point central)
+  // ni le recadrage n'ont de sens sous 2 points. Une sortie interrompue par
+  // un crash de l'enregistrement, ou un import avorté, peut légitimement
+  // laisser une sortie à 0 ou 1 point — et RideDetailScreen propose Publier
+  // pour toute sortie non téléchargée, quel que soit son nombre de points.
+  testWidgets('une sortie sans point affiche le message, ne plante pas', (tester) async {
+    await tester.runAsync(() async {
+      await tester.pumpWidget(await ecranPublicationDeTest(rideFactice(), []));
+      await asseoir(tester);
+      expect(find.textContaining("n'a pas assez de points"), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
+  testWidgets('une sortie a un seul point affiche le message, ne plante pas', (tester) async {
+    await tester.runAsync(() async {
+      await tester.pumpWidget(await ecranPublicationDeTest(rideFactice(), pointsFactices(1)));
+      await asseoir(tester);
+      expect(find.textContaining("n'a pas assez de points"), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  });
+
   testWidgets('l avertissement de premiere publication apparait une seule fois', (tester) async {
     agrandirEcran(tester);
     await tester.runAsync(() async {
@@ -225,6 +323,10 @@ void main() {
       expect(api.publiees.single['vehicle'], TraceVehicle.quatreQuatre);
       expect(api.publiees.single['difficulty'], TraceDifficulty.difficile);
       expect(api.publiees.single['description'], 'Pistes forestieres, deux gues');
+      // La version des conditions acceptées doit parvenir au serveur : c'est
+      // la trace écrite du consentement, elle ne doit jamais dépendre en
+      // silence d'une valeur par défaut.
+      expect(api.publiees.single['licenceVersion'], '1.0');
       // Le depart a ete rogne : le premier point d'origine n'est plus dans le GPX.
       expect((api.publiees.single['gpx'] as String).contains('43.600'), isFalse);
     });

@@ -132,6 +132,10 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
         vehicle: _engin,
         difficulty: _difficulte,
         gpx: gpx,
+        // Explicite plutôt que laissé au défaut du client : c'est la trace
+        // écrite du consentement du pilote, elle ne doit jamais dépendre en
+        // silence de la valeur par défaut d'un paramètre défini ailleurs.
+        licenceVersion: SharedTracesApiClient.licenceVersion,
       );
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -156,23 +160,42 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
       return const Scaffold(body: Center(child: Text('Sortie introuvable')));
     }
     final points = _points;
+    // Une trace coupée par un crash de l'enregistrement ou un import avorté
+    // peut laisser une sortie à 0 ou 1 point : ni _apercu (sublist, point
+    // central) ni le recadrage n'ont de sens en dessous de 2 points, donc ce
+    // cas sort avant que quoi que ce soit ne touche `points`.
+    final Widget corps;
+    if (points == null) {
+      corps = const Center(child: CircularProgressIndicator());
+    } else if (points.length < 2) {
+      corps = const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            "Cette sortie n'a pas assez de points pour être publiée.",
+            textAlign: TextAlign.center,
+          ),
+        ),
+      );
+    } else {
+      corps = _formulaire(ride, points);
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('Publier la trace')),
-      body: points == null
-          ? const Center(child: CircularProgressIndicator())
-          : _formulaire(ride, points),
+      body: corps,
     );
   }
 
+  // N'est appelée que pour une sortie d'au moins 2 points (voir build) :
+  // _apercu et le recadrage supposent tous deux cette borne.
   Widget _formulaire(Ride ride, List<RidePoint> points) {
-    final assezDePoints = points.length >= 2;
-    final peutPublier = _accepteConditions && !_publicationEnCours && assezDePoints;
+    final peutPublier = _accepteConditions && !_publicationEnCours;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         SizedBox(height: 200, child: _apercu(points)),
         const SizedBox(height: 16),
-        if (assezDePoints) _curseurs(points) else const Text("Cette sortie n'a pas assez de points pour être publiée."),
+        _curseurs(points),
         const SizedBox(height: 16),
         TextField(
           controller: _nomController,
@@ -252,10 +275,6 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
           TileLayer(
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.motooffroad.app',
-            // Le cache disque intégré de flutter_map (activé par défaut)
-            // passe par path_provider, absent en test — juste un aperçu ici,
-            // pas la carte principale, aucune perte à le désactiver.
-            tileProvider: NetworkTileProvider(cachingProvider: const DisabledMapCachingProvider()),
           ),
           PolylineLayer(polylines: [
             if (avant.length > 1) Polyline(points: avant, strokeWidth: 4, color: Colors.grey),
