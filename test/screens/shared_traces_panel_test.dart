@@ -325,6 +325,73 @@ void main() {
     });
   });
 
+  // Trouvaille I1 de la revue finale : loadMore() était écrit, testé au
+  // niveau du provider (voir shared_traces_provider_test.dart), mais appelé
+  // par rien — la liste s'arrêtait toujours à la première page du serveur.
+  //
+  // La position est posée directement sur le ScrollPosition (jumpTo) plutôt
+  // que simulée par un tester.fling() : un fling anime sur plusieurs
+  // dizaines de frames, et chacune peut re-déclencher le seuil « près du
+  // bas » tant que le contenu continue de grandir sous elle — ce test
+  // porterait alors sur l'animation du geste, pas sur le branchement du
+  // ScrollController que ce correctif ajoute.
+  testWidgets('atteindre le bas de la liste demande la page suivante au serveur', (tester) async {
+    final api = _ApiFactice()..reponse = [for (var i = 0; i < 30; i++) resume('t$i', nom: 'Trace $i')];
+    final provider = SharedTracesProvider(api);
+    await provider.setReference(const LatLng(43.6, 1.44));
+    expect(api.appels.length, 1);
+
+    // Fenêtre basse pour garantir que 30 tuiles dépassent la hauteur visible
+    // et rendent la liste réellement défilable.
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(panneauDeTest(provider));
+    await tester.pumpAndSettle();
+
+    // Une page pleine (comme le ferait le vrai serveur) : assez d'éléments
+    // pour repousser la liste loin au-delà du seuil de déclenchement, sinon
+    // le simple agrandissement du contenu (sans nouveau geste) resterait
+    // "près du bas" et redéclencherait indéfiniment ce double figé.
+    api.reponse = [for (var i = 30; i < 50; i++) resume('t$i', nom: 'Trace $i')];
+    final scrollable = tester.state<ScrollableState>(find.byType(Scrollable).last);
+    scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+    await tester.pump();
+    await tester.pump();
+
+    expect(api.appels.length, 2, reason: 'approcher le bas de la liste doit demander la page suivante');
+    expect(api.appels.last['depuis'], 30);
+    expect(provider.traces.map((t) => t.id), contains('t30'));
+  });
+
+  testWidgets('un defilement rapide en pleine requete ne relance pas une seconde demande', (tester) async {
+    final api = _ApiFactice()..reponse = [for (var i = 0; i < 30; i++) resume('t$i', nom: 'Trace $i')];
+    final provider = SharedTracesProvider(api);
+    await provider.setReference(const LatLng(43.6, 1.44));
+
+    await tester.binding.setSurfaceSize(const Size(400, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await tester.pumpWidget(panneauDeTest(provider));
+    await tester.pumpAndSettle();
+
+    final porte = Completer<List<SharedTraceSummary>>();
+    api.enAttente = porte;
+    final scrollable = tester.state<ScrollableState>(find.byType(Scrollable).last);
+    final max = scrollable.position.maxScrollExtent;
+    scrollable.position.jumpTo(max - 5);
+    await tester.pump();
+    expect(api.appels.length, 2, reason: 'le premier appel de la page suivante est parti');
+
+    // Un second geste pendant que la première page suivante est encore en
+    // vol : isLoading doit déjà valoir vrai et empêcher un second appel.
+    scrollable.position.jumpTo(max);
+    await tester.pump();
+
+    expect(api.appels.length, 2, reason: 'un chargement déjà en vol ne doit pas en déclencher un second');
+
+    porte.complete([resume('t30', nom: 'Trace 30')]);
+    await tester.pumpAndSettle();
+  });
+
   // Trouvaille 1 de la relecture : sans onTap, la fiche construite et
   // testée à la Tâche 20 restait inatteignable depuis le catalogue — un
   // rider qui tapait une trace ne voyait rien se passer. Ce test pin la

@@ -40,12 +40,18 @@ class SharedTracesPanel extends StatefulWidget {
 
 class _SharedTracesPanelState extends State<SharedTracesPanel> {
   final _rechercheController = TextEditingController();
+  // Trouvaille I1 de la revue finale : loadMore() existait, était testé au
+  // niveau du provider, mais n'était appelé par rien — la liste s'arrêtait
+  // toujours à la première page du serveur, offset/depuis compris, sans
+  // qu'aucun rider ne puisse jamais voir la suite.
+  final _scrollController = ScrollController();
   bool _amorce = false;
 
   @override
   void initState() {
     super.initState();
     if (widget.estVisible) _programmerAmorcage();
+    _scrollController.addListener(_onScroll);
   }
 
   @override
@@ -68,7 +74,24 @@ class _SharedTracesPanelState extends State<SharedTracesPanel> {
   @override
   void dispose() {
     _rechercheController.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  // Déclenche la page suivante en approchant du bas de la liste, plutôt
+  // qu'au tout dernier pixel : le rider ne doit jamais voir la fin de la
+  // liste avant que la page suivante n'ait eu une chance d'arriver. Gardé
+  // par `isLoading` pour qu'un défilement rapide (plusieurs notifications
+  // de scroll avant que la première requête ne reparte) ne parte pas en
+  // rafale de requêtes redondantes.
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels < position.maxScrollExtent - 200) return;
+    final provider = context.read<SharedTracesProvider>();
+    if (provider.isLoading) return;
+    provider.loadMore();
   }
 
   void _amorcerReference() {
@@ -333,6 +356,7 @@ class _SharedTracesPanelState extends State<SharedTracesPanel> {
         if (provider.isLoading) const LinearProgressIndicator(minHeight: 2),
         Expanded(
           child: ListView.separated(
+            controller: _scrollController,
             itemCount: provider.traces.length,
             separatorBuilder: (_, __) => const Divider(height: 1),
             itemBuilder: (_, i) => _TraceTile(trace: provider.traces[i]),
