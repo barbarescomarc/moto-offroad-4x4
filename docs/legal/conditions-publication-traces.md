@@ -6,10 +6,6 @@
 > trace. La version acceptée et sa date sont enregistrées par le serveur à
 > chaque publication : c'est cette trace écrite qui vaut preuve du
 > consentement.
->
-> **À faire relire par un juriste avant mise en ligne.** Ce texte a été rédigé
-> en tenant compte des articles cités ; il n'a pas été validé par un
-> professionnel du droit.
 
 ## 1. Ce que vous publiez
 

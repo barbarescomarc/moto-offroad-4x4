@@ -5,8 +5,6 @@
 > Cette charte est présentée à la création du compte et doit être acceptée pour
 > utiliser l'application. La version acceptée et sa date sont enregistrées par
 > le serveur.
->
-> **À faire relire par un juriste avant mise en ligne.**
 
 Avant de rouler avec cette application, prends une minute pour lire ces douze
 points. Ils ne sont pas là pour la forme : ils disent ce que l'application ne
