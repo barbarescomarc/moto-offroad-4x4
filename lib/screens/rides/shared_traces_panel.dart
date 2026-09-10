@@ -212,12 +212,26 @@ class _SharedTracesPanelState extends State<SharedTracesPanel> {
     final provider = context.watch<SharedTracesProvider>();
     return Column(
       children: [
+        _ligneMesPublications(),
         _ligneReference(provider),
         _filtres(provider),
         Expanded(child: _liste(provider)),
       ],
     );
   }
+
+  // Seul point d'entrée vers « Mes publications » (Tâche 23) : ce qu'un
+  // rider a lui-même publié n'a rien à voir avec la recherche du catalogue
+  // au-dessus, d'où un accès séparé plutôt qu'une entrée mêlée à la liste
+  // des résultats.
+  Widget _ligneMesPublications() => Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: () => context.push(AppRoutes.myPublications),
+          icon: const Icon(Icons.person_outline, size: 18),
+          label: const Text('Mes publications'),
+        ),
+      );
 
   Widget _ligneReference(SharedTracesProvider provider) {
     final String libelle;

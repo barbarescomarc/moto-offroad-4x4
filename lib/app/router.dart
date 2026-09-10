@@ -21,6 +21,7 @@ import '../screens/fuel/fuel_screen.dart';
 import '../screens/group/group_screen.dart';
 import '../screens/weather/weather_screen.dart';
 import '../screens/rides/rides_screen.dart';
+import '../screens/rides/my_publications_screen.dart';
 import '../screens/rides/publish_trace_screen.dart';
 import '../screens/rides/ride_detail_screen.dart';
 import '../screens/rides/shared_trace_detail_screen.dart';
@@ -46,6 +47,7 @@ class AppRoutes {
   static const String fuel        = '/fuel';
   static const String rides       = '/rides';
   static const String traces      = '/traces';
+  static const String myPublications = '/traces/mes-publications';
   static const String weather     = '/weather';
   static const String settings    = '/settings';
   static const String calibration = '/calibration';
@@ -141,6 +143,17 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
                 ),
               ),
             ],
+          ),
+          // Déclarée avant '${AppRoutes.traces}/:id' : go_router matche les
+          // routes dans l'ordre de déclaration, et 'mes-publications' ne
+          // doit jamais être interprété comme un :id de trace.
+          GoRoute(
+            path: AppRoutes.myPublications,
+            pageBuilder: (_, __) => MaterialPage(
+              child: MyPublicationsScreen(
+                api: SharedTracesApiClient(readToken: () => AccountStorage().readToken()),
+              ),
+            ),
           ),
           GoRoute(
             path: '${AppRoutes.traces}/:id',
