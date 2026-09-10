@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 
@@ -63,6 +64,14 @@ class LocationService {
 
   GpsSnapshot? _lastSnapshot;
   GpsSnapshot? get lastSnapshot => _lastSnapshot;
+
+  // Singleton réel, sans plugin GPS disponible en test : seul moyen pour un
+  // test widget de simuler « une position est déjà connue » sans démarrer un
+  // vrai suivi Geolocator (indisponible hors appareil).
+  @visibleForTesting
+  void debugSetLastSnapshot(GpsSnapshot? snapshot) {
+    _lastSnapshot = snapshot;
+  }
 
   Stream<GpsSnapshot> get stream => _controller.stream;
 

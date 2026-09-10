@@ -18,6 +18,12 @@ class MapSearchBar extends StatefulWidget {
   // Appelé quand l'utilisateur choisit de se faire guider vers un résultat,
   // plutôt que de simplement centrer la carte dessus.
   final ValueChanged<LatLng>? onGuide;
+  // Appelé au lieu de déplacer la carte quand un résultat est choisi (tap
+  // sur la ligne) : pour un appelant qui n'a pas de carte à recentrer, par
+  // exemple un simple sélecteur de lieu dans une liste. Quand il est fourni,
+  // [mapController] n'est jamais sollicité — il peut alors rester un
+  // contrôleur jamais attaché à un `FlutterMap`, sans risque d'exception.
+  final void Function(LatLng position, String label)? onSelect;
 
   const MapSearchBar({
     super.key,
@@ -25,6 +31,7 @@ class MapSearchBar extends StatefulWidget {
     this.startVisible = false,
     this.onResultSelected,
     this.onGuide,
+    this.onSelect,
   });
 
   @override
@@ -97,7 +104,11 @@ class _MapSearchBarState extends State<MapSearchBar> {
   }
 
   void _goTo(_GeoResult result) {
-    widget.mapController.move(result.position, 14);
+    if (widget.onSelect != null) {
+      widget.onSelect!(result.position, result.displayName);
+    } else {
+      widget.mapController.move(result.position, 14);
+    }
     _toggle();
     widget.onResultSelected?.call();
   }

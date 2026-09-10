@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../app/router.dart';
 import '../../providers/account_provider.dart';
+import '../../providers/shared_traces_provider.dart';
 import '../../services/account_api_client.dart';
 import '../../services/tutorial_controller.dart';
 import 'account_error_messages.dart';
@@ -30,7 +31,14 @@ class _AccountScreenState extends State<AccountScreen> {
       _enCours = true;
       _erreur = null;
     });
+    final tracesPartagees = context.read<SharedTracesProvider>();
     await context.read<AccountProvider>().logout();
+    // Trouvaille mineure de la revue finale : SharedTracesProvider est
+    // fourni une seule fois pour toute l'application (voir main.dart), donc
+    // partagé entre les comptes qui se succèdent sur le même téléphone —
+    // sans ceci, la recherche (référence, résultats) du rider précédent
+    // survivait jusque dans la session du suivant.
+    tracesPartagees.reset();
     // Pas de navigation explicite : le changement de statut fait réagir le
     // `redirect` du routeur (voir `account_gate.dart`), qui ramène seul le
     // rider vers l'écran de bienvenue.
@@ -67,8 +75,13 @@ class _AccountScreenState extends State<AccountScreen> {
       _erreur = null;
     });
     final compte = context.read<AccountProvider>();
+    final tracesPartagees = context.read<SharedTracesProvider>();
     final ok = await compte.deleteAccount();
     if (!mounted) return;
+    // Même geste qu'à la déconnexion (voir _seDeconnecter) : un compte
+    // supprimé ne doit pas laisser la recherche du catalogue partagé
+    // derrière lui pour le prochain rider de ce téléphone.
+    if (ok) tracesPartagees.reset();
     setState(() {
       _enCours = false;
       // Un succès ramène déjà le rider vers l'écran de bienvenue via le

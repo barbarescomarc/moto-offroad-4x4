@@ -46,6 +46,7 @@ dependencies:
 
   # ── UI ───────────────────────────────────────────────
   wakelock_plus: ^1.1.0        # Écran actif en navigation
+  flutter_markdown: ^0.7.7+1   # Rendu des textes légaux (charte, conditions de publication)
 
   # ── Guidage ──────────────────────────────────────────
   flutter_tts: ^4.0.0          # Synthèse vocale (guidage)
@@ -61,6 +62,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^3.0.0
   sqflite_common_ffi: ^2.3.0   # sqflite hors appareil, pour les tests
+  path_provider_platform_interface: ^2.1.0   # PathProviderPlatform factice, pour les tests
   flutter_launcher_icons: ^0.13.1
   flutter_native_splash: ^2.4.1
 
@@ -84,6 +86,8 @@ flutter:
   assets:
     - assets/icons/
     - assets/maps/
+    - docs/legal/conditions-publication-traces.md
+    - docs/legal/charte-du-pilote.md
   # Polices Rajdhani à ajouter quand les fichiers .ttf seront présents dans assets/fonts/
   # fonts:
   #   - family: Rajdhani

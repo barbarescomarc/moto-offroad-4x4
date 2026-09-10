@@ -1,10 +1,15 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:moto_offroad/app/account_gate.dart';
 import 'package:moto_offroad/providers/account_provider.dart';
+import 'package:moto_offroad/services/legal_documents.dart';
 
 void main() {
-  String? gate(AccountStatus s, String loc, {bool grace = false}) =>
-      accountRedirect(status: s, location: loc, graceActive: grace);
+  // charteVersion accepté par défaut : tous les tests de ce fichier, écrits
+  // avant la Tâche 23B, portent sur d'autres règles que la charte — ce
+  // deuxième mur ne doit pas les faire dévier vers charteRoute. Les tests
+  // dédiés à la charte, plus bas, le font varier explicitement.
+  String? gate(AccountStatus s, String loc, {bool grace = false, String? charte = LegalDocuments.charteVersion}) =>
+      accountRedirect(status: s, location: loc, graceActive: grace, charteVersion: charte);
 
   test('pendant le chargement rien ne bouge', () {
     expect(gate(AccountStatus.chargement, '/'), isNull);
@@ -108,5 +113,48 @@ void main() {
       if (statut == AccountStatus.sessionARenouveler) continue;
       expect(accountBannerKind(status: statut, graceActive: false), AccountBannerKind.aucun);
     }
+  });
+
+  // ── Charte du pilote (Tâche 23B) ──────────────────────────────
+  //
+  // La charte s'interpose au même niveau que la vérification d'adresse,
+  // mais après elle : un rider connecté (adresse vérifiée) dont le compte
+  // n'a pas la version courante de la charte (y compris `null`, cas d'un
+  // compte créé avant cette fonctionnalité) est retenu sur charteRoute,
+  // carte comprise.
+  test('un rider connecte sans charte acceptee est retenu sur l ecran de la charte', () {
+    expect(gate(AccountStatus.connecte, '/', charte: null), charteRoute);
+    expect(gate(AccountStatus.connecte, '/sos', charte: null), charteRoute);
+  });
+
+  test('une version de charte perimee retient aussi le rider', () {
+    expect(gate(AccountStatus.connecte, '/', charte: '0.9'), charteRoute);
+  });
+
+  test('sur l ecran de la charte lui meme, aucune redirection tant qu elle n est pas acceptee', () {
+    expect(gate(AccountStatus.connecte, charteRoute, charte: null), isNull);
+  });
+
+  test('une charte acceptee dans sa version courante laisse passer vers la carte', () {
+    expect(gate(AccountStatus.connecte, '/', charte: LegalDocuments.charteVersion), isNull);
+  });
+
+  test('une charte deja acceptee ne fait pas revenir sur son propre ecran', () {
+    expect(gate(AccountStatus.connecte, charteRoute, charte: LegalDocuments.charteVersion), '/');
+  });
+
+  // Priorité des murs : un compte non vérifié n'atteint jamais la charte,
+  // même sans l'avoir acceptée — il doit d'abord confirmer son adresse.
+  test('un compte non verifie est retenu sur la verification, pas sur la charte', () {
+    expect(gate(AccountStatus.nonVerifie, '/', charte: null), '/verification');
+  });
+
+  // Correctif I7 (lot A) : une session à renouveler ne doit jamais fermer
+  // l'accès à la carte, au SOS, au solo ni à la détection de chute — la
+  // charte ne doit pas devenir un nouveau mur pour cet état, quelle que
+  // soit sa valeur.
+  test('une session a renouveler n est jamais bloquee par la charte', () {
+    expect(gate(AccountStatus.sessionARenouveler, '/', charte: null), isNull);
+    expect(gate(AccountStatus.sessionARenouveler, '/sos', charte: null), isNull);
   });
 }

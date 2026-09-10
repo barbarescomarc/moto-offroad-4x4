@@ -192,4 +192,51 @@ void main() {
       expect(ok, isFalse);
     });
   });
+
+  group('jeton de compte', () {
+    test('le jeton de compte accompagne la requete quand il existe', () async {
+      late http.Request capturee;
+      final client = MockClient((req) async {
+        capturee = req;
+        return http.Response('{"sessionId":"s1","ownerKey":"o","deviceKey":"d","memberId":"m"}', 201);
+      });
+      final api = TrackerApiClient(client: client, readToken: () async => 'jeton-abc');
+
+      await api.createSoloSession(
+        name: 'Marc', immobileAfterSec: 300, pilotEmail: 'a@b.test', contactEmails: const [],
+      );
+
+      expect(capturee.headers['authorization'], 'Bearer jeton-abc');
+    });
+
+    test('sans jeton, la requete part quand meme', () async {
+      late http.Request capturee;
+      final client = MockClient((req) async {
+        capturee = req;
+        return http.Response('{"sessionId":"s1","ownerKey":"o","deviceKey":"d","memberId":"m"}', 201);
+      });
+      final api = TrackerApiClient(client: client, readToken: () async => null);
+
+      final res = await api.createSoloSession(
+        name: 'Marc', immobileAfterSec: 300, pilotEmail: 'a@b.test', contactEmails: const [],
+      );
+
+      expect(res, isNotNull);
+      expect(capturee.headers.containsKey('authorization'), isFalse);
+    });
+
+    test('une panne du stockage securise ne bloque pas l envoi', () async {
+      final client = MockClient((_) async =>
+          http.Response('{"sessionId":"s1","ownerKey":"o","deviceKey":"d","memberId":"m"}', 201));
+      final api = TrackerApiClient(client: client, readToken: () async => throw Exception('keystore casse'));
+
+      // Une alerte de chute ne doit jamais echouer parce que le compte est en panne.
+      expect(
+        await api.createSoloSession(
+          name: 'Marc', immobileAfterSec: 300, pilotEmail: 'a@b.test', contactEmails: const [],
+        ),
+        isNotNull,
+      );
+    });
+  });
 }

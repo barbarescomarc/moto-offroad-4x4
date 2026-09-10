@@ -2,11 +2,24 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 /// Jeton de session renvoyé par le serveur à l'inscription ou à la connexion.
+///
+/// [charteVersion] est la version de la charte du pilote enregistrée côté
+/// serveur pour ce compte (`null` pour un compte qui ne l'a jamais acceptée
+/// — voir `AccountGate`). Le serveur la renvoie ici comme dans [AccountProfile] :
+/// à l'inscription, elle reflète ce que `RegisterScreen` vient d'envoyer ;
+/// à la connexion, elle reflète ce qui était déjà enregistré, `null` compris
+/// pour un compte créé avant cette fonctionnalité.
 class AccountSession {
   final String token;
   final bool verified;
   final String? displayName;
-  const AccountSession({required this.token, required this.verified, this.displayName});
+  final String? charteVersion;
+  const AccountSession({
+    required this.token,
+    required this.verified,
+    this.displayName,
+    this.charteVersion,
+  });
 }
 
 /// Profil du compte tel que renvoyé par /api/account/me.
@@ -14,7 +27,13 @@ class AccountProfile {
   final String email;
   final bool verified;
   final String? displayName;
-  const AccountProfile({required this.email, required this.verified, this.displayName});
+  final String? charteVersion;
+  const AccountProfile({
+    required this.email,
+    required this.verified,
+    this.displayName,
+    this.charteVersion,
+  });
 }
 
 /// Une panne de réseau et un refus du serveur n'appellent pas la même
@@ -48,17 +67,18 @@ class AccountResult<T> {
 /// ce qui permet à l'écran d'inscription de choisir entre réessayer et
 /// corriger la saisie.
 class AccountApiClient {
-  AccountApiClient({http.Client? client, String? baseUrl, Duration? meTimeout})
+  AccountApiClient({http.Client? client, String? baseUrl, Duration? timeout})
       : _client = client ?? http.Client(),
         _baseUrl = baseUrl ?? 'https://motooffroad.duckdns.org',
-        _meTimeout = meTimeout ?? const Duration(seconds: 5);
+        _timeout = timeout ?? const Duration(seconds: 5);
 
   final http.Client _client;
   final String _baseUrl;
 
-  /// Borne de [me]. Injectable pour les tests uniquement — l'application ne
-  /// passe jamais autre chose que la valeur par défaut.
-  final Duration _meTimeout;
+  /// Borne de [me] et de [_voidCall] — les deux appels qui conditionnent
+  /// l'accès à la carte, donc au SOS. Injectable pour les tests uniquement
+  /// — l'application ne passe jamais autre chose que la valeur par défaut.
+  final Duration _timeout;
 
   Uri _uri(String path) => Uri.parse('$_baseUrl$path');
 
@@ -66,6 +86,31 @@ class AccountApiClient {
         'content-type': 'application/json',
         if (token != null) 'authorization': 'Bearer $token',
       };
+
+  /// Le corps de la réponse est-il bien celui de NOTRE API ? Le serveur
+  /// moto-tracker répond à chacun de ses refus par un objet JSON portant un
+  /// champ `error` ; rien d'autre sur le chemin ne le fait.
+  ///
+  /// Suivi de la revue finale : un 400 est le seul statut dont
+  /// [_errorFor] déduit un refus DE FOND (voir ci-dessous), et
+  /// `AccountProvider.acceptCharte` en fait le seul échec qui laisse le mur
+  /// de la charte en place — donc le SOS et la détection de chute fermés.
+  /// Or un 400 peut venir de tout autre chose que de nous : proxy
+  /// transparent, filtrage d'entreprise ou WAF, portail captif qui répond
+  /// une page de connexion HTML à un POST qu'il ne comprend pas. Le rider
+  /// hors-piste sur un réseau douteux est précisément la population des
+  /// portails captifs, et l'ordre de déploiement n'y peut rien : la cause
+  /// n'est pas notre serveur. Sans cette attribution, ces réponses étaient
+  /// indistinguables d'un vrai refus, et muraient le rider sans sortie
+  /// locale.
+  static bool _vientDeNotreApi(String body) {
+    try {
+      final j = jsonDecode(body);
+      return j is Map<String, dynamic> && j['error'] != null;
+    } catch (_) {
+      return false;
+    }
+  }
 
   AccountError _errorFor(int status, String body) {
     switch (status) {
@@ -76,6 +121,11 @@ class AccountApiClient {
       case 429:
         return AccountError.tropDeTentatives;
       case 400:
+        // Un refus de fond ne se déduit que d'une réponse qu'on peut
+        // positivement attribuer à notre API (voir [_vientDeNotreApi]) :
+        // sinon c'est une panne du chemin réseau comme une autre, à ranger
+        // avec les 5xx et les timeouts.
+        if (!_vientDeNotreApi(body)) return AccountError.inconnue;
         return body.contains('mot de passe')
             ? AccountError.motDePasseTropCourt
             : AccountError.adresseInvalide;
@@ -95,6 +145,7 @@ class AccountApiClient {
         token: j['token'] as String,
         verified: j['verified'] as bool? ?? false,
         displayName: j['displayName'] as String?,
+        charteVersion: j['charteVersion'] as String?,
       ));
     } catch (_) {
       return const AccountResult.failure(AccountError.reseau);
@@ -102,15 +153,22 @@ class AccountApiClient {
   }
 
   /// Crée un compte. `displayName` est optionnel côté serveur.
+  ///
+  /// [charteVersion] : `RegisterScreen` envoie systématiquement la version
+  /// courante de la charte du pilote (voir `LegalDocuments.charteVersion`)
+  /// — un compte créé avec ce paramètre n'a donc jamais à repasser par
+  /// `CharteScreen`.
   Future<AccountResult<AccountSession>> register({
     required String email,
     required String password,
     String? displayName,
+    String? charteVersion,
   }) =>
       _sessionCall('/api/account/register', {
         'email': email,
         'password': password,
         if (displayName != null && displayName.isNotEmpty) 'displayName': displayName,
+        if (charteVersion != null) 'charteVersion': charteVersion,
       });
 
   /// Connecte un compte existant.
@@ -131,7 +189,7 @@ class AccountApiClient {
     try {
       final res = await _client
           .get(_uri('/api/account/me'), headers: _headers(token))
-          .timeout(_meTimeout);
+          .timeout(_timeout);
       if (res.statusCode ~/ 100 != 2) {
         return AccountResult.failure(_errorFor(res.statusCode, res.body));
       }
@@ -140,12 +198,21 @@ class AccountApiClient {
         email: j['email'] as String,
         verified: j['verified'] as bool? ?? false,
         displayName: j['displayName'] as String?,
+        charteVersion: j['charteVersion'] as String?,
       ));
     } catch (_) {
       return const AccountResult.failure(AccountError.reseau);
     }
   }
 
+  /// Borné comme [me], et pour exactement la même raison : [acceptCharte]
+  /// passe par ici, et c'est désormais la seule sortie du mur de la charte
+  /// (voir `AccountProvider.acceptCharte`). Sans borne, le portail captif
+  /// décrit au-dessus de [me] — une connexion qui ne répond jamais plutôt
+  /// qu'une panne franche — laisserait le rider à attendre indéfiniment
+  /// devant ce mur, donc sans SOS ni détection de chute. Un dépassement de
+  /// délai retombe dans le `catch` ci-dessous, donc sur
+  /// [AccountError.reseau] : la panne de transport qu'il est réellement.
   Future<AccountResult<void>> _voidCall(
     String path, {
     String? token,
@@ -155,8 +222,8 @@ class AccountApiClient {
     try {
       final uri = _uri(path);
       final res = method == 'DELETE'
-          ? await _client.delete(uri, headers: _headers(token))
-          : await _client.post(uri, headers: _headers(token), body: jsonEncode(body ?? {}));
+          ? await _client.delete(uri, headers: _headers(token)).timeout(_timeout)
+          : await _client.post(uri, headers: _headers(token), body: jsonEncode(body ?? {})).timeout(_timeout);
       if (res.statusCode ~/ 100 != 2) {
         return AccountResult.failure(_errorFor(res.statusCode, res.body));
       }
@@ -187,4 +254,9 @@ class AccountApiClient {
   /// Supprime le compte connecté.
   Future<AccountResult<void>> deleteAccount({required String token}) =>
       _voidCall('/api/account/me', token: token, method: 'DELETE');
+
+  /// Enregistre l'acceptation de la charte du pilote par le compte connecté
+  /// — voir `CharteScreen` et `AccountGate`.
+  Future<AccountResult<void>> acceptCharte({required String token, required String version}) =>
+      _voidCall('/api/account/charte', token: token, body: {'version': version});
 }

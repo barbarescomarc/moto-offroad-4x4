@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:provider/provider.dart';
+import '../../app/router.dart';
 import '../../models/ride.dart';
 import '../../providers/rides_provider.dart';
 import '../../services/ride_export_service.dart';
@@ -36,6 +38,13 @@ class RideDetailScreen extends StatelessWidget {
               await RideExportService().shareGpx(ride, points);
             },
           ),
+          // Une sortie téléchargée depuis le catalogue n'appartient pas au
+          // rider : il ne peut pas republier la trace d'un autre.
+          if (ride.sharedTraceId == null)
+            TextButton(
+              onPressed: () => context.push('${AppRoutes.rides}/${ride.id}/publier'),
+              child: const Text('Publier', style: TextStyle(color: Colors.white)),
+            ),
           IconButton(
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Supprimer',
@@ -181,10 +190,20 @@ class _StatsList extends StatelessWidget {
             '${moving.inHours}h${(moving.inMinutes % 60).toString().padLeft(2, '0')}'),
         _row('Vitesse moyenne', '${s.avgSpeedKmh.toStringAsFixed(1)} km/h'),
         _row('Vitesse maximale', '${s.maxSpeedKmh.toStringAsFixed(1)} km/h'),
-        _row('Origine',
-            ride.source == RideSource.recorded ? 'Enregistrée' : 'Importée'),
+        _row('Origine', _origine(ride)),
       ],
     );
+  }
+
+  // Trouvaille mineure de la revue finale (spec §7.3) : une sortie
+  // téléchargée depuis le catalogue partagé n'affichait que "Importée",
+  // indiscernable d'un import GPX ordinaire — sharedTraceId servait déjà à
+  // masquer le bouton Publier (voir RideDetailScreen), mais jamais à
+  // renseigner le rider sur cette origine.
+  String _origine(Ride ride) {
+    if (ride.source == RideSource.recorded) return 'Enregistrée';
+    if (ride.sharedTraceId != null) return 'téléchargée depuis le partage';
+    return 'Importée';
   }
 
   Widget _row(String label, String value) => ListTile(

@@ -55,7 +55,7 @@ void main() {
   // Re-revue de branche, correctif I7 : me() gouverne l'écran de chargement
   // devant la carte ([_MapGate]) — sans borne, un réseau dégradé (portail
   // captif, TCP qui traîne) y bloquerait indéfiniment le rider, donc son
-  // accès au SOS. `meTimeout` est injectable pour ce test précisément : une
+  // accès au SOS. `timeout` est injectable pour ce test précisément : une
   // borne réelle mais très courte prouve le comportement sans faire durer
   // le test (pas de fake_async, absent des dépendances du dépôt).
   test('me() ne pend pas indefiniment sur un serveur qui ne repond jamais', () async {
@@ -64,11 +64,60 @@ void main() {
       // Le gestionnaire ne complète jamais : simule une connexion qui
       // traîne (TCP/TLS en cours), pas une panne immédiate.
       client: MockClient((_) => Completer<http.Response>().future),
-      meTimeout: const Duration(milliseconds: 20),
+      timeout: const Duration(milliseconds: 20),
     );
 
     final res = await api.me(token: 'jeton-abc');
     expect(res.error, AccountError.reseau);
+  });
+
+  // Critique 2 de la revue finale : acceptCharte() passe par _voidCall et
+  // est desormais la seule sortie du mur de la charte, donc du chemin vers
+  // le SOS. La meme borne que me() lui est indispensable, pour exactement le
+  // meme portail captif : une connexion qui ne repond jamais, plutot qu une
+  // panne franche.
+  test('acceptCharte() ne pend pas indefiniment sur un serveur qui ne repond jamais', () async {
+    final api = AccountApiClient(
+      baseUrl: 'https://exemple.test',
+      client: MockClient((_) => Completer<http.Response>().future),
+      timeout: const Duration(milliseconds: 20),
+    );
+
+    final res = await api.acceptCharte(token: 'jeton-abc', version: '1.0');
+    expect(res.error, AccountError.reseau);
+  });
+
+  // Suivi 1 de la revue finale : un 400 ne vaut refus de fond que s il vient
+  // de NOTRE API (objet JSON portant `error`). Un portail captif, un proxy
+  // ou un WAF qui repond 400 est une panne du chemin reseau, pas un refus —
+  // et AccountProvider.acceptCharte fait du refus le seul echec qui laisse
+  // le mur de la charte en place, donc le SOS ferme.
+  test('un 400 qui ne vient pas de notre API n est pas pris pour un refus', () async {
+    final api = AccountApiClient(
+      baseUrl: 'https://exemple.test',
+      client: MockClient((_) async => http.Response(
+            '<html><body>Connectez-vous au reseau Wi-Fi</body></html>',
+            400,
+            headers: {'content-type': 'text/html'},
+          )),
+    );
+    final res = await api.acceptCharte(token: 'jeton-abc', version: '1.0');
+    expect(res.error, AccountError.inconnue);
+  });
+
+  test('un 400 a corps vide n est pas pris pour un refus non plus', () async {
+    final api = AccountApiClient(
+      baseUrl: 'https://exemple.test',
+      client: MockClient((_) async => http.Response('', 400)),
+    );
+    final res = await api.acceptCharte(token: 'jeton-abc', version: '1.0');
+    expect(res.error, AccountError.inconnue);
+  });
+
+  test('un 400 de notre API reste un refus de fond', () async {
+    final api = clientQuiRepond(400, {'error': 'version de charte inconnue'});
+    final res = await api.acceptCharte(token: 'jeton-abc', version: '1.0');
+    expect(res.error, AccountError.adresseInvalide);
   });
 
   test('un 429 devient tropDeTentatives', () async {

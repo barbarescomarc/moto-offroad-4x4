@@ -1931,6 +1931,211 @@ git commit -m "feat(traces): montage des routes et rattachement des sorties au c
 
 ---
 
+### Task 13B: Consentement aux conditions de publication
+
+**Files:**
+- Modify: `src/db.js` (deux colonnes sur `shared_trace`), `src/routes/traces.js` (publication)
+- Test: `test/traces_publish.test.js`
+
+**Interfaces:**
+- Consumes: la route de publication (Task 5), le schéma (Task 2).
+- Produces: colonnes `licence_version TEXT` et `licence_accepted_at INTEGER` sur `shared_trace` ; `POST /api/traces` exige un champ `licenceVersion` égal à la version courante (`LICENCE_VERSION`, exportée par `src/routes/traces.js`, valeur `'1.0'`) et refuse en `400 { error: 'conditions de publication non acceptees' }` sinon.
+
+**Pourquoi.** Le pilote cède des droits d'exploitation sur ce qu'il publie et accepte que sa trace reste au catalogue après la suppression de son compte (`docs/legal/conditions-publication-traces.md`). Un consentement qui n'est pas enregistré ne se prouve pas : chaque publication doit porter la version des conditions acceptées et l'horodatage. Une case cochée dans l'application, sans trace côté serveur, ne vaut rien le jour où quelqu'un conteste.
+
+- [ ] **Step 1: Écrire le test qui échoue**
+
+Ajouter à `test/traces_publish.test.js` :
+
+```js
+test('une publication enregistre la version des conditions acceptees', async () => {
+  const { app, db } = buildApp();
+  const jeton = creerCompte(db);
+  const { server, base } = await listen(app);
+  try {
+    const res = await publier(base, { ...FICHE, licenceVersion: '1.0' }, jeton);
+    assert.equal(res.status, 201);
+    const { id } = await res.json();
+    const ligne = db.prepare('SELECT * FROM shared_trace WHERE id = ?').get(id);
+    assert.equal(ligne.licence_version, '1.0');
+    assert.equal(ligne.licence_accepted_at, 1_000_000); // le `now` fige de buildApp
+  } finally {
+    server.close();
+  }
+});
+
+test('publier sans accepter les conditions est refuse', async () => {
+  const { app, db, store } = buildApp();
+  const jeton = creerCompte(db);
+  const { server, base } = await listen(app);
+  try {
+    const sans = await publier(base, FICHE, jeton);
+    assert.equal(sans.status, 400);
+    const perimee = await publier(base, { ...FICHE, licenceVersion: '0.9' }, jeton);
+    assert.equal(perimee.status, 400);
+    // Rien ne doit avoir ete ecrit, ni en base ni sur le disque.
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM shared_trace').get().n, 0);
+    assert.deepEqual(store.list(), []);
+  } finally {
+    server.close();
+  }
+});
+```
+
+Les publications des autres tests de ce fichier doivent recevoir `licenceVersion: '1.0'` — le plus simple est de l'ajouter à la constante `FICHE`.
+
+- [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
+
+`docker run --rm -v "$PWD":/app -w /app node:20 sh -c "npm install && npm test"`
+Attendu : ÉCHEC — la colonne n'existe pas, et la publication sans consentement passe.
+
+- [ ] **Step 3: Implémenter**
+
+Dans `src/db.js`, ajouter à `CREATE TABLE shared_trace` :
+
+```sql
+  licence_version    TEXT,
+  licence_accepted_at INTEGER,
+```
+
+Dans `src/routes/traces.js` :
+
+```js
+// Version des conditions de publication en vigueur. Chaque publication
+// enregistre celle que le pilote a acceptee : un consentement non horodate
+// ne se prouve pas le jour ou quelqu un le conteste.
+const LICENCE_VERSION = '1.0';
+```
+
+et, dans la route de publication, refuser avant tout traitement :
+
+```js
+    if (req.body?.licenceVersion !== LICENCE_VERSION) {
+      return res.status(400).json({ error: 'conditions de publication non acceptees' });
+    }
+```
+
+en plaçant ce refus **avant** l'écriture du fichier, puis renseigner les deux colonnes dans l'`INSERT`. Exporter `LICENCE_VERSION`.
+
+- [ ] **Step 4: Lancer les tests**
+
+`docker run --rm -v "$PWD":/app -w /app node:20 sh -c "npm install && npm test"`
+Attendu : SUCCÈS, toute la suite comprise.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/db.js src/routes/traces.js test/traces_publish.test.js
+git commit -m "feat(traces): consentement aux conditions de publication enregistre"
+```
+
+---
+
+### Task 13C: Acceptation de la charte du pilote
+
+**Files:**
+- Modify: `src/db.js` (deux colonnes sur `account`), `src/routes/account.js`
+- Test: `test/account.test.js`
+
+**Interfaces:**
+- Consumes: le routeur de compte du lot A, `authenticate` (Task 1).
+- Produces: colonnes `charte_version TEXT` et `charte_accepted_at INTEGER` sur `account` ; constante exportée `CHARTE_VERSION = '1.0'` ; `POST /api/account/register` exige `charteVersion` et refuse en `400 { error: 'charte non acceptee' }` sinon ; `POST /api/account/charte` (authentifié, corps `{ version }`) enregistre l'acceptation ; `GET /api/account/me` renvoie `charteVersion`.
+
+**Pourquoi.** La charte (`docs/legal/charte-du-pilote.md`) n'a de valeur que si l'on peut prouver qui l'a acceptée, dans quelle version et quand. Elle concerne **tous** les pilotes, pas seulement ceux qui publient : c'est elle qui informe des limites de la détection de chute et de la chaîne d'alerte. Les comptes créés avant cette tâche — il y en a déjà en production — n'ont rien accepté : `GET /me` doit donc pouvoir répondre `charteVersion: null`, et `POST /api/account/charte` existe pour qu'ils se mettent à jour sans recréer de compte.
+
+- [ ] **Step 1: Écrire le test qui échoue**
+
+Ajouter à `test/account.test.js` :
+
+```js
+test('l inscription enregistre la version de charte acceptee', async () => {
+  const { app, db } = buildApp();
+  const { server, base } = await listen(app);
+  try {
+    const res = await post(base, '/api/account/register', {
+      email: 'rider@exemple.test', password: 'dix caracteres', displayName: 'Marc',
+      charteVersion: '1.0',
+    });
+    assert.equal(res.status, 201);
+    const ligne = db.prepare('SELECT * FROM account').get();
+    assert.equal(ligne.charte_version, '1.0');
+    assert.ok(ligne.charte_accepted_at > 0);
+  } finally { server.close(); }
+});
+
+test('s inscrire sans accepter la charte est refuse', async () => {
+  const { app, db } = buildApp();
+  const { server, base } = await listen(app);
+  try {
+    const res = await post(base, '/api/account/register', {
+      email: 'rider@exemple.test', password: 'dix caracteres', displayName: 'Marc',
+    });
+    assert.equal(res.status, 400);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM account').get().n, 0);
+  } finally { server.close(); }
+});
+
+test('un compte anterieur a la charte peut l accepter ensuite', async () => {
+  const { app, db } = buildApp();
+  // Compte cree avant cette tache : aucune charte acceptee.
+  const jeton = creerCompteSansCharte(db);
+  const { server, base } = await listen(app);
+  try {
+    let moi = await (await fetch(`${base}/api/account/me`, {
+      headers: { authorization: `Bearer ${jeton}` } })).json();
+    assert.equal(moi.charteVersion, null);
+
+    const res = await post(base, '/api/account/charte', { version: '1.0' }, jeton);
+    assert.equal(res.status, 200);
+
+    moi = await (await fetch(`${base}/api/account/me`, {
+      headers: { authorization: `Bearer ${jeton}` } })).json();
+    assert.equal(moi.charteVersion, '1.0');
+  } finally { server.close(); }
+});
+
+test('une version de charte inconnue est refusee', async () => {
+  const { app, db } = buildApp();
+  const jeton = creerCompteSansCharte(db);
+  const { server, base } = await listen(app);
+  try {
+    assert.equal((await post(base, '/api/account/charte', { version: '0.9' }, jeton)).status, 400);
+  } finally { server.close(); }
+});
+```
+
+Écrire l'aide `creerCompteSansCharte(db)` dans ce fichier : elle insère un compte vérifié et une session, sans toucher aux colonnes de charte.
+
+- [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
+
+`docker run --rm -v "$PWD":/app -w /app node:20 sh -c "npm install && npm test"`
+Attendu : ÉCHEC — colonnes absentes, route `/charte` en 404, inscription acceptée sans charte.
+
+- [ ] **Step 3: Implémenter**
+
+Dans `src/db.js`, ajouter à `CREATE TABLE account` **et** à `migrate()` — cette table existe déjà en production, `CREATE TABLE IF NOT EXISTS` ne suffira pas :
+
+```js
+  addColumn(db, 'account', 'charte_version', 'TEXT');
+  addColumn(db, 'account', 'charte_accepted_at', 'INTEGER');
+```
+
+Dans `src/routes/account.js` : la constante `CHARTE_VERSION = '1.0'`, le refus de `register` sans `charteVersion` correspondant **avant** toute création de compte, l'enregistrement des deux colonnes à l'inscription, la route `POST /charte` authentifiée, et l'ajout de `charteVersion` à la réponse de `GET /me`.
+
+- [ ] **Step 4: Lancer les tests**
+
+`docker run --rm -v "$PWD":/app -w /app node:20 sh -c "npm install && npm test"`
+Attendu : SUCCÈS. Les tests d'inscription existants devront recevoir `charteVersion: '1.0'` : c'est la seule modification autorisée sur les tests du lot A.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/db.js src/routes/account.js test/account.test.js
+git commit -m "feat(compte): acceptation horodatee de la charte du pilote"
+```
+
+---
+
 # Partie 2 — Application
 
 Toutes les tâches suivantes se font dans `~/Claude/Projects/APP OFFROAD MOTO 4X4/moto_offroad`. Commande de test : `flutter test`.
@@ -2880,7 +3085,14 @@ Structure de haut en bas :
 1. L'aperçu de la trace (`FlutterMap` + `PolylineLayer`), sur lequel la portion retenue est dessinée en plein et les extrémités rognées en gris.
 2. Deux `Slider` (`Key('curseur_debut')`, `Key('curseur_fin')`) bornés à `0..points.length - 1`, avec sous eux la longueur publiée recalculée par `TraceCropService.distanceOf`. Le curseur de début ne peut pas dépasser celui de fin.
 3. Les champs : nom (pré-rempli avec `ride.name`), description (`Key('champ_description')`, obligatoire), auteur (pré-rempli avec le nom du profil pilote lu dans `SettingsProvider`), `SegmentedButton` engin (Moto / 4x4 / Moto et 4x4), `SegmentedButton` difficulté (Facile / Moyen / Difficile).
-4. Le bouton **Publier**, qui valide la description non vide, appelle `TraceCropService.cropToGpx` puis `api.publish`, et revient à l'écran précédent avec une `SnackBar` « Ta trace est publiée. » Un échec affiche le message de `SharedTracesException` sans quitter l'écran, pour ne pas perdre la saisie.
+4. **La case d'acceptation des conditions**, obligatoire, non pré-cochée :
+   « J'accepte les conditions de publication » avec un lien qui ouvre le texte
+   (`docs/legal/conditions-publication-traces.md`, embarqué en ressource), et
+   sous elle, en petit, la phrase qui compte : « Ma trace restera au catalogue
+   même si je supprime mon compte. » Le bouton Publier reste inactif tant que
+   la case n'est pas cochée, et l'appel envoie `licenceVersion: '1.0'` au
+   serveur, qui refuse la publication sans lui (tâche 13B).
+5. Le bouton **Publier**, qui valide la description non vide, appelle `TraceCropService.cropToGpx` puis `api.publish`, et revient à l'écran précédent avec une `SnackBar` « Ta trace est publiée. » Un échec affiche le message de `SharedTracesException` sans quitter l'écran, pour ne pas perdre la saisie.
 
 L'avertissement de première publication est un `AlertDialog` affiché au premier `build` si `partage_avertissement_vu` est absent : « Ta trace commence peut-être devant chez toi. Fais glisser le curseur de début pour publier seulement la partie qui t'intéresse. » avec un seul bouton « Compris » qui pose la préférence.
 
@@ -2978,6 +3190,84 @@ Attendu : SUCCÈS.
 ```bash
 git add lib/screens/rides/my_publications_screen.dart lib/screens/rides/shared_traces_panel.dart lib/app/router.dart test/screens/my_publications_screen_test.dart
 git commit -m "feat(partage): ecran de mes publications, modification et depublication"
+```
+
+---
+
+### Task 23B: Écran de la charte du pilote
+
+**Files:**
+- Create: `lib/screens/legal/charte_screen.dart`, `lib/services/legal_documents.dart`
+- Modify: `lib/app/account_gate.dart`, `lib/services/account_api_client.dart`, `lib/providers/account_provider.dart`, `lib/screens/account/register_screen.dart`, `pubspec.yaml` (ressources)
+- Test: `test/screens/charte_screen_test.dart`, `test/providers/account_provider_test.dart`
+
+**Interfaces:**
+- Consumes: `POST /api/account/charte`, `charteVersion` dans `GET /me`, `charteVersion` à l'inscription (Task 13C).
+- Produces: `LegalDocuments.charte()` / `.conditionsPublication()` lisant les deux fichiers Markdown embarqués en ressources ; `CharteScreen` ; `AccountApiClient.acceptCharte(version)` ; `AccountProvider.charteVersion` et `acceptCharte()`. `AccountGate` interpose la charte entre le compte vérifié et la carte tant que `charteVersion != '1.0'`.
+
+**Pourquoi.** La charte informe des limites de la détection de chute et de la chaîne d'alerte : elle doit être vue par tous, y compris les pilotes déjà inscrits, avant l'accès à la carte. Le mur d'inscription du lot A (`account_gate.dart`) est le bon endroit — il sait déjà retenir un rider tant qu'une condition n'est pas remplie.
+
+- [ ] **Step 1: Écrire les tests qui échouent**
+
+```dart
+testWidgets('la charte s affiche tant qu elle n est pas acceptee', (tester) async {
+  await tester.pumpWidget(appDeTest(charteVersion: null));
+  await tester.pumpAndSettle();
+  expect(find.byType(CharteScreen), findsOneWidget);
+  expect(find.textContaining('112'), findsWidgets);
+});
+
+testWidgets('le bouton reste inactif tant que la case n est pas cochee', (tester) async {
+  await tester.pumpWidget(appDeTest(charteVersion: null));
+  await tester.pumpAndSettle();
+  final bouton = tester.widget<FilledButton>(find.widgetWithText(FilledButton, 'J accepte'));
+  expect(bouton.onPressed, isNull);
+});
+
+testWidgets('accepter la charte ouvre la carte', (tester) async {
+  final api = _ApiFactice();
+  await tester.pumpWidget(appDeTest(charteVersion: null, api: api));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byType(Checkbox));
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('J accepte'));
+  await tester.pumpAndSettle();
+  expect(api.chartesAcceptees, ['1.0']);
+  expect(find.byType(CharteScreen), findsNothing);
+});
+
+testWidgets('une charte deja acceptee ne reapparait pas', (tester) async {
+  await tester.pumpWidget(appDeTest(charteVersion: '1.0'));
+  await tester.pumpAndSettle();
+  expect(find.byType(CharteScreen), findsNothing);
+});
+```
+
+- [ ] **Step 2: Lancer les tests pour vérifier qu'ils échouent**
+
+`flutter test test/screens/charte_screen_test.dart`
+Attendu : ÉCHEC, `CharteScreen` introuvable.
+
+- [ ] **Step 3: Implémenter**
+
+Déclarer `docs/legal/charte-du-pilote.md` et `docs/legal/conditions-publication-traces.md` comme ressources dans `pubspec.yaml`, et les lire via `rootBundle` dans `LegalDocuments` — le texte de loi vit dans un seul fichier, versionné avec le code, jamais recopié dans du Dart.
+
+`CharteScreen` affiche le document en entier, défilable, avec une case à cocher non pré-cochée (« J'ai lu et j'accepte la charte du pilote ») et un bouton « J'accepte » inactif tant qu'elle ne l'est pas. Aucun bouton pour passer outre : le rider accepte ou quitte l'application.
+
+`AccountGate` insère la charte après la vérification d'adresse et avant la carte, en s'appuyant sur `AccountProvider.charteVersion`. `RegisterScreen` envoie `charteVersion: '1.0'` — un compte créé depuis cette version n'a donc jamais à repasser par l'écran.
+
+**Attention à ne pas casser le correctif I7 du lot A** : la charte s'affiche avant toute demande de permission GPS, comme le mur d'inscription. Vérifier que les tests existants de `account_gate` passent toujours.
+
+- [ ] **Step 4: Lancer les tests**
+
+`flutter test test/screens/charte_screen_test.dart && flutter test`
+Attendu : SUCCÈS, tests du lot A compris.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add lib/screens/legal lib/services/legal_documents.dart lib/app/account_gate.dart lib/services/account_api_client.dart lib/providers/account_provider.dart lib/screens/account/register_screen.dart pubspec.yaml test/screens/charte_screen_test.dart test/providers/account_provider_test.dart
+git commit -m "feat(legal): la charte du pilote est acceptee avant l acces a la carte"
 ```
 
 ---

@@ -107,4 +107,89 @@ void main() {
     expect(await repo.findRide('r1'), isNull);
     expect(await repo.pointsOf('r1'), isEmpty);
   });
+
+  test('une sortie telechargee retient l identifiant de la trace partagee', () async {
+    await repo.insertRide(Ride(
+      id: 'r1', name: 'Boucle du Sidobre', startedAt: DateTime(2026, 9, 1),
+      source: RideSource.imported, status: RideStatus.finished,
+      stats: RideStats.empty, sharedTraceId: 'abc123',
+    ));
+
+    final relue = await repo.findRide('r1');
+    expect(relue!.sharedTraceId, 'abc123');
+  });
+
+  test('une sortie enregistree n a pas d origine partagee', () async {
+    await repo.insertRide(Ride(
+      id: 'r2', name: 'Sortie du dimanche', startedAt: DateTime(2026, 9, 1),
+      source: RideSource.recorded, status: RideStatus.finished, stats: RideStats.empty,
+    ));
+
+    expect((await repo.findRide('r2'))!.sharedTraceId, isNull);
+  });
+
+  test('la migration v1 vers v2 ajoute la colonne sans perdre les sorties', () async {
+    // Table v1 construite a la main, sans shared_trace_id : contrairement a
+    // RideDatabase.onCreate (qui construit deja le schema v2 courant pour
+    // une installation neuve), c'est la seule facon de faire vraiment
+    // passer l'ALTER TABLE de onUpgrade dans ce test.
+    final ancienne = await databaseFactoryFfi.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(
+        version: 1,
+        onCreate: (db, version) => db.execute('''
+          CREATE TABLE rides (
+            id            TEXT PRIMARY KEY,
+            name          TEXT    NOT NULL,
+            notes         TEXT,
+            started_at    INTEGER NOT NULL,
+            ended_at      INTEGER,
+            source        TEXT    NOT NULL,
+            status        TEXT    NOT NULL,
+            distance_m    REAL    NOT NULL DEFAULT 0,
+            total_time_s  INTEGER NOT NULL DEFAULT 0,
+            moving_time_s INTEGER NOT NULL DEFAULT 0,
+            avg_speed_kmh REAL    NOT NULL DEFAULT 0,
+            max_speed_kmh REAL    NOT NULL DEFAULT 0
+          )
+        '''),
+      ),
+    );
+    await ancienne.insert('rides', {
+      'id': 'ancienne', 'name': 'Avant migration', 'started_at': 1, 'source': 'recorded',
+      'status': 'finished', 'distance_m': 0, 'total_time_s': 0, 'moving_time_s': 0,
+      'avg_speed_kmh': 0, 'max_speed_kmh': 0,
+    });
+
+    await RideDatabase.onUpgrade(ancienne, 1, 2);
+
+    final columns = await ancienne.rawQuery('PRAGMA table_info(rides)');
+    expect(columns.any((c) => c['name'] == 'shared_trace_id'), isTrue);
+
+    final rows = await ancienne.query('rides');
+    expect(rows.length, 1);
+    expect(rows.first['id'], 'ancienne');
+    expect(rows.first['name'], 'Avant migration');
+    expect(rows.first['shared_trace_id'], isNull);
+
+    await ancienne.close();
+  });
+
+  test('rejouer la migration ne casse rien', () async {
+    // Cas onCreate : une base neuve est deja au schema v2 quand onUpgrade
+    // est rejoue dessus (ex. reinstallation). Ne doit ni jeter, ni dupliquer
+    // la colonne.
+    final dejaAJour = await databaseFactoryFfi.openDatabase(
+      inMemoryDatabasePath,
+      options: OpenDatabaseOptions(version: 2, onCreate: RideDatabase.onCreate),
+    );
+
+    await RideDatabase.onUpgrade(dejaAJour, 1, 2);
+    await RideDatabase.onUpgrade(dejaAJour, 1, 2);
+
+    final columns = await dejaAJour.rawQuery('PRAGMA table_info(rides)');
+    expect(columns.where((c) => c['name'] == 'shared_trace_id').length, 1);
+
+    await dejaAJour.close();
+  });
 }

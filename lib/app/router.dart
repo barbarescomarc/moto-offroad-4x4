@@ -13,6 +13,7 @@ import '../screens/account/login_screen.dart';
 import '../screens/account/verify_screen.dart';
 import '../screens/account/forgot_password_screen.dart';
 import '../screens/account/account_screen.dart';
+import '../screens/legal/charte_screen.dart';
 import '../screens/map/map_screen.dart';
 import '../screens/sos/sos_screen.dart';
 import '../screens/solo/solo_screen.dart';
@@ -21,14 +22,19 @@ import '../screens/fuel/fuel_screen.dart';
 import '../screens/group/group_screen.dart';
 import '../screens/weather/weather_screen.dart';
 import '../screens/rides/rides_screen.dart';
+import '../screens/rides/my_publications_screen.dart';
+import '../screens/rides/publish_trace_screen.dart';
 import '../screens/rides/ride_detail_screen.dart';
+import '../screens/rides/shared_trace_detail_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/vibration_calibration_screen.dart';
 import '../screens/settings/call_settings_screen.dart';
 import '../screens/sos/fall_countdown_screen.dart';
 import '../screens/favorites/favorites_screen.dart';
 import '../screens/roadbook/roadbook_screen.dart';
+import '../services/account_storage.dart';
 import '../services/grace_window.dart';
+import '../services/shared_traces_api_client.dart';
 import '../services/update_checker.dart';
 import '../widgets/account_banner.dart';
 import '../widgets/glass_control.dart';
@@ -41,6 +47,8 @@ class AppRoutes {
   static const String map         = '/';
   static const String fuel        = '/fuel';
   static const String rides       = '/rides';
+  static const String traces      = '/traces';
+  static const String myPublications = '/traces/mes-publications';
   static const String weather     = '/weather';
   static const String settings    = '/settings';
   static const String calibration = '/calibration';
@@ -98,6 +106,11 @@ class _AccountGateBridge extends ChangeNotifier {
 // par défaut.
 GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
   final pont = _AccountGateBridge();
+  // Trouvaille mineure de la revue finale : trois pageBuilders en
+  // construisaient chacun un exemplaire séparé (donc un http.Client sous-
+  // jacent jamais fermé, à chaque fois) au lieu de partager celui-ci — une
+  // seule instance pour toute la durée de vie de ce routeur.
+  final tracesApi = SharedTracesApiClient(readToken: () => AccountStorage().readToken());
 
   return GoRouter(
     navigatorKey: rootNavigatorKey,
@@ -111,6 +124,7 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
         status: compte.status,
         location: state.matchedLocation,
         graceActive: graceWindow.active,
+        charteVersion: compte.charteVersion,
       );
     },
     routes: [
@@ -137,6 +151,24 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
               ),
             ],
           ),
+          // Déclarée avant '${AppRoutes.traces}/:id' : go_router matche les
+          // routes dans l'ordre de déclaration, et 'mes-publications' ne
+          // doit jamais être interprété comme un :id de trace.
+          GoRoute(
+            path: AppRoutes.myPublications,
+            pageBuilder: (_, __) => MaterialPage(
+              child: MyPublicationsScreen(api: tracesApi),
+            ),
+          ),
+          GoRoute(
+            path: '${AppRoutes.traces}/:id',
+            pageBuilder: (_, state) => MaterialPage(
+              child: SharedTraceDetailScreen(
+                traceId: state.pathParameters['id']!,
+                api: tracesApi,
+              ),
+            ),
+          ),
           GoRoute(
             path: AppRoutes.weather,
             pageBuilder: (_, __) => const NoTransitionPage(child: WeatherScreen()),
@@ -162,6 +194,16 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
         path: AppRoutes.account,
         pageBuilder: (_, __) => const MaterialPage(
             fullscreenDialog: true, child: AccountScreen()),
+      ),
+      GoRoute(
+        path: '${AppRoutes.rides}/:id/publier',
+        pageBuilder: (_, state) => MaterialPage(
+          fullscreenDialog: true,
+          child: PublishTraceScreen(
+            rideId: state.pathParameters['id']!,
+            api: tracesApi,
+          ),
+        ),
       ),
       GoRoute(
         path: AppRoutes.sos,
@@ -196,6 +238,10 @@ GoRouter buildAppRouter({String initialLocation = AppRoutes.map}) {
             fullscreenDialog: true, child: FallCountdownScreen()),
       ),
       // Écrans du compte (hors ShellRoute : pas de barre de navigation).
+      GoRoute(
+        path: charteRoute,
+        pageBuilder: (_, __) => const NoTransitionPage(child: CharteScreen()),
+      ),
       GoRoute(
         path: AppRoutes.welcome,
         pageBuilder: (_, __) => const NoTransitionPage(child: WelcomeScreen()),
@@ -303,7 +349,7 @@ class _MainShellState extends State<MainShell> {
 
   int _currentIndex(BuildContext context) {
     final location = GoRouterState.of(context).uri.path;
-    if (location.startsWith(AppRoutes.rides)) return 2;
+    if (location.startsWith(AppRoutes.rides) || location.startsWith(AppRoutes.traces)) return 2;
     switch (location) {
       case AppRoutes.map:      return 0;
       case AppRoutes.fuel:     return 1;

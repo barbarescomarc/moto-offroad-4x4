@@ -5,6 +5,7 @@ import '../../app/router.dart';
 import '../../models/ride.dart';
 import '../../providers/rides_provider.dart';
 import '../../services/ride_database.dart';
+import 'shared_traces_panel.dart';
 
 class RidesScreen extends StatefulWidget {
   const RidesScreen({super.key});
@@ -14,6 +15,62 @@ class RidesScreen extends StatefulWidget {
 }
 
 class _RidesScreenState extends State<RidesScreen> {
+  // 0 : sorties enregistrées localement · 1 : catalogue partagé.
+  int _volet = 0;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('🏍️  SORTIES')),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: SegmentedButton<int>(
+              segments: const [
+                ButtonSegment(value: 0, label: Text('Mes sorties')),
+                ButtonSegment(value: 1, label: Text('Partagées')),
+              ],
+              selected: {_volet},
+              onSelectionChanged: (s) => setState(() => _volet = s.first),
+            ),
+          ),
+          // IndexedStack, pas un ternaire : un ternaire démonterait puis
+          // remonterait le volet caché à chaque bascule, ce qui relancerait
+          // son initState (et donc un nouveau refresh()) à chaque fois —
+          // une extraction n'est pas censée changer ce comportement.
+          // SharedTracesPanel reçoit en plus estVisible : l'IndexedStack le
+          // monte dès l'ouverture de l'onglet même si « Mes sorties » est
+          // affiché, et sans ce drapeau son amorçage (position + requête
+          // catalogue) partirait immédiatement au lieu d'attendre que le
+          // rider bascule vraiment sur « Partagées ».
+          Expanded(
+            child: IndexedStack(
+              index: _volet,
+              children: [
+                const MyRidesPanel(),
+                SharedTracesPanel(estVisible: _volet == 1),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Volet « Mes sorties » ─────────────────────────────────────
+// Extraction pure de l'ancien corps de RidesScreen : même contenu, même
+// comportement, seule l'enveloppe (Scaffold + AppBar, désormais dans
+// RidesScreen) a changé de place.
+class MyRidesPanel extends StatefulWidget {
+  const MyRidesPanel({super.key});
+
+  @override
+  State<MyRidesPanel> createState() => _MyRidesPanelState();
+}
+
+class _MyRidesPanelState extends State<MyRidesPanel> {
   Ride? _unfinishedRide;
 
   @override
@@ -32,33 +89,30 @@ class _RidesScreenState extends State<RidesScreen> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<RidesProvider>();
-    return Scaffold(
-      appBar: AppBar(title: const Text('🏍️  SORTIES')),
-      body: provider.isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : provider.rides.isEmpty
-              ? const _EmptyState()
-              : Column(
-                  children: [
-                    // Bandeau de récupération après plantage
-                    if (_unfinishedRide != null)
-                      _recoveryBanner(_unfinishedRide!),
-                    // Liste des sorties
-                    Expanded(
-                      child: RefreshIndicator(
-                        onRefresh: provider.refresh,
-                        child: ListView.separated(
-                          itemCount: provider.rides.length,
-                          separatorBuilder: (_, __) => const Divider(height: 1),
-                          itemBuilder: (_, i) => _RideTile(ride: provider.rides[i]),
-                        ),
+    return provider.isLoading
+        ? const Center(child: CircularProgressIndicator())
+        : provider.rides.isEmpty
+            ? const _EmptyState()
+            : Column(
+                children: [
+                  // Bandeau de récupération après plantage
+                  if (_unfinishedRide != null)
+                    _recoveryBanner(_unfinishedRide!),
+                  // Liste des sorties
+                  Expanded(
+                    child: RefreshIndicator(
+                      onRefresh: provider.refresh,
+                      child: ListView.separated(
+                        itemCount: provider.rides.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) => _RideTile(ride: provider.rides[i]),
                       ),
                     ),
-                    // Pied de page avec espace disque
-                    _storageFooter(provider),
-                  ],
-                ),
-    );
+                  ),
+                  // Pied de page avec espace disque
+                  _storageFooter(provider),
+                ],
+              );
   }
 
   // Bandeau proposant de clôturer une sortie interrompue
