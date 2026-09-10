@@ -254,19 +254,28 @@ void main() {
     expect(p.charteVersion, isNull);
   });
 
-  test('un echec serveur en acceptant la charte ne modifie pas la version locale', () async {
+  // Critique 2 de la revue finale : un 400 est le SEUL echec qui doive
+  // laisser le mur en place — le serveur a lu la version envoyee et la
+  // rejette sur le fond. La retenir localement enregistrerait une
+  // acceptation qu il a explicitement refusee. Voir plus bas, en fin de
+  // fichier, les echecs qui ne murent plus (500, 429).
+  test('un refus de fond (400) en acceptant la charte ne modifie pas la version locale', () async {
     final p = provider(MockClient((req) async {
       if (req.url.path.endsWith('/register')) {
         return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
       }
-      return http.Response('{}', 500);
+      return http.Response(jsonEncode({'error': 'version de charte inconnue'}), 400);
     }));
     await p.register(email: 'rider@example.test', password: 'dix caracteres');
 
     final ok = await p.acceptCharte(version: '1.0');
     expect(ok, isFalse);
     expect(p.charteVersion, isNull);
-    expect(p.lastError, AccountError.inconnue);
+    expect(p.lastError, AccountError.adresseInvalide);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_en_attente'), isNull,
+        reason: 'un refus explicite ne doit rien laisser en attente de rejeu');
   });
 
   test('la deconnexion efface le jeton et mene a deconnecte, pas a sessionARenouveler', () async {
@@ -861,5 +870,151 @@ void main() {
     expect(ok, isTrue);
     expect(accepteAppele, isTrue, reason: 'une entree tagguee au bon rider doit etre rejouee via login()');
     expect(pReco.charteVersion, LegalDocuments.charteVersion);
+  });
+
+  // ── Critique 1 de la revue finale : inscription et attente d autrui ──
+  //
+  // La fuite fermee pour login() restait ouverte pour son jumeau. _apply()
+  // pose un jeton et un email NEUFS sans toucher aux cles de l attente : une
+  // acceptation hors ligne non tagguee, laissee par A, survivait donc a
+  // l inscription de B, que le premier sondage de refreshVerification()
+  // depuis l ecran de verification (toutes les 5 s) rejouait alors sous le
+  // jeton de B, avec le rejeu aveugle par defaut. Miroir exact du test
+  // login() ci-dessus.
+
+  test(
+      'apres une session revoquee, un rider B qui s inscrit n herite pas d une acceptation hors ligne non tagguee laissee par A',
+      () async {
+    // A a un jeton stocke mais n a jamais vu /me reussir dans ce processus :
+    // son email est inconnu, l entree posee ne peut donc pas etre tagguee.
+    await AccountStorage().writeToken('jeton-a');
+    final pA = provider(MockClient((_) async => throw Exception('reseau coupe')));
+    await pA.restore();
+    await pA.acceptCharte(version: '0.9'); // version anterieure a la courante
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_en_attente'), '0.9');
+    expect(prefs.getString('account_charte_version_en_attente_compte'), isNull,
+        reason: 'email de A jamais resolu par ce processus : l entree ne peut pas etre tagguee');
+
+    // Revocation (A n a jamais appele logout(), donc l attente survit), puis
+    // /connexion, puis /inscription : le chemin reel jusqu au compte de B.
+    final pRevoque = provider(MockClient((_) async => http.Response('{}', 401)));
+    await pRevoque.restore();
+    expect(pRevoque.status, AccountStatus.sessionARenouveler);
+
+    // B s inscrit AVEC SUCCES, avec reseau, sur ce meme appareil, en cochant
+    // la version courante de la charte (case obligatoire de RegisterScreen).
+    String? versionRejouee;
+    final pB = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton-b', 'verified': false}), 201);
+      }
+      if (req.url.path.endsWith('/charte')) {
+        versionRejouee = (jsonDecode(req.body) as Map<String, dynamic>)['version'];
+        return http.Response('{}', 200);
+      }
+      // /me : le serveur a bien enregistre la version que B vient de cocher,
+      // transmise par /register.
+      return http.Response(
+          jsonEncode({
+            'email': 'rider-b@example.test',
+            'verified': false,
+            'charteVersion': LegalDocuments.charteVersion,
+          }),
+          200);
+    }));
+    final ok = await pB.register(
+      email: 'rider-b@example.test',
+      password: 'dix caracteres',
+      charteVersion: LegalDocuments.charteVersion,
+    );
+    expect(ok, isTrue);
+    // L ecran de verification de B sonde le serveur toutes les 5 s : c est
+    // CE sondage qui rejouait l attente de A sous le jeton de B.
+    await pB.refreshVerification();
+
+    expect(versionRejouee, isNull,
+        reason: 'une entree non tagguee ne doit jamais etre rejouee au nom d un rider different (B)');
+    expect(pB.charteVersion, LegalDocuments.charteVersion,
+        reason: 'B garde la version qu il vient de cocher, jamais celle de A');
+    expect(prefs.getString('account_charte_version_en_attente'), isNull,
+        reason: 'inutilisable desormais, l entree doit etre effacee plutot que laissee trainer');
+  });
+
+  // ── Critique 2 de la revue finale : un serveur DEBOUT mais en panne ──
+  //
+  // acceptCharte() ne traitait comme repli local que AccountError.reseau,
+  // or _errorFor traduit tout 5xx en `inconnue` et un 429 en
+  // `tropDeTentatives` : aucun des deux n atteignait cette branche. Un
+  // serveur qui repondait 500 murait donc, sans SOS ni detection de chute,
+  // chaque rider n ayant pas encore accepte — « reessaie » a l ecran, et un
+  // redemarrage qui rejouait la meme impasse a l identique.
+
+  test('un serveur en panne (500) en acceptant la charte ne mure plus le rider', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 500); // /charte
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+
+    final ok = await p.acceptCharte(version: LegalDocuments.charteVersion);
+
+    expect(ok, isTrue, reason: 'un serveur debout mais en panne n est pas un refus : le mur doit retomber');
+    expect(p.charteVersion, LegalDocuments.charteVersion);
+    expect(p.lastError, isNull, reason: 'cette branche EST le succes, rien a laisser en erreur');
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_en_attente'), LegalDocuments.charteVersion,
+        reason: 'l acceptation doit etre rejouee des que le serveur se remet');
+  });
+
+  test('un serveur sature (429) en acceptant la charte ne mure plus le rider non plus', () async {
+    final p = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response(jsonEncode({'error': 'trop de tentatives'}), 429); // /charte
+    }));
+    await p.register(email: 'rider@example.test', password: 'dix caracteres');
+
+    final ok = await p.acceptCharte(version: LegalDocuments.charteVersion);
+
+    expect(ok, isTrue);
+    expect(p.charteVersion, LegalDocuments.charteVersion);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_en_attente'), LegalDocuments.charteVersion);
+  });
+
+  test('un rejeu en echec apres un /me reussi ne remure pas un rider ayant accepte hors ligne', () async {
+    // Le rejeu est au mieux : /me peut reussir alors que le POST /charte,
+    // lui, echoue encore (serveur partiellement en panne). Sans repli sur
+    // l attente, _charteVersion retombait sur le `null` du serveur — le
+    // rider etait remure au lancement suivant, apres avoir pourtant accepte.
+    final p1 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      throw Exception('reseau coupe'); // /charte
+    }));
+    await p1.register(email: 'rider@example.test', password: 'dix caracteres');
+    expect(await p1.acceptCharte(version: LegalDocuments.charteVersion), isTrue);
+
+    final p2 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/charte')) return http.Response('{}', 500);
+      // /me repond, et ne connait toujours pas d acceptation pour ce compte.
+      return http.Response(jsonEncode({'email': 'rider@example.test', 'verified': true}), 200);
+    }));
+    await p2.restore();
+
+    expect(p2.status, AccountStatus.connecte);
+    expect(p2.charteVersion, LegalDocuments.charteVersion,
+        reason: 'un rejeu qui echoue ne doit jamais faire regresser la version deja acceptee localement');
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_en_attente'), LegalDocuments.charteVersion,
+        reason: 'l attente reste en place tant que le rejeu n a pas abouti');
   });
 }

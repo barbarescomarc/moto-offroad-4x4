@@ -367,6 +367,16 @@ class AccountProvider extends ChangeNotifier {
       // valeur du serveur ci-dessus : s'il y a quelque chose en attente, il
       // la fait prévaloir ; sinon il ne touche à rien.
       await _rejouerAcceptationCharteEnAttente();
+      // Critique 2 de la revue finale : ce rejeu est au mieux — le POST peut
+      // échouer alors même que le /me ci-dessus vient de réussir (serveur
+      // partiellement en panne, creux réseau entre les deux appels).
+      // _charteVersion restait alors sur le `null` du serveur, et remurait
+      // au lancement suivant un rider qui avait pourtant déjà accepté hors
+      // ligne sur cet appareil — exactement la régression que la
+      // documentation de [_rejouerAcceptationCharteEnAttente] promet à ses
+      // appelants de ne jamais laisser passer. `??=` : une réponse du
+      // serveur qui dit quelque chose garde la priorité.
+      _charteVersion ??= await _charteEnAttente();
       _set(profil.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
       return;
     }
@@ -439,17 +449,41 @@ class AccountProvider extends ChangeNotifier {
     return true;
   }
 
+  /// Critique 1 de la revue finale : [_apply] pose un jeton et un email
+  /// NEUFS sans toucher à une acceptation hors ligne éventuellement en
+  /// attente sur cet appareil (voir _kCharteVersionEnAttente). L'entrée
+  /// laissée par un rider A survivait donc à l'inscription d'un rider B sur
+  /// ce même téléphone — la révocation du jeton de A y mène sans jamais
+  /// passer par [logout], qui l'effacerait : `sessionARenouveler` laisse
+  /// /connexion atteignable, et l'écran de connexion propose /inscription.
+  /// Le premier sondage de [refreshVerification] depuis l'écran de
+  /// vérification de B (toutes les 5 s) rejouait alors l'attente de A sous
+  /// le jeton de B, avec le rejeu aveugle par défaut. Aujourd'hui B a coché
+  /// la même version, transmise ci-dessous, et le dégât se limite à un POST
+  /// en double ; le jour où deux versions coexistent, le 1.0 de A écraserait
+  /// le 1.1 que B vient de cocher — B remuré, et son acceptation falsifiée
+  /// dans le registre du serveur.
+  ///
+  /// Une inscription qui aboutit crée un compte NEUF : une acceptation en
+  /// attente ne peut donc venir que d'un autre compte, jamais du sien. Elle
+  /// est effacée, jamais rejouée. Effacée ici plutôt que dans [_apply], que
+  /// [login] partage : là, la même attente doit au contraire rester
+  /// rejouable pour LE MÊME rider qui se reconnecte (voir [login] et
+  /// [_rejouerAcceptationCharteEnAttente]).
   Future<bool> register({
     required String email,
     required String password,
     String? displayName,
     String? charteVersion,
-  }) async =>
-      _apply(
-        await _api.register(email: email, password: password, displayName: displayName, charteVersion: charteVersion),
-        email,
-        charteVersion: charteVersion,
-      );
+  }) async {
+    final ok = await _apply(
+      await _api.register(email: email, password: password, displayName: displayName, charteVersion: charteVersion),
+      email,
+      charteVersion: charteVersion,
+    );
+    if (ok) await _effacerCharteEnAttente();
+    return ok;
+  }
 
   /// Contrairement à l'inscription, la connexion ne connaît pas localement
   /// la charte du pilote déjà acceptée par ce compte — et le serveur ne la
@@ -535,6 +569,27 @@ class AccountProvider extends ChangeNotifier {
     return false;
   }
 
+  /// Le refus DE FOND est le seul échec qui laisse le mur de la charte en
+  /// place : le serveur a réellement lu la version envoyée et la rejette
+  /// — un 400, que
+  /// `AccountApiClient._errorFor` nomme `adresseInvalide` ou
+  /// `motDePasseTropCourt` selon le corps de la réponse, faute d'un code
+  /// propre à cette route. Là, et là seulement, réessayer a un sens : c'est
+  /// la version elle-même qu'il faut corriger, la retenir localement ne
+  /// ferait qu'enregistrer une acceptation que le serveur a explicitement
+  /// refusée.
+  ///
+  /// Critique 2 de la revue finale : [acceptCharte] ne traitait comme repli
+  /// local que [AccountError.reseau], alors que `_errorFor` traduit TOUT 5xx
+  /// en [AccountError.inconnue] et un 429 en [AccountError.tropDeTentatives].
+  /// Un serveur qui répondait 500 (ou saturé) murait donc, sans SOS ni
+  /// détection de chute, chaque rider n'ayant pas encore accepté : « réessaie
+  /// » à l'écran, et un redémarrage qui rejouait la même impasse à
+  /// l'identique aussi longtemps que durait la panne. [restore] range
+  /// pourtant déjà, elle, « 5xx, timeout » avec « réseau coupé ».
+  static bool _estUnRefusDeLaCharte(AccountError? error) =>
+      error == AccountError.adresseInvalide || error == AccountError.motDePasseTropCourt;
+
   /// Enregistre l'acceptation de la charte du pilote et met à jour l'état
   /// local. C'est ce qui fait disparaître `CharteScreen` : `accountRedirect`
   /// réévalue dès la notification déclenchée ici, sans navigation explicite
@@ -549,6 +604,9 @@ class AccountProvider extends ChangeNotifier {
   /// serveur au prochain contact réussi — voir
   /// _rejouerAcceptationCharteEnAttente, appelée depuis [restore],
   /// [refreshVerification] et [login].
+  ///
+  /// Critique 2 de la revue finale : ce repli local ne se limite plus au
+  /// seul serveur INJOIGNABLE — voir [_estUnRefusDeLaCharte].
   Future<bool> acceptCharte({String version = LegalDocuments.charteVersion}) async {
     if (_token == null) return false;
     final res = await _api.acceptCharte(token: _token!, version: version);
@@ -568,9 +626,11 @@ class AccountProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     }
-    if (res.error == AccountError.reseau) {
-      // Cette branche EST le succès (Critique 3a) : rien à laisser en erreur
-      // pour un appelant qui recevra `true` juste en dessous.
+    if (!_estUnRefusDeLaCharte(res.error)) {
+      // Cette branche EST le succès (Critique 3a, élargie par la Critique 2
+      // au serveur debout mais en panne — voir _estUnRefusDeLaCharte) : rien
+      // à laisser en erreur pour un appelant qui recevra `true` juste en
+      // dessous.
       _lastError = null;
       _charteVersion = version;
       // Taguée avec l'identité déjà connue de cette instance, s'il y en a

@@ -67,17 +67,18 @@ class AccountResult<T> {
 /// ce qui permet à l'écran d'inscription de choisir entre réessayer et
 /// corriger la saisie.
 class AccountApiClient {
-  AccountApiClient({http.Client? client, String? baseUrl, Duration? meTimeout})
+  AccountApiClient({http.Client? client, String? baseUrl, Duration? timeout})
       : _client = client ?? http.Client(),
         _baseUrl = baseUrl ?? 'https://motooffroad.duckdns.org',
-        _meTimeout = meTimeout ?? const Duration(seconds: 5);
+        _timeout = timeout ?? const Duration(seconds: 5);
 
   final http.Client _client;
   final String _baseUrl;
 
-  /// Borne de [me]. Injectable pour les tests uniquement — l'application ne
-  /// passe jamais autre chose que la valeur par défaut.
-  final Duration _meTimeout;
+  /// Borne de [me] et de [_voidCall] — les deux appels qui conditionnent
+  /// l'accès à la carte, donc au SOS. Injectable pour les tests uniquement
+  /// — l'application ne passe jamais autre chose que la valeur par défaut.
+  final Duration _timeout;
 
   Uri _uri(String path) => Uri.parse('$_baseUrl$path');
 
@@ -158,7 +159,7 @@ class AccountApiClient {
     try {
       final res = await _client
           .get(_uri('/api/account/me'), headers: _headers(token))
-          .timeout(_meTimeout);
+          .timeout(_timeout);
       if (res.statusCode ~/ 100 != 2) {
         return AccountResult.failure(_errorFor(res.statusCode, res.body));
       }
@@ -174,6 +175,14 @@ class AccountApiClient {
     }
   }
 
+  /// Borné comme [me], et pour exactement la même raison : [acceptCharte]
+  /// passe par ici, et c'est désormais la seule sortie du mur de la charte
+  /// (voir `AccountProvider.acceptCharte`). Sans borne, le portail captif
+  /// décrit au-dessus de [me] — une connexion qui ne répond jamais plutôt
+  /// qu'une panne franche — laisserait le rider à attendre indéfiniment
+  /// devant ce mur, donc sans SOS ni détection de chute. Un dépassement de
+  /// délai retombe dans le `catch` ci-dessous, donc sur
+  /// [AccountError.reseau] : la panne de transport qu'il est réellement.
   Future<AccountResult<void>> _voidCall(
     String path, {
     String? token,
@@ -183,8 +192,8 @@ class AccountApiClient {
     try {
       final uri = _uri(path);
       final res = method == 'DELETE'
-          ? await _client.delete(uri, headers: _headers(token))
-          : await _client.post(uri, headers: _headers(token), body: jsonEncode(body ?? {}));
+          ? await _client.delete(uri, headers: _headers(token)).timeout(_timeout)
+          : await _client.post(uri, headers: _headers(token), body: jsonEncode(body ?? {})).timeout(_timeout);
       if (res.statusCode ~/ 100 != 2) {
         return AccountResult.failure(_errorFor(res.statusCode, res.body));
       }

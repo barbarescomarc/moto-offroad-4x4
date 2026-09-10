@@ -55,7 +55,7 @@ void main() {
   // Re-revue de branche, correctif I7 : me() gouverne l'écran de chargement
   // devant la carte ([_MapGate]) — sans borne, un réseau dégradé (portail
   // captif, TCP qui traîne) y bloquerait indéfiniment le rider, donc son
-  // accès au SOS. `meTimeout` est injectable pour ce test précisément : une
+  // accès au SOS. `timeout` est injectable pour ce test précisément : une
   // borne réelle mais très courte prouve le comportement sans faire durer
   // le test (pas de fake_async, absent des dépendances du dépôt).
   test('me() ne pend pas indefiniment sur un serveur qui ne repond jamais', () async {
@@ -64,10 +64,26 @@ void main() {
       // Le gestionnaire ne complète jamais : simule une connexion qui
       // traîne (TCP/TLS en cours), pas une panne immédiate.
       client: MockClient((_) => Completer<http.Response>().future),
-      meTimeout: const Duration(milliseconds: 20),
+      timeout: const Duration(milliseconds: 20),
     );
 
     final res = await api.me(token: 'jeton-abc');
+    expect(res.error, AccountError.reseau);
+  });
+
+  // Critique 2 de la revue finale : acceptCharte() passe par _voidCall et
+  // est desormais la seule sortie du mur de la charte, donc du chemin vers
+  // le SOS. La meme borne que me() lui est indispensable, pour exactement le
+  // meme portail captif : une connexion qui ne repond jamais, plutot qu une
+  // panne franche.
+  test('acceptCharte() ne pend pas indefiniment sur un serveur qui ne repond jamais', () async {
+    final api = AccountApiClient(
+      baseUrl: 'https://exemple.test',
+      client: MockClient((_) => Completer<http.Response>().future),
+      timeout: const Duration(milliseconds: 20),
+    );
+
+    final res = await api.acceptCharte(token: 'jeton-abc', version: '1.0');
     expect(res.error, AccountError.reseau);
   });
 
