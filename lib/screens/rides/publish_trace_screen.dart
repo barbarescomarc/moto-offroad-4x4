@@ -11,6 +11,7 @@ import '../../providers/settings_provider.dart';
 import '../../services/legal_documents.dart';
 import '../../services/shared_traces_api_client.dart';
 import '../../services/trace_crop_service.dart';
+import '../legal/legal_document_screen.dart';
 
 /// Écran de publication d'une sortie dans le catalogue partagé : recadrage
 /// (le début d'une sortie enregistrée passe presque toujours devant chez le
@@ -99,7 +100,10 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
 
   Future<void> _ouvrirConditions() async {
     await Navigator.of(context).push(MaterialPageRoute<void>(
-      builder: (_) => const _ConditionsPublicationScreen(),
+      builder: (_) => const LegalDocumentScreen(
+        title: 'Conditions de publication',
+        loader: LegalDocuments.conditionsPublication,
+      ),
     ));
   }
 
@@ -350,62 +354,6 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ── Texte complet des conditions ─────────────────────────────
-//
-// Une seule maison pour ce texte : LegalDocuments, jamais recopié en dur
-// dans le code Dart, pour qu'une correction n'ait jamais à être faite à
-// deux endroits.
-class _ConditionsPublicationScreen extends StatefulWidget {
-  const _ConditionsPublicationScreen();
-
-  @override
-  State<_ConditionsPublicationScreen> createState() => _ConditionsPublicationScreenState();
-}
-
-class _ConditionsPublicationScreenState extends State<_ConditionsPublicationScreen> {
-  // Chargé une seule fois en mémoire (pas dans build()) : recréer ce Future
-  // à chaque build() ferait repasser le FutureBuilder en chargement à
-  // chaque reconstruction — voir la même remarque, plus détaillée, sur
-  // CharteScreen._charte. Champ mutable pour permettre un nouvel essai si
-  // la ressource embarquée échoue à charger.
-  Future<String> _texte = LegalDocuments.conditionsPublication();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Conditions de publication')),
-      body: FutureBuilder<String>(
-        future: _texte,
-        builder: (context, snap) {
-          if (snap.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Impossible de charger les conditions de publication.', textAlign: TextAlign.center),
-                    const SizedBox(height: 12),
-                    FilledButton(
-                      onPressed: () => setState(() => _texte = LegalDocuments.conditionsPublication()),
-                      child: const Text('Réessayer'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Text(snap.data!),
-          );
-        },
-      ),
     );
   }
 }
