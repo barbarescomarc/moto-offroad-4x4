@@ -1931,6 +1931,106 @@ git commit -m "feat(traces): montage des routes et rattachement des sorties au c
 
 ---
 
+### Task 13B: Consentement aux conditions de publication
+
+**Files:**
+- Modify: `src/db.js` (deux colonnes sur `shared_trace`), `src/routes/traces.js` (publication)
+- Test: `test/traces_publish.test.js`
+
+**Interfaces:**
+- Consumes: la route de publication (Task 5), le schéma (Task 2).
+- Produces: colonnes `licence_version TEXT` et `licence_accepted_at INTEGER` sur `shared_trace` ; `POST /api/traces` exige un champ `licenceVersion` égal à la version courante (`LICENCE_VERSION`, exportée par `src/routes/traces.js`, valeur `'1.0'`) et refuse en `400 { error: 'conditions de publication non acceptees' }` sinon.
+
+**Pourquoi.** Le pilote cède des droits d'exploitation sur ce qu'il publie et accepte que sa trace reste au catalogue après la suppression de son compte (`docs/legal/conditions-publication-traces.md`). Un consentement qui n'est pas enregistré ne se prouve pas : chaque publication doit porter la version des conditions acceptées et l'horodatage. Une case cochée dans l'application, sans trace côté serveur, ne vaut rien le jour où quelqu'un conteste.
+
+- [ ] **Step 1: Écrire le test qui échoue**
+
+Ajouter à `test/traces_publish.test.js` :
+
+```js
+test('une publication enregistre la version des conditions acceptees', async () => {
+  const { app, db } = buildApp();
+  const jeton = creerCompte(db);
+  const { server, base } = await listen(app);
+  try {
+    const res = await publier(base, { ...FICHE, licenceVersion: '1.0' }, jeton);
+    assert.equal(res.status, 201);
+    const { id } = await res.json();
+    const ligne = db.prepare('SELECT * FROM shared_trace WHERE id = ?').get(id);
+    assert.equal(ligne.licence_version, '1.0');
+    assert.equal(ligne.licence_accepted_at, 1_000_000); // le `now` fige de buildApp
+  } finally {
+    server.close();
+  }
+});
+
+test('publier sans accepter les conditions est refuse', async () => {
+  const { app, db, store } = buildApp();
+  const jeton = creerCompte(db);
+  const { server, base } = await listen(app);
+  try {
+    const sans = await publier(base, FICHE, jeton);
+    assert.equal(sans.status, 400);
+    const perimee = await publier(base, { ...FICHE, licenceVersion: '0.9' }, jeton);
+    assert.equal(perimee.status, 400);
+    // Rien ne doit avoir ete ecrit, ni en base ni sur le disque.
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM shared_trace').get().n, 0);
+    assert.deepEqual(store.list(), []);
+  } finally {
+    server.close();
+  }
+});
+```
+
+Les publications des autres tests de ce fichier doivent recevoir `licenceVersion: '1.0'` — le plus simple est de l'ajouter à la constante `FICHE`.
+
+- [ ] **Step 2: Lancer le test pour vérifier qu'il échoue**
+
+`docker run --rm -v "$PWD":/app -w /app node:20 sh -c "npm install && npm test"`
+Attendu : ÉCHEC — la colonne n'existe pas, et la publication sans consentement passe.
+
+- [ ] **Step 3: Implémenter**
+
+Dans `src/db.js`, ajouter à `CREATE TABLE shared_trace` :
+
+```sql
+  licence_version    TEXT,
+  licence_accepted_at INTEGER,
+```
+
+Dans `src/routes/traces.js` :
+
+```js
+// Version des conditions de publication en vigueur. Chaque publication
+// enregistre celle que le pilote a acceptee : un consentement non horodate
+// ne se prouve pas le jour ou quelqu un le conteste.
+const LICENCE_VERSION = '1.0';
+```
+
+et, dans la route de publication, refuser avant tout traitement :
+
+```js
+    if (req.body?.licenceVersion !== LICENCE_VERSION) {
+      return res.status(400).json({ error: 'conditions de publication non acceptees' });
+    }
+```
+
+en plaçant ce refus **avant** l'écriture du fichier, puis renseigner les deux colonnes dans l'`INSERT`. Exporter `LICENCE_VERSION`.
+
+- [ ] **Step 4: Lancer les tests**
+
+`docker run --rm -v "$PWD":/app -w /app node:20 sh -c "npm install && npm test"`
+Attendu : SUCCÈS, toute la suite comprise.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/db.js src/routes/traces.js test/traces_publish.test.js
+git commit -m "feat(traces): consentement aux conditions de publication enregistre"
+```
+
+---
+
 # Partie 2 — Application
 
 Toutes les tâches suivantes se font dans `~/Claude/Projects/APP OFFROAD MOTO 4X4/moto_offroad`. Commande de test : `flutter test`.
@@ -2880,7 +2980,14 @@ Structure de haut en bas :
 1. L'aperçu de la trace (`FlutterMap` + `PolylineLayer`), sur lequel la portion retenue est dessinée en plein et les extrémités rognées en gris.
 2. Deux `Slider` (`Key('curseur_debut')`, `Key('curseur_fin')`) bornés à `0..points.length - 1`, avec sous eux la longueur publiée recalculée par `TraceCropService.distanceOf`. Le curseur de début ne peut pas dépasser celui de fin.
 3. Les champs : nom (pré-rempli avec `ride.name`), description (`Key('champ_description')`, obligatoire), auteur (pré-rempli avec le nom du profil pilote lu dans `SettingsProvider`), `SegmentedButton` engin (Moto / 4x4 / Moto et 4x4), `SegmentedButton` difficulté (Facile / Moyen / Difficile).
-4. Le bouton **Publier**, qui valide la description non vide, appelle `TraceCropService.cropToGpx` puis `api.publish`, et revient à l'écran précédent avec une `SnackBar` « Ta trace est publiée. » Un échec affiche le message de `SharedTracesException` sans quitter l'écran, pour ne pas perdre la saisie.
+4. **La case d'acceptation des conditions**, obligatoire, non pré-cochée :
+   « J'accepte les conditions de publication » avec un lien qui ouvre le texte
+   (`docs/legal/conditions-publication-traces.md`, embarqué en ressource), et
+   sous elle, en petit, la phrase qui compte : « Ma trace restera au catalogue
+   même si je supprime mon compte. » Le bouton Publier reste inactif tant que
+   la case n'est pas cochée, et l'appel envoie `licenceVersion: '1.0'` au
+   serveur, qui refuse la publication sans lui (tâche 13B).
+5. Le bouton **Publier**, qui valide la description non vide, appelle `TraceCropService.cropToGpx` puis `api.publish`, et revient à l'écran précédent avec une `SnackBar` « Ta trace est publiée. » Un échec affiche le message de `SharedTracesException` sans quitter l'écran, pour ne pas perdre la saisie.
 
 L'avertissement de première publication est un `AlertDialog` affiché au premier `build` si `partage_avertissement_vu` est absent : « Ta trace commence peut-être devant chez toi. Fais glisser le curseur de début pour publier seulement la partie qui t'intéresse. » avec un seul bouton « Compris » qui pose la préférence.
 
