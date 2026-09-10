@@ -770,4 +770,96 @@ void main() {
     expect(p2.charteVersion, LegalDocuments.charteVersion,
         reason: 'sans re-cle, changer d email remurrerait ce rider au prochain demarrage hors ligne');
   });
+
+  // ── Auto-revue : identite du rejeu d une acceptation hors ligne ──────
+  //
+  // La toute premiere version de ce correctif (3a) rejouait l attente sans
+  // jamais verifier a qui elle appartenait. Sequence qui en resultait,
+  // symetrique du round 1 du filet ci-dessus : A accepte hors ligne AVANT
+  // que son email ne soit jamais resolu par ce processus (donc une entree
+  // NON tagguee) ; sa session est revoquee sans jamais passer par logout()
+  // (qui efface l attente) ; B se connecte AVEC SUCCES sur ce meme appareil
+  // -- login() rejouait alors l attente de A au nom de B.
+
+  test(
+      'apres une session revoquee, un rider B qui se connecte n herite pas d une acceptation hors ligne non tagguee laissee par A',
+      () async {
+    // A a deja un jeton stocke mais n a jamais vu /me reussir dans ce
+    // processus : exactement le cas fondateur de 3a, email inconnu au
+    // moment de l acceptation -- l entree posee ne peut donc pas etre
+    // tagguee.
+    await AccountStorage().writeToken('jeton-a');
+    final pA = provider(MockClient((_) async => throw Exception('reseau coupe')));
+    await pA.restore();
+    await pA.acceptCharte(version: LegalDocuments.charteVersion);
+
+    final prefs = await SharedPreferences.getInstance();
+    expect(prefs.getString('account_charte_version_en_attente'), LegalDocuments.charteVersion);
+    expect(prefs.getString('account_charte_version_en_attente_compte'), isNull,
+        reason: 'email de A jamais resolu par ce processus : l entree ne peut pas etre tagguee');
+
+    // Revocation (A n a jamais appele logout(), donc l attente survit).
+    final pRevoque = provider(MockClient((_) async => http.Response('{}', 401)));
+    await pRevoque.restore();
+    expect(pRevoque.status, AccountStatus.sessionARenouveler);
+
+    // B se connecte AVEC SUCCES, avec reseau, sur ce meme appareil.
+    var accepteAppele = false;
+    final pB = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        return http.Response(jsonEncode({'token': 'jeton-b', 'verified': true}), 200);
+      }
+      if (req.url.path.endsWith('/charte')) {
+        accepteAppele = true;
+        return http.Response('{}', 200);
+      }
+      return http.Response(jsonEncode({'email': 'rider-b@example.test', 'verified': true}), 200); // /me
+    }));
+    final ok = await pB.login(email: 'rider-b@example.test', password: 'dix caracteres');
+
+    expect(ok, isTrue);
+    expect(accepteAppele, isFalse,
+        reason: 'une entree non tagguee ne doit jamais etre rejouee au nom d un rider different (B)');
+    expect(pB.charteVersion, isNull, reason: 'B ne doit jamais heriter de l acceptation de A');
+    expect(prefs.getString('account_charte_version_en_attente'), isNull,
+        reason: 'inutilisable desormais, l entree doit etre effacee plutot que laissee trainer');
+  });
+
+  test(
+      'apres une session revoquee, le meme rider A qui se reconnecte rejoue son acceptation hors ligne tagguee via login',
+      () async {
+    // Contrôle positif du test ci-dessus : quand l email EST deja connu au
+    // moment de l acceptation (cas le plus courant, voir Critique 3b),
+    // l entree est tagguee et le rejeu via login() doit continuer de
+    // fonctionner pour le MEME rider.
+    final pA = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton-a', 'verified': true}), 201);
+      }
+      throw Exception('reseau coupe'); // /charte
+    }));
+    await pA.register(email: 'rider-a@example.test', password: 'dix caracteres');
+    await pA.acceptCharte(version: LegalDocuments.charteVersion);
+
+    final pRevoque = provider(MockClient((_) async => http.Response('{}', 401)));
+    await AccountStorage().writeToken('jeton-a');
+    await pRevoque.restore();
+
+    var accepteAppele = false;
+    final pReco = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        return http.Response(jsonEncode({'token': 'jeton-a-bis', 'verified': true}), 200);
+      }
+      if (req.url.path.endsWith('/charte')) {
+        accepteAppele = true;
+        return http.Response('{}', 200);
+      }
+      return http.Response(jsonEncode({'email': 'rider-a@example.test', 'verified': true}), 200); // /me
+    }));
+    final ok = await pReco.login(email: 'rider-a@example.test', password: 'dix caracteres');
+
+    expect(ok, isTrue);
+    expect(accepteAppele, isTrue, reason: 'une entree tagguee au bon rider doit etre rejouee via login()');
+    expect(pReco.charteVersion, LegalDocuments.charteVersion);
+  });
 }

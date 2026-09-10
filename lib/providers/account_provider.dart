@@ -102,16 +102,33 @@ class AccountProvider extends ChangeNotifier {
   // texte de la charte est pourtant un asset embarqué, rien dans sa lecture
   // n'exige de réseau — seul l'enregistrement côté serveur en dépend.
   //
-  // La version acceptée hors ligne est donc mémorisée ici, SANS exiger de
-  // connaître l'email du rider (contrairement au filet ci-dessus, qui lui
-  // est gardé par identité) : au moment où elle est posée, cette instance
-  // peut très bien n'avoir jamais vu /me réussir. C'est elle qui est relue
-  // par [restore] quand le serveur reste muet ET qu'aucune entrée du filet
-  // ci-dessus n'existe — voir ce dernier. Elle est rejouée vers le serveur
-  // au prochain contact réussi ([restore], [refreshVerification], [login] —
-  // voir [_rejouerAcceptationCharteEnAttente]), et effacée dès que ce rejeu
+  // La version acceptée hors ligne est donc mémorisée ici, taguée avec
+  // l'email de ce rider QUAND il est déjà connu à cet instant (il peut ne
+  // pas l'être — voir la branche finale de [restore]) — au même titre que
+  // le filet ci-dessus. C'est elle qui est relue par [restore] quand le
+  // serveur reste muet ET qu'aucune entrée du filet ci-dessus n'existe. Elle
+  // est rejouée vers le serveur au prochain contact réussi ([restore],
+  // [refreshVerification], [login] — voir
+  // [_rejouerAcceptationCharteEnAttente]), et effacée dès que ce rejeu
   // aboutit.
+  //
+  // Auto-revue avant la fin de ce lot : la première version de ce filet
+  // rejouait TOUJOURS l'attente, sans jamais vérifier à qui elle
+  // appartenait. Séquence qui en résultait — la même faille que le round 1
+  // du filet ci-dessus, rouverte sous une forme neuve : le rider A accepte
+  // hors ligne AVANT que son email ne soit jamais résolu par ce processus
+  // (email inconnu, donc entrée non taguée) ; sa session est révoquée sans
+  // jamais passer par [logout] (qui efface l'attente) ; le rider B se
+  // connecte AVEC SUCCÈS sur ce même appareil — [login] rejouait alors
+  // l'attente de A au nom de B, sans le moindre lien vérifié entre les
+  // deux. D'où la distinction ci-dessous entre [restore]/
+  // [refreshVerification] (continuité du MÊME jeton depuis le début : aucun
+  // risque qu'un AUTRE rider en profite) et [login] (une identité FRAÎCHE,
+  // affirmée par des identifiants tapés, potentiellement différente de
+  // celle qui a posé l'attente) — seul ce dernier exige désormais une
+  // entrée taguée et correspondante avant de rejouer quoi que ce soit.
   static const String _kCharteVersionEnAttente = 'account_charte_version_en_attente';
+  static const String _kCharteVersionEnAttenteCompte = 'account_charte_version_en_attente_compte';
 
   /// Normalise une adresse pour comparaison — insensible à la casse et aux
   /// espaces superflus, pour qu'une même adresse saisie différemment (casse
@@ -234,10 +251,29 @@ class AccountProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> _memoriserCharteEnAttente(String version) async {
+  /// `null` si l'identité du rider n'était pas encore connue au moment de
+  /// l'acceptation hors ligne — voir [_rejouerAcceptationCharteEnAttente]
+  /// pour ce que cette absence de tag change à la manière dont l'entrée est
+  /// (ou non) rejouée.
+  Future<String?> _charteEnAttenteCompte() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString(_kCharteVersionEnAttenteCompte);
+    } catch (e) {
+      debugPrint('AccountProvider._charteEnAttenteCompte en echec : $e');
+      return null;
+    }
+  }
+
+  Future<void> _memoriserCharteEnAttente(String version, {String? email}) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString(_kCharteVersionEnAttente, version);
+      if (email != null) {
+        await prefs.setString(_kCharteVersionEnAttenteCompte, _normaliserEmail(email));
+      } else {
+        await prefs.remove(_kCharteVersionEnAttenteCompte);
+      }
     } catch (e) {
       debugPrint('AccountProvider._memoriserCharteEnAttente en echec : $e');
     }
@@ -247,6 +283,7 @@ class AccountProvider extends ChangeNotifier {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove(_kCharteVersionEnAttente);
+      await prefs.remove(_kCharteVersionEnAttenteCompte);
     } catch (e) {
       debugPrint('AccountProvider._effacerCharteEnAttente en echec : $e');
     }
@@ -260,10 +297,29 @@ class AccountProvider extends ChangeNotifier {
   /// l'entrée en place pour une prochaine tentative — [_charteVersion]
   /// reste alors sur la valeur déjà acceptée localement, jamais régressée
   /// vers une réponse serveur plus ancienne (voir les appelants).
-  Future<void> _rejouerAcceptationCharteEnAttente() async {
+  ///
+  /// [exigerIdentiteConnue] : voir la note d'auto-revue sur
+  /// [_kCharteVersionEnAttente]. `true` depuis [login] uniquement — une
+  /// entrée non taguée (identité inconnue au moment de l'acceptation) y est
+  /// alors effacée plutôt que rejouée à l'aveugle, faute de pouvoir
+  /// vérifier qu'elle appartient au rider qui vient de se connecter.
+  Future<void> _rejouerAcceptationCharteEnAttente({bool exigerIdentiteConnue = false}) async {
     if (_token == null) return;
     final enAttente = await _charteEnAttente();
     if (enAttente == null) return;
+    final compte = await _charteEnAttenteCompte();
+    if (compte != null) {
+      if (_email == null || _normaliserEmail(_email!) != compte) {
+        // Taguée pour un AUTRE rider (ou une identité pas encore confirmée
+        // ici) : jamais rejouée, et effacée — elle ne deviendra jamais
+        // utilisable, la garder ne ferait que traîner un risque de fuite.
+        await _effacerCharteEnAttente();
+        return;
+      }
+    } else if (exigerIdentiteConnue) {
+      await _effacerCharteEnAttente();
+      return;
+    }
     final res = await _api.acceptCharte(token: _token!, version: enAttente);
     if (!res.ok) return;
     await _effacerCharteEnAttente();
@@ -413,8 +469,11 @@ class AccountProvider extends ChangeNotifier {
     // Critique 3a : la connexion est elle aussi un contact serveur réussi,
     // donc un point de rejeu pour une acceptation faite hors ligne sur cet
     // appareil avant que ce rider ne se reconnecte — voir
-    // _rejouerAcceptationCharteEnAttente.
-    if (ok) await _rejouerAcceptationCharteEnAttente();
+    // _rejouerAcceptationCharteEnAttente. `exigerIdentiteConnue: true` :
+    // [email] est une identité fraîchement affirmée par des identifiants
+    // tapés, potentiellement un AUTRE rider que celui qui a posé l'attente
+    // (voir la note d'auto-revue sur _kCharteVersionEnAttente).
+    if (ok) await _rejouerAcceptationCharteEnAttente(exigerIdentiteConnue: true);
     return ok;
   }
 
@@ -514,7 +573,11 @@ class AccountProvider extends ChangeNotifier {
       // pour un appelant qui recevra `true` juste en dessous.
       _lastError = null;
       _charteVersion = version;
-      await _memoriserCharteEnAttente(version);
+      // Taguée avec l'identité déjà connue de cette instance, s'il y en a
+      // une — voir la note d'auto-revue sur _kCharteVersionEnAttente pour
+      // ce que ce tag change à la manière dont [login] rejoue (ou non)
+      // cette entrée ensuite.
+      await _memoriserCharteEnAttente(version, email: _email);
       if (_email != null) await _memoriserCharteVersionLocale(version, _email!);
       notifyListeners();
       return true;
