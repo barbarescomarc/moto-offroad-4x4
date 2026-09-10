@@ -26,7 +26,16 @@ import 'package:moto_offroad/screens/sos/sos_screen.dart';
 // tests n'ont pas à se soucier de l'état laissé par un test précédent dans
 // l'instance globale [appRouter] utilisée par l'application.
 void main() {
-  setUp(() => FlutterSecureStorage.setMockInitialValues({}));
+  setUp(() {
+    FlutterSecureStorage.setMockInitialValues({});
+    // Depuis le round 2 (Tache 23C), un compte sans charteVersion confirme
+    // (register()/login() qui aboutit sur `null`) efface desormais le
+    // filet local, meme quand il n y avait rien a effacer : cet appel a
+    // SharedPreferences non simule bloquait indefiniment pumpAndSettle()
+    // dans ce fichier (meme famille de piege que le mock deja pose plus
+    // bas pour MainShell/PackageInfo).
+    SharedPreferences.setMockInitialValues({});
+  });
 
   testWidgets(
       'un rider deconnecte atterrit sur l ecran d accueil du compte, pas sur la carte',

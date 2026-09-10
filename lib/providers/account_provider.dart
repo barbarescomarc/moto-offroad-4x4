@@ -138,6 +138,35 @@ class AccountProvider extends ChangeNotifier {
     }
   }
 
+  /// Synchronise le filet avec une réponse SERVEUR *définitive* pour ce
+  /// compte — /me ayant réellement répondu, ou une inscription/connexion
+  /// qui vient d'aboutir. `null` n'y est pas une absence d'information :
+  /// c'est au contraire la réponse la plus sûre qui soit (« ce compte n'a
+  /// jamais accepté »), et efface donc une éventuelle entrée périmée plutôt
+  /// que de la laisser en place.
+  ///
+  /// Round 2 de revue (Tâche 23C) : sans ceci, une deuxième fuite en deux
+  /// temps restait ouverte malgré la liaison à l'identité du round 1 — le
+  /// rider A accepte (entrée stockée sous son email) ; sa session est
+  /// révoquée ; le rider B se connecte AVEC SUCCÈS et /me confirme qu'il
+  /// n'a jamais accepté (`version == null`) — comme chaque site d'écriture
+  /// ne réagissait qu'à une version non nulle, l'entrée de A restait
+  /// intacte, inutilisée mais présente ; puis un redémarrage à froid de B,
+  /// avec /me en échec cette fois pour une simple panne réseau, faisait
+  /// retomber le filet — désormais aveugle à l'identité par construction
+  /// (voir [restore]) — sur cette entrée qui n'était jamais la sienne.
+  /// L'invariant qui rend ce filet aveugle sûr redevient vrai une fois que
+  /// CHAQUE site qui apprend la réponse du serveur synchronise avec elle,
+  /// y compris son silence : la seule entrée qui peut exister appartient
+  /// alors toujours au dernier compte qui a réellement parlé au serveur.
+  Future<void> _synchroniserCharteVersionLocale(String? version, String email) async {
+    if (version != null) {
+      await _memoriserCharteVersionLocale(version, email);
+    } else {
+      await _effacerCharteVersionLocale();
+    }
+  }
+
   /// Efface la version locale — à l'image de [AccountStorage.clear] pour le
   /// jeton : un téléphone remis à un autre rider ne doit hériter d'aucune
   /// acceptation précédente.
@@ -184,7 +213,7 @@ class AccountProvider extends ChangeNotifier {
       _email = profil.value!.email;
       _displayName = profil.value!.displayName;
       _charteVersion = profil.value!.charteVersion;
-      if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!, profil.value!.email);
+      await _synchroniserCharteVersionLocale(_charteVersion, profil.value!.email);
       _set(profil.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
       return;
     }
@@ -243,7 +272,7 @@ class AccountProvider extends ChangeNotifier {
     // remet à ce que le serveur renvoie, `null` compris pour un compte
     // antérieur à cette fonctionnalité.
     _charteVersion = charteVersion ?? res.value!.charteVersion;
-    if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!, email);
+    await _synchroniserCharteVersionLocale(_charteVersion, email);
     await _storage.writeToken(_token!);
     _set(res.value!.verified ? AccountStatus.connecte : AccountStatus.nonVerifie);
     return true;
@@ -287,6 +316,10 @@ class AccountProvider extends ChangeNotifier {
   /// soit jamais remuré par une simple panne réseau à la connexion — et
   /// qu'un AUTRE rider se connectant sur le même appareil n'hérite jamais
   /// de l'acceptation d'un compte qui n'est pas le sien (round 1 de revue).
+  /// Un succès, lui, synchronise toujours le filet — `null` compris (round
+  /// 2, voir `_synchroniserCharteVersionLocale`) : sinon une connexion
+  /// réussie qui confirme qu'un rider n'a jamais accepté laisserait
+  /// l'entrée d'un compte précédent en place sur cet appareil.
   Future<String?> _charteVersionDepuisLeServeur(String token, String email) async {
     final profil = await _api.me(token: token);
     if (!profil.ok) {
@@ -296,7 +329,7 @@ class AccountProvider extends ChangeNotifier {
       return _charteVersionLocale(pourEmail: email);
     }
     final version = profil.value!.charteVersion;
-    if (version != null) await _memoriserCharteVersionLocale(version, profil.value!.email);
+    await _synchroniserCharteVersionLocale(version, profil.value!.email);
     return version;
   }
 
@@ -321,7 +354,7 @@ class AccountProvider extends ChangeNotifier {
     _lastError = null;
     _email = profil.value!.email;
     _charteVersion = profil.value!.charteVersion;
-    if (_charteVersion != null) await _memoriserCharteVersionLocale(_charteVersion!, profil.value!.email);
+    await _synchroniserCharteVersionLocale(_charteVersion, profil.value!.email);
     if (profil.value!.verified) {
       _set(AccountStatus.connecte);
       return true;

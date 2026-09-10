@@ -517,4 +517,85 @@ void main() {
     expect(p2.charteVersion, LegalDocuments.charteVersion,
         reason: 'le filet doit repondre depuis login() lui-meme, pas seulement via restore()');
   });
+
+  // ── Une reponse serveur NULLE doit aussi synchroniser le filet (Tache 23C, correctif round 2) ──
+  //
+  // Le round 1 liait le filet a une identite, mais seulement a l ecriture
+  // d une version NON NULLE : chaque site d ecriture restait muet quand
+  // /me confirmait qu un rider n avait jamais accepte. Fuite en deux temps
+  // qui en resultait : A accepte (entree stockee sous son email) ; sa
+  // session est revoquee ; B se connecte AVEC SUCCES et /me confirme qu il
+  // n a jamais accepte (version null) -- rien ne touche a l entree de A,
+  // laissee intacte quoique inutilisee ; puis un redemarrage a froid de B,
+  // avec /me en echec cette fois pour une simple panne reseau, fait
+  // retomber le filet -- aveugle a l identite par construction (restore()
+  // n a pas d identite a verifier a ce point) -- sur l entree de A. Un
+  // `null` confirme par le serveur est donc desormais traite comme
+  // l information la plus sure qui soit : il efface une entree perimee au
+  // lieu de la laisser en place.
+
+  test(
+      'B se connecte avec succes (me confirme aucune acceptation), puis un redemarrage a froid avec me en echec ne doit pas heriter de l entree de A',
+      () async {
+    // A accepte la charte : l entree locale est stockee sous son email.
+    final pA = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton-a', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await pA.register(email: 'rider-a@example.test', password: 'dix caracteres');
+    await pA.acceptCharte(version: LegalDocuments.charteVersion);
+
+    // B se connecte AVEC SUCCES sur ce meme appareil. /me repond
+    // reellement, et confirme que B n a jamais accepte (pas de champ
+    // charteVersion dans sa reponse).
+    final pB = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        return http.Response(jsonEncode({'token': 'jeton-b', 'verified': true}), 200);
+      }
+      return http.Response(jsonEncode({'email': 'rider-b@example.test', 'verified': true}), 200); // /me
+    }));
+    final ok = await pB.login(email: 'rider-b@example.test', password: 'dix caracteres');
+    expect(ok, isTrue);
+    expect(pB.charteVersion, isNull,
+        reason: 'B ne doit pas heriter de l acceptation de A juste apres sa propre connexion');
+
+    // Redemarrage a froid pour B : nouvelle instance, meme jeton (deja
+    // ecrit par le login precedent), /me echoue cette fois pour une simple
+    // panne reseau -- pas une revocation, juste le reseau qui coupe.
+    final pBFroid = provider(MockClient((_) async => throw Exception('reseau coupe')));
+    await pBFroid.restore();
+
+    expect(pBFroid.status, AccountStatus.connecte);
+    expect(pBFroid.charteVersion, isNull,
+        reason: 'B n a jamais accepte : le filet aveugle a l identite de restore() ne doit jamais '
+            'heriter d une entree laissee par un AUTRE compte (A)');
+  });
+
+  test('un email different uniquement par la casse ou des espaces reste le meme rider pour le filet', () async {
+    final p1 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/register')) {
+        return http.Response(jsonEncode({'token': 'jeton', 'verified': true}), 201);
+      }
+      return http.Response('{}', 200);
+    }));
+    await p1.register(email: 'Rider@Example.Test', password: 'dix caracteres');
+    await p1.acceptCharte(version: LegalDocuments.charteVersion);
+
+    // Reconnexion avec la meme adresse, mais ecrite differemment (casse,
+    // espaces de copier-coller) : /me echoue, le filet doit tout de meme
+    // reconnaitre qu il s agit du meme rider.
+    final p2 = provider(MockClient((req) async {
+      if (req.url.path.endsWith('/login')) {
+        return http.Response(jsonEncode({'token': 'jeton2', 'verified': true}), 200);
+      }
+      throw Exception('reseau coupe'); // /me
+    }));
+    final ok = await p2.login(email: ' rider@example.test ', password: 'dix caracteres');
+
+    expect(ok, isTrue);
+    expect(p2.charteVersion, LegalDocuments.charteVersion,
+        reason: 'la casse et les espaces superflus ne doivent pas faire perdre le filet a un rider fidele');
+  });
 }
