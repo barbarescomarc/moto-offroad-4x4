@@ -938,6 +938,25 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // nombre de tuiles à un zoom donné).
   Future<void> _downloadVisibleAreaOffline() async {
     final mapProv = context.read<MapProvider>();
+
+    // Télécharger une zone entière depuis OpenStreetMap ou OpenTopoMap viole
+    // leur politique d'usage — c'est ce qui a fait bloquer l'application. On
+    // refuse ici plutôt que de laisser le rider déclencher un blocage qu'il ne
+    // comprendra pas, et on lui dit quelle couche le permet.
+    if (!mapProv.activeLayer.autoriseTelechargementHorsLigne) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Le fond « ${mapProv.activeLayer.label} » ne peut pas être '
+            'téléchargé hors ligne : son fournisseur l\'interdit. '
+            'Bascule sur « IGN Topo » pour préparer une zone.',
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      return;
+    }
+
     final bounds = _mapController.camera.visibleBounds;
     final currentZoom = _mapController.camera.zoom.round().clamp(5, 18);
     final maxZoom = (currentZoom + 3).clamp(5, 18);

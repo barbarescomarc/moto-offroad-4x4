@@ -43,6 +43,13 @@ extension MapLayerExt on MapLayer {
   // référence Esri (fond transparent) pour retrouver les noms de rues et de
   // lieux, comme le mode « Hybride » de Google Maps. Non pertinent pour les
   // autres fonds, qui portent déjà leurs propres labels.
+  // Le téléchargement de zones entières est interdit par la politique d'usage
+  // des serveurs bénévoles (OpenStreetMap, OpenTopoMap) et n'est pas prévu par
+  // les conditions du service gratuit d'Esri. C'est précisément ce qui a valu
+  // à l'application d'être bloquée par OSM. Seule la Géoplateforme IGN, service
+  // public dimensionné pour cela, reste ouverte au hors-ligne.
+  bool get autoriseTelechargementHorsLigne => this == MapLayer.ign;
+
   String? get labelsOverlayUrl {
     if (this != MapLayer.satellite) return null;
     return 'https://server.arcgisonline.com/ArcGIS/rest/services/'
@@ -66,7 +73,15 @@ extension NavModeExt on NavMode {
 // ── Provider — État de la carte ──────────────────────────────
 class MapProvider extends ChangeNotifier {
   // Couche de fond
-  MapLayer _activeLayer = MapLayer.osm;
+  // Fond par défaut : l'IGN, et pas OpenStreetMap. Les serveurs bénévoles
+  // d'OSM ont fini par bloquer l'application (« Access blocked — App is not
+  // following the tile usage policy », constaté sur appareil le 2026-09-10),
+  // OpenTopoMap sature, et la photo satellite d'Esri manque à certains
+  // niveaux de zoom. La Géoplateforme IGN est un service public dimensionné
+  // pour cet usage, et c'est de loin le meilleur fond topographique pour
+  // rouler en tout-terrain en France. Les autres couches restent
+  // sélectionnables, mais aucune n'est imposée au démarrage.
+  MapLayer _activeLayer = MapLayer.ign;
   MapLayer get activeLayer => _activeLayer;
 
   // Mode navigation

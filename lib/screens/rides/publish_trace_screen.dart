@@ -278,7 +278,7 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
         children: [
           TileLayer(
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.motooffroad.app',
+            userAgentPackageName: 'app.motooffroad',
           ),
           PolylineLayer(polylines: [
             if (avant.length > 1) Polyline(points: avant, strokeWidth: 4, color: Colors.grey),

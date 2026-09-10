@@ -30,4 +30,20 @@ void main() {
       expect(url, contains('World_Dark_Gray_Reference'));
     });
   });
+
+  group('fournisseurs de tuiles', () {
+    // OSM a bloque l app le 2026-09-10 (« Access blocked — App is not
+    // following the tile usage policy »). Le fond par defaut ne doit plus
+    // jamais pointer vers un serveur benevole.
+    test('le fond par defaut est l IGN, pas un serveur benevole', () {
+      expect(MapProvider().activeLayer, MapLayer.ign);
+    });
+
+    test('seul l IGN autorise le telechargement hors ligne', () {
+      expect(MapLayer.ign.autoriseTelechargementHorsLigne, isTrue);
+      expect(MapLayer.osm.autoriseTelechargementHorsLigne, isFalse);
+      expect(MapLayer.contour.autoriseTelechargementHorsLigne, isFalse);
+      expect(MapLayer.satellite.autoriseTelechargementHorsLigne, isFalse);
+    });
+  });
 }

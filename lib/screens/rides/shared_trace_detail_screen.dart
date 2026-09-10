@@ -145,7 +145,7 @@ class _SharedTraceDetailScreenState extends State<SharedTraceDetailScreen> {
         children: [
           TileLayer(
             urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.motooffroad.app',
+            userAgentPackageName: 'app.motooffroad',
           ),
           PolylineLayer(polylines: [
             Polyline(points: fiche.preview, strokeWidth: 4, color: AppColors.navRoute),
