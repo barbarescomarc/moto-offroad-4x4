@@ -47,6 +47,21 @@ void main() {
       expect(MapLayer.satellite.autoriseTelechargementHorsLigne, isFalse);
     });
 
+    // Chaque fournisseur a sa propre profondeur. Plafonner tout le monde au
+    // meme zoom faisait echouer la tuile au-dela, et l ancienne couche restait
+    // affichee : changer de fond semblait sans effet (constate le 2026-09-11).
+    test('chaque couche declare la profondeur reellement servie', () {
+      expect(MapLayer.contour.zoomNatifMax, 17, reason: 'OpenTopoMap s arrete a 17');
+      expect(MapLayer.ign.zoomNatifMax, 18);
+      expect(MapLayer.photo.zoomNatifMax, 19);
+      expect(MapLayer.satellite.zoomNatifMax, 19);
+      expect(MapLayer.osm.zoomNatifMax, 19);
+      for (final c in MapLayer.values) {
+        expect(c.zoomNatifMax, greaterThanOrEqualTo(17),
+            reason: 'une profondeur trop basse rendrait le fond flou');
+      }
+    });
+
     // La photo d Esri manque a certains zooms ; celle de l IGN est la reponse
     // pour la France, et elle doit viser la Geoplateforme, pas un tiers.
     test('la photo aerienne vient de la Geoplateforme IGN', () {

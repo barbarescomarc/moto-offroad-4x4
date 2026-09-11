@@ -54,6 +54,23 @@ extension MapLayerExt on MapLayer {
   // référence Esri (fond transparent) pour retrouver les noms de rues et de
   // lieux, comme le mode « Hybride » de Google Maps. Non pertinent pour les
   // autres fonds, qui portent déjà leurs propres labels.
+  // Profondeur réellement servie par chaque fournisseur. Au-delà, la tuile
+  // n'existe pas : sans ce plafond, flutter_map demande un niveau que le
+  // serveur ne fournit pas, la tuile échoue, et l'ancienne couche reste
+  // affichée à sa place — c'est ce qui donnait l'impression que changer de
+  // fond « ne faisait rien » tant qu'on ne dézoomait pas (constaté le
+  // 2026-09-11). `maxNativeZoom` fait agrandir la dernière tuile disponible
+  // au lieu d'en réclamer une inexistante.
+  int get zoomNatifMax {
+    switch (this) {
+      case MapLayer.satellite: return 19;
+      case MapLayer.photo:     return 19;
+      case MapLayer.osm:       return 19;
+      case MapLayer.ign:       return 18;
+      case MapLayer.contour:   return 17;
+    }
+  }
+
   // Le téléchargement de zones entières est interdit par la politique d'usage
   // des serveurs bénévoles (OpenStreetMap, OpenTopoMap) et n'est pas prévu par
   // les conditions du service gratuit d'Esri. C'est précisément ce qui a valu

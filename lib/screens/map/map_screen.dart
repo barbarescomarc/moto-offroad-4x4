@@ -509,10 +509,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // ── Tuile de fond ──────────────────────────────────
         // En guidage actif, le fond choisi par l'utilisateur cède la place à
         // un rendu stylisé/épuré, plus lisible en conduite.
+        // La clé porte l'URL : sans elle, flutter_map réutilise l'état de la
+        // couche précédente et garde ses tuiles à l'écran tant que les
+        // nouvelles ne sont pas chargées — changer de fond semblait alors
+        // « ne rien faire » jusqu'à ce qu'on dézoome (constaté le 2026-09-11).
         TileLayer(
+          key: ValueKey(navActive ? 'nav' : mapProv.activeLayer.name),
           urlTemplate: navActive ? mapProv.navigationTileUrl() : mapProv.activeLayer.tileUrl,
           userAgentPackageName: 'app.motooffroad',
           maxZoom: 18,
+          maxNativeZoom: navActive ? 18 : mapProv.activeLayer.zoomNatifMax,
           tileProvider: MapTileCache.tileProvider,
         ),
 
@@ -532,9 +538,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // labels, la surcouche satellite n'a plus lieu d'être.
         if (!navActive && mapProv.activeLayer.labelsOverlayUrl != null)
           TileLayer(
+            key: ValueKey('labels-${mapProv.activeLayer.name}'),
             urlTemplate: mapProv.activeLayer.labelsOverlayUrl!,
             userAgentPackageName: 'app.motooffroad',
             maxZoom: 18,
+            maxNativeZoom: mapProv.activeLayer.zoomNatifMax,
             tileProvider: MapTileCache.tileProvider,
           ),
 
