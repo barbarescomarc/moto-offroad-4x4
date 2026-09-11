@@ -31,6 +31,7 @@ import '../../utils/route_geometry.dart';
 import '../../services/speed_taunt_service.dart';
 import '../../services/tutorial_controller.dart';
 import '../../services/tutorial_steps.dart';
+import '../../widgets/tile_diagnostic_overlay.dart';
 import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/sos_button.dart';
 import '../../widgets/mode_switch.dart';
@@ -309,6 +310,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Positioned.fill(child: _buildMap()),
 
           if (_tauntMessage != null) _buildTauntOverlay(),
+
+          // Bandeau de diagnostic des tuiles (temporaire, 2026-09-11).
+          Positioned(
+            left: 0,
+            bottom: 0,
+            child: TileDiagnosticOverlay(
+              couche: context.watch<MapProvider>().activeLayer.name,
+            ),
+          ),
 
           // ── HUD fullscreen ───────────────────────────────
           if (isFullscreen) ...[

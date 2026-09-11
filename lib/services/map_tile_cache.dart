@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart';
 import 'package:http/io_client.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 
 // Cache passif des tuiles de carte : toute tuile déjà affichée (n'importe
@@ -49,9 +50,17 @@ class MapTileCache {
   // Un fournisseur par couche de tuiles : ils partagent le même cache et le
   // même client, mais chacun a son cycle de vie. Ne jamais réutiliser la même
   // instance sur deux TileLayer.
+  // Témoin de diagnostic (temporaire, 2026-09-11). FMTC y dépose le sort de
+  // chaque tuile : venue du réseau, servie par le cache, ou en erreur. Sert à
+  // comprendre pourquoi un changement de fond de carte ne repeint pas les
+  // tuiles déjà affichées. À retirer une fois la cause établie.
+  static final ValueNotifier<TileLoadingInterceptorMap> diagnostic =
+      ValueNotifier({});
+
   static FMTCTileProvider provider() => FMTCTileProvider(
         stores: const {storeName: BrowseStoreStrategy.readUpdateCreate},
         httpClient: _httpClient,
+        tileLoadingInterceptor: diagnostic,
       );
 
   // Taille en Ko (kibioctets, unité native de FMTC) et nombre de tuiles.
