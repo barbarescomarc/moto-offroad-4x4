@@ -5,12 +5,13 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 // ── Mode carte (couche de fond) ──────────────────────────────
-enum MapLayer { satellite, osm, ign, contour }
+enum MapLayer { satellite, photo, osm, ign, contour }
 
 extension MapLayerExt on MapLayer {
   String get label {
     switch (this) {
       case MapLayer.satellite: return 'Satellite';
+      case MapLayer.photo:     return 'Photo IGN';
       case MapLayer.osm:       return 'Chemins';
       case MapLayer.ign:       return 'IGN Topo';
       case MapLayer.contour:   return 'Topo (relief)';
@@ -23,6 +24,16 @@ extension MapLayerExt on MapLayer {
       case MapLayer.satellite:
         return 'https://server.arcgisonline.com/ArcGIS/rest/services/'
                'World_Imagery/MapServer/tile/{z}/{y}/{x}';
+      case MapLayer.photo:
+        // Photo aérienne de la Géoplateforme IGN : couverture France, sans clé
+        // API. Ajoutée parce que la couche satellite d'Esri manque à certains
+        // niveaux de zoom — on y voyait alors la seule surcouche de libellés,
+        // ce qui donnait l'illusion d'une carte valide (constaté le 2026-09-10).
+        return 'https://data.geopf.fr/wmts?'
+               'SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'
+               '&LAYER=ORTHOIMAGERY.ORTHOPHOTOS'
+               '&STYLE=normal&FORMAT=image/jpeg'
+               '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}';
       case MapLayer.osm:
         return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
       case MapLayer.ign:
@@ -48,7 +59,8 @@ extension MapLayerExt on MapLayer {
   // les conditions du service gratuit d'Esri. C'est précisément ce qui a valu
   // à l'application d'être bloquée par OSM. Seule la Géoplateforme IGN, service
   // public dimensionné pour cela, reste ouverte au hors-ligne.
-  bool get autoriseTelechargementHorsLigne => this == MapLayer.ign;
+  bool get autoriseTelechargementHorsLigne =>
+      this == MapLayer.ign || this == MapLayer.photo;
 
   String? get labelsOverlayUrl {
     if (this != MapLayer.satellite) return null;

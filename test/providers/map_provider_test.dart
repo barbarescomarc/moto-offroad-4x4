@@ -39,11 +39,20 @@ void main() {
       expect(MapProvider().activeLayer, MapLayer.ign);
     });
 
-    test('seul l IGN autorise le telechargement hors ligne', () {
+    test('seules les couches IGN autorisent le telechargement hors ligne', () {
       expect(MapLayer.ign.autoriseTelechargementHorsLigne, isTrue);
+      expect(MapLayer.photo.autoriseTelechargementHorsLigne, isTrue);
       expect(MapLayer.osm.autoriseTelechargementHorsLigne, isFalse);
       expect(MapLayer.contour.autoriseTelechargementHorsLigne, isFalse);
       expect(MapLayer.satellite.autoriseTelechargementHorsLigne, isFalse);
+    });
+
+    // La photo d Esri manque a certains zooms ; celle de l IGN est la reponse
+    // pour la France, et elle doit viser la Geoplateforme, pas un tiers.
+    test('la photo aerienne vient de la Geoplateforme IGN', () {
+      expect(MapLayer.photo.tileUrl, contains('data.geopf.fr'));
+      expect(MapLayer.photo.tileUrl, contains('ORTHOIMAGERY.ORTHOPHOTOS'));
+      expect(MapLayer.photo.label, 'Photo IGN');
     });
   });
 }

@@ -81,6 +81,7 @@ class LayerSelectorSheet extends StatelessWidget {
   IconData _layerIcon(MapLayer l) {
     switch (l) {
       case MapLayer.satellite: return Icons.satellite_alt;
+      case MapLayer.photo:     return Icons.photo_camera_outlined;
       case MapLayer.osm:       return Icons.forest;
       case MapLayer.ign:       return Icons.terrain;
       case MapLayer.contour:   return Icons.show_chart;
