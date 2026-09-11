@@ -1,4 +1,8 @@
 // lib/services/map_tile_cache.dart
+import 'dart:io';
+
+import 'package:http/http.dart';
+import 'package:http/io_client.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 
 // Cache passif des tuiles de carte : toute tuile déjà affichée (n'importe
@@ -25,11 +29,30 @@ class MapTileCache {
     }
   }
 
-  // Construit une seule fois (voir la recommandation FMTC) et réutilisé par
-  // toutes les couches de tuiles du fond de carte.
-  static final FMTCTileProvider tileProvider = FMTCTileProvider(
-    stores: const {storeName: BrowseStoreStrategy.readUpdateCreate},
-  );
+  // Client HTTP partagé, construit ici et jamais ailleurs.
+  //
+  // C'est le coeur du correctif du 2026-09-11. Un FMTCTileProvider qui
+  // fabrique lui-même son client le FERME quand flutter_map le détruit
+  // (`TileLayer.dispose()` appelle `tileProvider.dispose()`). Avec un
+  // fournisseur unique partagé par toutes les couches, la disparition d'une
+  // seule d'entre elles — la surcouche de libellés du satellite, par exemple,
+  // qui n'existe que sur ce fond — fermait le client de TOUTES les autres :
+  // plus aucune tuile ne pouvait être téléchargée, seules celles déjà en
+  // cache s'affichaient, et changer de fond ne semblait plus rien faire.
+  //
+  // En fournissant nous-mêmes le client, FMTC sait qu'il ne lui appartient
+  // pas et ne le ferme jamais (`_wasClientAutomaticallyGenerated`). Chaque
+  // couche peut alors avoir son propre fournisseur sans se saborder l'une
+  // l'autre.
+  static final Client _httpClient = IOClient(HttpClient()..userAgent = null);
+
+  // Un fournisseur par couche de tuiles : ils partagent le même cache et le
+  // même client, mais chacun a son cycle de vie. Ne jamais réutiliser la même
+  // instance sur deux TileLayer.
+  static FMTCTileProvider provider() => FMTCTileProvider(
+        stores: const {storeName: BrowseStoreStrategy.readUpdateCreate},
+        httpClient: _httpClient,
+      );
 
   // Taille en Ko (kibioctets, unité native de FMTC) et nombre de tuiles.
   static Future<({double sizeKb, int tileCount})> stats() async {

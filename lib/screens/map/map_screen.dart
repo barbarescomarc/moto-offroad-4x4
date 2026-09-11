@@ -519,7 +519,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           userAgentPackageName: 'app.motooffroad',
           maxZoom: 18,
           maxNativeZoom: navActive ? 18 : mapProv.activeLayer.zoomNatifMax,
-          tileProvider: MapTileCache.tileProvider,
+          tileProvider: MapTileCache.provider(),
         ),
 
         // ── Labels/frontières du fond de navigation ─────────
@@ -530,7 +530,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             urlTemplate: mapProv.navigationLabelsOverlayUrl(),
             userAgentPackageName: 'app.motooffroad',
             maxZoom: 18,
-            tileProvider: MapTileCache.tileProvider,
+            tileProvider: MapTileCache.provider(),
           ),
 
         // ── Noms de rues/lieux sur fond satellite ───────────
@@ -543,7 +543,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             userAgentPackageName: 'app.motooffroad',
             maxZoom: 18,
             maxNativeZoom: mapProv.activeLayer.zoomNatifMax,
-            tileProvider: MapTileCache.tileProvider,
+            tileProvider: MapTileCache.provider(),
           ),
 
         // ── Overlay radar pluie (RainViewer) ───────────────
@@ -974,7 +974,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       maxZoom: maxZoom,
       options: TileLayer(
         urlTemplate: mapProv.activeLayer.tileUrl,
-        tileProvider: MapTileCache.tileProvider,
+        tileProvider: MapTileCache.provider(),
       ),
     );
 
