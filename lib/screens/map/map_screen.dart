@@ -31,6 +31,7 @@ import '../../utils/route_geometry.dart';
 import '../../services/speed_taunt_service.dart';
 import '../../services/tutorial_controller.dart';
 import '../../services/tutorial_steps.dart';
+import '../map3d/reconnaissance_3d_screen.dart';
 import '../../widgets/tile_diagnostic_overlay.dart';
 import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/sos_button.dart';
@@ -401,6 +402,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     _toggleMapOrientation,
                     active: context.watch<SettingsProvider>().mapHeadingUp,
                   ),
+                  const SizedBox(height: 6),
+                  // Reconnaissance 3D : pour préparer et observer un terrain,
+                  // pas pour rouler. Elle ouvre sur la zone actuellement
+                  // regardée, dans une vue web séparée — la carte 2D garde
+                  // l'enregistrement, le guidage et le SOS.
+                  _mapCtrlBtn(Icons.terrain_outlined, _ouvrirReconnaissance3d),
                   const SizedBox(height: 6),
                   // Plein écran : uniquement en portrait, la vue paysage
                   // dédie déjà 35% de l'écran au panneau de statistiques.
@@ -1662,6 +1669,24 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // Empilées sur le bord gauche. L'ancien bandeau d'enregistrement prenait
   // toute la largeur en bas de l'écran et recouvrait les onglets ; en colonne
   // il ne masque plus rien, en portrait comme en paysage.
+  // Ouvre la reconnaissance 3D sur ce que le rider regarde : même centre,
+  // même échelle, et le même genre de fond que sa carte 2D.
+  void _ouvrirReconnaissance3d() {
+    if (!_mapReady) return;
+    final camera = _mapController.camera;
+    final fond = context.read<MapProvider>().activeLayer == MapLayer.ign ? 'topo' : 'photo';
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Reconnaissance3dScreen(
+          longitude: camera.center.longitude,
+          latitude: camera.center.latitude,
+          zoom: camera.zoom,
+          fond: fond,
+        ),
+      ),
+    );
+  }
+
   Widget _buildSideControls() {
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,

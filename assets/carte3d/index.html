@@ -1,0 +1,41 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Reconnaissance 3D</title>
+<link href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#0b0e13;overflow:hidden;
+    font:15px -apple-system,system-ui,sans-serif;color:#e8edf4;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  #map{position:absolute;inset:0}
+  #barre{position:absolute;left:8px;right:8px;bottom:8px;z-index:5;display:flex;gap:6px}
+  #barre button{flex:1;padding:13px 6px;border:0;border-radius:12px;font-size:14px;
+    background:rgba(18,23,31,.92);color:#e8edf4;backdrop-filter:blur(8px)}
+  #barre button.actif{background:#3a2a1c;box-shadow:inset 0 0 0 1.5px #ff8a3d}
+  #haut{position:absolute;left:8px;top:8px;z-index:5;display:flex;gap:6px;flex-wrap:wrap}
+  #haut button{padding:9px 12px;border:0;border-radius:11px;font-size:13px;
+    background:rgba(18,23,31,.92);color:#e8edf4;backdrop-filter:blur(8px)}
+  #haut button.actif{background:#3a2a1c;box-shadow:inset 0 0 0 1.5px #ff8a3d}
+  #legende{position:absolute;right:8px;top:8px;z-index:5;padding:8px 10px;border-radius:11px;
+    background:rgba(18,23,31,.92);font-size:11px;line-height:1.8;backdrop-filter:blur(8px)}
+  .t{display:inline-block;width:18px;height:0;vertical-align:middle;margin-right:5px}
+</style></head>
+<body>
+<div id="map"></div>
+<div id="haut">
+  <button id="c-chemins" class="actif">Chemins</button>
+  <button id="c-noms" class="actif">Noms</button>
+  <button id="c-relief">Relief ++</button>
+</div>
+<div id="legende">
+  <div><span class="t" style="border-top:4px solid #ff6a00"></span>Piste</div>
+  <div><span class="t" style="border-top:3px dashed #ffd24a"></span>Sentier</div>
+  <div><span class="t" style="border-top:3px solid #fff"></span>Route</div>
+</div>
+<div id="barre">
+  <button id="f-photo" class="actif">Photo</button>
+  <button id="f-topo">Topo</button>
+  <button id="f-relief">Relief</button>
+</div>
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+<script src="carte3d.js"></script>
+</body></html>
