@@ -374,16 +374,26 @@ class _MainShellState extends State<MainShell> {
     final afficherBandeauCompte =
         bandeauCompte != AccountBannerKind.aucun && bandeauCompte != _bandeauCompteMasque;
 
+    // Les bandeaux vivent hors de la zone d'écran système : le corps d'un
+    // Scaffold sans AppBar commence sous l'heure et les icônes d'état, et le
+    // premier enfant s'y retrouvait à moitié caché — message illisible,
+    // bouton hors de portée du doigt (constaté le 2026-09-13).
     return Scaffold(
       body: Column(
         children: [
           if (maj != null)
-            UpdateBanner(
-              maj: maj,
-              onDismiss: () => setState(() => _maj = null),
+            SafeArea(
+              bottom: false,
+              child: UpdateBanner(
+                maj: maj,
+                onDismiss: () => setState(() => _maj = null),
+              ),
             ),
-          if (afficherBandeauCompte) _buildAccountBanner(context, bandeauCompte),
           Expanded(child: widget.child),
+          // Bandeau compte en bas, juste au-dessus de la barre de navigation :
+          // c'est une échéance à connaître, pas une urgence, et le haut de
+          // l'écran appartient déjà à l'en-tête de la carte.
+          if (afficherBandeauCompte) _buildAccountBanner(context, bandeauCompte),
         ],
       ),
       bottomNavigationBar: AnimatedSwitcher(
