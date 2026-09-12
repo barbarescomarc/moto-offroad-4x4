@@ -14,51 +14,60 @@ class InfoScreen extends StatelessWidget {
         ? '${snap.position.latitude.toStringAsFixed(4)}°N  ${snap.position.longitude.toStringAsFixed(4)}°E'
         : 'GPS non disponible';
 
-    final content = ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _positionCard(coords),
-        const SizedBox(height: 16),
-        _infoCard(
-          icon: Icons.two_wheeler,
-          color: AppColors.orange,
-          title: 'OFFROAD — RÉGLEMENTATION FRANCE',
-          items: _offroadRules,
-        ),
-        const SizedBox(height: 16),
-        _infoCard(
-          icon: Icons.night_shelter_outlined,
-          color: AppColors.blue,
-          title: 'BIVOUAC SAUVAGE — CE QUE DIT LA LOI',
-          items: _bivouacRules,
-        ),
-        const SizedBox(height: 16),
-        _infoCard(
-          icon: Icons.warning_amber_rounded,
-          color: AppColors.statusOrange,
-          title: 'ZONES À RISQUE EN FRANCE',
-          items: _dangerZones,
-        ),
-        const SizedBox(height: 16),
-        _infoCard(
-          icon: Icons.eco_outlined,
-          color: AppColors.statusGreen,
-          title: 'BONS RÉFLEXES TERRAINS',
-          items: _goodPractices,
-        ),
-        const SizedBox(height: 16),
-        _emergencyCard(),
-      ],
-    );
+    final cartes = <Widget>[
+      _positionCard(coords),
+      const SizedBox(height: 16),
+      _infoCard(
+        icon: Icons.two_wheeler,
+        color: AppColors.orange,
+        title: 'OFFROAD — RÉGLEMENTATION FRANCE',
+        items: _offroadRules,
+      ),
+      const SizedBox(height: 16),
+      _infoCard(
+        icon: Icons.night_shelter_outlined,
+        color: AppColors.blue,
+        title: 'BIVOUAC SAUVAGE — CE QUE DIT LA LOI',
+        items: _bivouacRules,
+      ),
+      const SizedBox(height: 16),
+      _infoCard(
+        icon: Icons.warning_amber_rounded,
+        color: AppColors.statusOrange,
+        title: 'ZONES À RISQUE EN FRANCE',
+        items: _dangerZones,
+      ),
+      const SizedBox(height: 16),
+      _infoCard(
+        icon: Icons.eco_outlined,
+        color: AppColors.statusGreen,
+        title: 'BONS RÉFLEXES TERRAINS',
+        items: _goodPractices,
+      ),
+      const SizedBox(height: 16),
+      _emergencyCard(),
+    ];
 
+    // Repliée dans les Réglages, cette page est posée dans la zone défilante
+    // de l'écran hôte : la hauteur y est non bornée, et une liste défilante
+    // ne peut pas s'y poser — elle lève « Vertical viewport was given
+    // unbounded height » et la section s'ouvre alors sur du vide (constaté le
+    // 2026-09-13). Une simple colonne, elle, s'étire autant qu'il faut et se
+    // laisse faire défiler par l'hôte.
     if (embedded) {
-      return content;
+      return Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: cartes,
+        ),
+      );
     }
 
     return Scaffold(
       backgroundColor: AppColors.bgDark,
       appBar: AppBar(title: const Text('ℹ️  INFO TERRAIN')),
-      body: content,
+      body: ListView(padding: const EdgeInsets.all(16), children: cartes),
     );
   }
 
@@ -161,10 +170,12 @@ class InfoScreen extends StatelessWidget {
             children: [
               Icon(Icons.emergency, color: AppColors.statusRed, size: 18),
               SizedBox(width: 8),
-              Text('NUMÉROS D\'URGENCE', style: TextStyle(
-                color: AppColors.statusRed, fontFamily: 'Rajdhani',
-                fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: .8,
-              )),
+              Expanded(
+                child: Text('NUMÉROS D\'URGENCE', style: TextStyle(
+                  color: AppColors.statusRed, fontFamily: 'Rajdhani',
+                  fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: .8,
+                )),
+              ),
             ],
           ),
           const SizedBox(height: 10),
@@ -176,7 +187,13 @@ class InfoScreen extends StatelessWidget {
                   color: AppColors.statusRed, fontFamily: 'Rajdhani',
                   fontSize: 16, fontWeight: FontWeight.w700))),
               const SizedBox(width: 10),
-              Text(e.$2, style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              // Expanded, pas un Text nu : repliée dans les Réglages, la
+              // carte est bien plus étroite qu'en plein écran, et le libellé
+              // débordait par la droite au lieu de passer à la ligne.
+              Expanded(
+                child: Text(e.$2, style: const TextStyle(
+                    color: AppColors.textSecondary, fontSize: 12)),
+              ),
             ]),
           )),
         ],
