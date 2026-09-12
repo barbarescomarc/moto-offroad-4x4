@@ -29,19 +29,20 @@ class Reconnaissance3dScreen extends StatefulWidget {
   /// `photo` ou `topo` — pour ouvrir sur le même genre de fond que la carte 2D.
   final String fond;
 
-  /// Adresse de la page, position comprise : la 3D s'ouvre là où le rider
-  /// regardait, pas sur un point arbitraire.
-  static String adresse({
+  /// Ressource de la page. `loadFlutterAsset` attend une clé de ressource et
+  /// rien d'autre : y accrocher un fragment d'adresse empêche le chargement.
+  static const String ressource = 'assets/carte3d/index.html';
+
+  /// Ordre envoyé à la page une fois chargée, pour l'amener là où le rider
+  /// regardait — même centre, même échelle, même genre de fond.
+  static String ordreDePosition({
     required double longitude,
     required double latitude,
     required double zoom,
     String fond = 'photo',
   }) =>
-      'assets/carte3d/index.html'
-      '#lon=${longitude.toStringAsFixed(5)}'
-      '&lat=${latitude.toStringAsFixed(5)}'
-      '&zoom=${zoom.toStringAsFixed(2)}'
-      '&fond=$fond';
+      'allerA(${longitude.toStringAsFixed(5)}, ${latitude.toStringAsFixed(5)}, '
+      '${zoom.toStringAsFixed(2)}, "$fond")';
 
   @override
   State<Reconnaissance3dScreen> createState() => _Reconnaissance3dScreenState();
@@ -59,19 +60,33 @@ class _Reconnaissance3dScreenState extends State<Reconnaissance3dScreen> {
       ..setBackgroundColor(AppColors.bgPanel)
       ..setNavigationDelegate(
         NavigationDelegate(
-          onPageFinished: (_) {
+          onPageFinished: (_) async {
+            // La page construit sa carte de façon asynchrone : on lui laisse
+            // le temps d'exposer `allerA` avant de la déplacer.
+            for (var essai = 0; essai < 20; essai++) {
+              try {
+                await _controleur.runJavaScriptReturningResult(
+                  Reconnaissance3dScreen.ordreDePosition(
+                    longitude: widget.longitude,
+                    latitude: widget.latitude,
+                    zoom: widget.zoom,
+                    fond: widget.fond,
+                  ),
+                );
+                break;
+              } catch (_) {
+                await Future<void>.delayed(const Duration(milliseconds: 250));
+              }
+            }
+            if (mounted) setState(() => _chargement = false);
+          },
+          onWebResourceError: (erreur) {
+            debugPrint('Reconnaissance 3D : ${erreur.description}');
             if (mounted) setState(() => _chargement = false);
           },
         ),
       )
-      ..loadFlutterAsset(
-        Reconnaissance3dScreen.adresse(
-          longitude: widget.longitude,
-          latitude: widget.latitude,
-          zoom: widget.zoom,
-          fond: widget.fond,
-        ),
-      );
+      ..loadFlutterAsset(Reconnaissance3dScreen.ressource);
   }
 
   @override

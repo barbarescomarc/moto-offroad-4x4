@@ -31,16 +31,13 @@ const CHEMINS = [
                 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 0.7, 16, 2.6] } },
 ];
 
-// L'app transmet la position regardée sur la carte 2D : on ouvre là où le
-// rider était, pas sur un point arbitraire.
-const p = new URLSearchParams(location.hash.slice(1));
-const depart = {
-  lon: parseFloat(p.get('lon') ?? '1.44'),
-  lat: parseFloat(p.get('lat') ?? '43.60'),
-  zoom: parseFloat(p.get('zoom') ?? '12.5'),
-};
-
-let fond = p.get('fond') === 'topo' ? 'topo' : 'photo';
+// L'app transmet la position regardée sur la carte 2D en appelant `allerA`
+// une fois la page chargée. Un fragment d'URL ne convenait pas :
+// `loadFlutterAsset` attend une clé de ressource, pas une adresse — la page
+// ne se chargeait alors pas du tout, et l'écran restait sur sa roue (constaté
+// sur appareil le 2026-09-12).
+const depart = { lon: 1.44, lat: 43.60, zoom: 12.5 };
+let fond = 'photo';
 let exageration = 1.5;
 let liberty = null;
 let map;
@@ -105,6 +102,15 @@ const appliquerRelief = () =>
   }
   bouton('c-chemins').onclick = (e) => { bascule(e.target); appliquerVisibilite(); };
   bouton('c-noms').onclick = (e) => { bascule(e.target); appliquerVisibilite(); };
+  // Appelée par l'application dès que la page est prête.
+  window.allerA = (lon, lat, zoom, fondDemande) => {
+    if (fondDemande === 'topo' || fondDemande === 'photo') {
+      bouton(fondDemande === 'topo' ? 'f-topo' : 'f-photo').click();
+    }
+    map.jumpTo({ center: [lon, lat], zoom: zoom, pitch: 70 });
+    return 'ok';
+  };
+
   bouton('c-relief').onclick = (e) => {
     exageration = exageration >= 2.4 ? 1.5 : exageration + 0.45;
     e.target.classList.toggle('actif', exageration > 1.5);
