@@ -543,18 +543,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             tileProvider: MapTileCache.provider(),
           ),
 
-        // ── Noms de rues/lieux sur fond satellite ───────────
-        // Masqué en guidage : le fond de navigation porte déjà ses propres
-        // labels, la surcouche satellite n'a plus lieu d'être.
-        if (!navActive && mapProv.activeLayer.labelsOverlayUrl != null)
-          TileLayer(
-            key: ValueKey('labels-${mapProv.activeLayer.name}'),
-            urlTemplate: mapProv.activeLayer.labelsOverlayUrl!,
-            userAgentPackageName: 'app.motooffroad',
-            maxZoom: 18,
-            maxNativeZoom: mapProv.activeLayer.zoomNatifMax,
-            tileProvider: MapTileCache.provider(),
-          ),
 
         // ── Overlay radar pluie (RainViewer) ───────────────
         // L'URL est construite dynamiquement (voir MapProvider) : le service

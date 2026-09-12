@@ -39,27 +39,22 @@ void main() {
       expect(MapProvider().activeLayer, MapLayer.ign);
     });
 
-    test('seules les couches IGN autorisent le telechargement hors ligne', () {
-      expect(MapLayer.ign.autoriseTelechargementHorsLigne, isTrue);
-      expect(MapLayer.photo.autoriseTelechargementHorsLigne, isTrue);
-      expect(MapLayer.osm.autoriseTelechargementHorsLigne, isFalse);
-      expect(MapLayer.contour.autoriseTelechargementHorsLigne, isFalse);
-      expect(MapLayer.satellite.autoriseTelechargementHorsLigne, isFalse);
+    // Decision du 2026-09-12 : un fond qu on ne peut pas emporter en sortie
+    // n a pas sa place dans une app de tout-terrain. Seuls les fonds IGN
+    // subsistent ; OSM, OpenTopoMap et la photo d Esri ont ete retires.
+    test('toutes les couches proposees sont telechargeables hors ligne', () {
+      expect(MapLayer.values, [MapLayer.photo, MapLayer.ign]);
+      for (final c in MapLayer.values) {
+        expect(c.autoriseTelechargementHorsLigne, isTrue,
+            reason: 'aucun fond ne doit etre propose sans le hors-ligne');
+        expect(c.tileUrl, contains('data.geopf.fr'),
+            reason: 'seule la Geoplateforme IGN ne nous bloque pas');
+      }
     });
 
-    // Chaque fournisseur a sa propre profondeur. Plafonner tout le monde au
-    // meme zoom faisait echouer la tuile au-dela, et l ancienne couche restait
-    // affichee : changer de fond semblait sans effet (constate le 2026-09-11).
     test('chaque couche declare la profondeur reellement servie', () {
-      expect(MapLayer.contour.zoomNatifMax, 17, reason: 'OpenTopoMap s arrete a 17');
       expect(MapLayer.ign.zoomNatifMax, 18);
       expect(MapLayer.photo.zoomNatifMax, 19);
-      expect(MapLayer.satellite.zoomNatifMax, 19);
-      expect(MapLayer.osm.zoomNatifMax, 19);
-      for (final c in MapLayer.values) {
-        expect(c.zoomNatifMax, greaterThanOrEqualTo(17),
-            reason: 'une profondeur trop basse rendrait le fond flou');
-      }
     });
 
     // La photo d Esri manque a certains zooms ; celle de l IGN est la reponse

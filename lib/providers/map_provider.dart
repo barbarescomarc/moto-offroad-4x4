@@ -5,25 +5,25 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 // ── Mode carte (couche de fond) ──────────────────────────────
-enum MapLayer { satellite, photo, osm, ign, contour }
+// Seuls les fonds de la Géoplateforme IGN subsistent (décision du
+// 2026-09-12). Les trois autres — OpenStreetMap, OpenTopoMap et la photo
+// d'Esri — ont été retirés : leurs fournisseurs interdisent le téléchargement
+// hors ligne, OSM avait fini par bloquer l'application, OpenTopoMap sature et
+// la photo d'Esri manquait à certains niveaux de zoom. Un fond qu'on ne peut
+// pas emporter en sortie n'a pas sa place dans une app de tout-terrain.
+enum MapLayer { photo, ign }
 
 extension MapLayerExt on MapLayer {
   String get label {
     switch (this) {
-      case MapLayer.satellite: return 'Satellite';
       case MapLayer.photo:     return 'Photo IGN';
-      case MapLayer.osm:       return 'Chemins';
       case MapLayer.ign:       return 'IGN Topo';
-      case MapLayer.contour:   return 'Topo (relief)';
     }
   }
 
   // URLs des tuiles
   String get tileUrl {
     switch (this) {
-      case MapLayer.satellite:
-        return 'https://server.arcgisonline.com/ArcGIS/rest/services/'
-               'World_Imagery/MapServer/tile/{z}/{y}/{x}';
       case MapLayer.photo:
         // Photo aérienne de la Géoplateforme IGN : couverture France, sans clé
         // API. Ajoutée parce que la couche satellite d'Esri manque à certains
@@ -34,8 +34,6 @@ extension MapLayerExt on MapLayer {
                '&LAYER=ORTHOIMAGERY.ORTHOPHOTOS'
                '&STYLE=normal&FORMAT=image/jpeg'
                '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}';
-      case MapLayer.osm:
-        return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
       case MapLayer.ign:
         // Géoplateforme IGN — endpoint public, sans clé API (data.geopf.fr)
         return 'https://data.geopf.fr/wmts?'
@@ -43,9 +41,6 @@ extension MapLayerExt on MapLayer {
                '&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2'
                '&STYLE=normal&FORMAT=image/png'
                '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}';
-      case MapLayer.contour:
-        // OpenTopoMap — gratuit, sans clé API, courbes de niveau mondiales
-        return 'https://a.tile.opentopomap.org/{z}/{x}/{y}.png';
     }
   }
 
@@ -63,11 +58,8 @@ extension MapLayerExt on MapLayer {
   // au lieu d'en réclamer une inexistante.
   int get zoomNatifMax {
     switch (this) {
-      case MapLayer.satellite: return 19;
       case MapLayer.photo:     return 19;
-      case MapLayer.osm:       return 19;
       case MapLayer.ign:       return 18;
-      case MapLayer.contour:   return 17;
     }
   }
 
@@ -79,11 +71,6 @@ extension MapLayerExt on MapLayer {
   bool get autoriseTelechargementHorsLigne =>
       this == MapLayer.ign || this == MapLayer.photo;
 
-  String? get labelsOverlayUrl {
-    if (this != MapLayer.satellite) return null;
-    return 'https://server.arcgisonline.com/ArcGIS/rest/services/'
-           'Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
-  }
 }
 
 // ── Mode de navigation ───────────────────────────────────────
