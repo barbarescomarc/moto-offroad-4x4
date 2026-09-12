@@ -25,3 +25,4 @@ lib/config/firebase_options.dart
 
 # Worktrees locaux (superpowers:using-git-worktrees)
 .worktrees/
+ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
