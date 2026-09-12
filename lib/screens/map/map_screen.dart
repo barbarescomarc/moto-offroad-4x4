@@ -32,6 +32,7 @@ import '../../services/speed_taunt_service.dart';
 import '../../services/tutorial_controller.dart';
 import '../../services/tutorial_steps.dart';
 import '../map3d/reconnaissance_3d_screen.dart';
+import '../../widgets/echelle_carte.dart';
 import '../../widgets/tile_diagnostic_overlay.dart';
 import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/sos_button.dart';
@@ -308,7 +309,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       child: Stack(
         children: [
           // ── Carte plein écran ou non ─────────────────────
-          Positioned.fill(child: _buildMap()),
+          Positioned.fill(
+            child: _buildMap(
+              margeEchelle: isFullscreen
+                  ? _margeEchellePleinEcran
+                  : _margeEchelleStats,
+            ),
+          ),
 
           if (_tauntMessage != null) _buildTauntOverlay(),
 
@@ -450,7 +457,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Expanded(
             flex: 65,
             child: Stack(children: [
-              Positioned.fill(child: _buildMap()),
+              Positioned.fill(
+                child: _buildMap(margeEchelle: _margeEchelleRasDuBord),
+              ),
               if (_tauntMessage != null) _buildTauntOverlay(),
               _buildGuidanceBanner(),
               _buildSideControls(),
@@ -492,7 +501,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   }
 
   // ── CARTE flutter_map ─────────────────────────────────────
-  Widget _buildMap() {
+  // Hauteur à laisser sous l'échelle de distance pour qu'elle ne passe pas
+  // derrière ce qui occupe déjà le bas de la carte : le HUD vitesse et son
+  // bandeau de guidage en plein écran, la barre de statistiques en portrait
+  // fenêtré. En paysage la carte n'a rien sous elle, l'échelle descend au ras
+  // du bord.
+  static const double _margeEchellePleinEcran = 150;
+  static const double _margeEchelleStats = AppSizes.statsBarHeight + 8;
+  static const double _margeEchelleRasDuBord = 8;
+
+  Widget _buildMap({required double margeEchelle}) {
     final mapProv   = context.watch<MapProvider>();
     final traceProv = context.watch<TraceProvider>();
     final groupProv = context.watch<GroupProvider>();
@@ -538,7 +556,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           userAgentPackageName: 'app.motooffroad',
           maxZoom: 18,
           maxNativeZoom: navActive ? 18 : mapProv.activeLayer.zoomNatifMax,
-          tileProvider: MapTileCache.provider(),
+          tileProvider: MapTileCache.provider(
+              navActive ? 'nav' : mapProv.activeLayer.name),
         ),
 
         // ── Labels/frontières du fond de navigation ─────────
@@ -549,7 +568,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             urlTemplate: mapProv.navigationLabelsOverlayUrl(),
             userAgentPackageName: 'app.motooffroad',
             maxZoom: 18,
-            tileProvider: MapTileCache.provider(),
+            tileProvider: MapTileCache.provider('nav-libelles'),
           ),
 
 
@@ -557,6 +576,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // Posé juste au-dessus du fond et sous tout le reste : il assombrit
         // les versants sans masquer les chemins ni les tracés. Semi-transparent
         // pour rester une lecture du terrain, pas un filtre gris.
+        // La Géoplateforme ne sert cette couche que jusqu'au niveau 15 — au
+        // delà elle répond 404 (vérifié le 2026-09-13) : `maxNativeZoom` y
+        // était fixé à 16, et le relief disparaissait dès qu'on zoomait.
         if (!navActive && mapProv.reliefEnabled)
           Opacity(
             opacity: 0.45,
@@ -565,8 +587,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               urlTemplate: MapProvider.estompageUrl,
               userAgentPackageName: 'app.motooffroad',
               maxZoom: 18,
-              maxNativeZoom: 16,
-              tileProvider: MapTileCache.provider(),
+              maxNativeZoom: 15,
+              tileProvider: MapTileCache.provider('estompage'),
             ),
           ),
 
@@ -757,6 +779,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               child: _riderMarker(snap.headingDeg),
             ),
           ]),
+
+        // ── Échelle de distance ─────────────────────────────
+        // Dernier enfant de la carte : elle se lit par-dessus les tracés.
+        EchelleCarte(margeBas: margeEchelle),
       ],
     );
 
@@ -998,7 +1024,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       maxZoom: maxZoom,
       options: TileLayer(
         urlTemplate: mapProv.activeLayer.tileUrl,
-        tileProvider: MapTileCache.provider(),
+        tileProvider: MapTileCache.provider(mapProv.activeLayer.name),
       ),
     );
 

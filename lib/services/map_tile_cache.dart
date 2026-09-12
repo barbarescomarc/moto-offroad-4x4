@@ -57,10 +57,34 @@ class MapTileCache {
   static final ValueNotifier<TileLoadingInterceptorMap> diagnostic =
       ValueNotifier({});
 
-  static FMTCTileProvider provider() => FMTCTileProvider(
+  // Identité de couche — une instance stable par fond de carte.
+  //
+  // C'est le coeur du correctif du 2026-09-13. Flutter conserve les images
+  // déjà décodées dans un `ImageCache` global, et la clé d'une tuile FMTC est
+  // le couple (coordonnées, fournisseur) : l'URL de la tuile n'en fait pas
+  // partie. Or `FMTCTileProvider` compare ses champs, pas son identité — deux
+  // fournisseurs configurés à l'identique sont donc égaux. La tuile
+  // 15/16515/11965 de la photo aérienne, du fond topo et de l'ombrage
+  // partageaient ainsi une seule et même entrée : la première couche à
+  // décoder cette tuile gagnait, et les autres recevaient son image sans
+  // jamais interroger le cache disque ni le réseau. Basculer en satellite ne
+  // repeignait rien, et très dézoomé il ne restait que l'ombrage à l'écran.
+  //
+  // `urlTransformer` est le seul champ de l'égalité comparé par identité de
+  // fonction. Il porte donc ici le nom de la couche, sans rien transformer :
+  // deux couches distinctes donnent des fournisseurs inégaux (entrées
+  // séparées), deux reconstructions d'une même couche donnent des
+  // fournisseurs égaux (entrée conservée, pas de rechargement inutile).
+  static final Map<String, String Function(String)> _identites = {};
+
+  static String Function(String) _identiteDe(String couche) =>
+      _identites.putIfAbsent(couche, () => (url) => url);
+
+  static FMTCTileProvider provider(String couche) => FMTCTileProvider(
         stores: const {storeName: BrowseStoreStrategy.readUpdateCreate},
         httpClient: _httpClient,
         tileLoadingInterceptor: diagnostic,
+        urlTransformer: _identiteDe(couche),
       );
 
   // Taille en Ko (kibioctets, unité native de FMTC) et nombre de tuiles.
