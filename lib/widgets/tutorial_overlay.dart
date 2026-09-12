@@ -67,10 +67,12 @@ class TutorialOverlay extends StatelessWidget {
       if (renderObject is! RenderBox || !renderObject.attached) return null;
 
       final ancestor = context.findRenderObject();
-      final topLeft = renderObject.localToGlobal(Offset.zero, ancestor: ancestor);
+      final topLeft =
+          renderObject.localToGlobal(Offset.zero, ancestor: ancestor);
       final rect = topLeft & renderObject.size;
 
-      final overlaySize = ancestor is RenderBox ? ancestor.size : MediaQuery.of(context).size;
+      final overlaySize =
+          ancestor is RenderBox ? ancestor.size : MediaQuery.of(context).size;
       final overlayRect = Offset.zero & overlaySize;
       if (!overlayRect.overlaps(rect)) return null;
       return rect;
@@ -97,47 +99,62 @@ class TutorialOverlay extends StatelessWidget {
           color: AppColors.bgPanel,
           borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'ÉTAPE ${controller.index + 1} / ${controller.total}',
-                  style: const TextStyle(
-                    fontFamily: 'Rajdhani',
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.orange,
-                    letterSpacing: 1.2,
+          // Le pied ne defile pas. Seul le texte est dans la zone defilante :
+          // a police systeme agrandie, le contenu depassait la hauteur de la
+          // carte et poussait les boutons sous la ligne de flottaison — il
+          // fallait deviner qu'on pouvait faire defiler pour atteindre
+          // « Suivant ». Les commandes restent donc toujours a l'ecran.
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'ÉTAPE ${controller.index + 1} / ${controller.total}',
+                        style: const TextStyle(
+                          fontFamily: 'Rajdhani',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.orange,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        step.title,
+                        style: const TextStyle(
+                          fontFamily: 'Rajdhani',
+                          fontSize: 20,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        step.body,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          height: 1.35,
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildDots(),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  step.title,
-                  style: const TextStyle(
-                    fontFamily: 'Rajdhani',
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  step.body,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    height: 1.35,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildDots(),
-                const SizedBox(height: 12),
-                _buildButtons(isLast),
-              ],
-            ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+                child: _buildButtons(isLast),
+              ),
+            ],
           ),
         ),
       ),
@@ -165,29 +182,59 @@ class TutorialOverlay extends StatelessWidget {
   }
 
   // ── Commandes : Passer / Précédent / Suivant ou Terminer ✓ ─
+  //
+  // Un Wrap, pas un Row : le Row ne savait pas retrecir, et des que la somme
+  // des boutons depassait la largeur de la carte, il debordait par la droite.
+  // Or Flutter clippe ce qui deborde : « Suivant », dernier enfant, sortait
+  // de la zone touchable et le tutoriel ne pouvait plus avancer — seul
+  // « Passer », le premier, repondait encore.
+  //
+  // La cause du debordement est corrigee sur le bouton lui-meme (voir son
+  // minimumSize) ; le Wrap reste le filet de securite pour les grandes
+  // tailles de police systeme, ou meme des boutons bien dimensionnes
+  // finissent par ne plus tenir sur une ligne.
   Widget _buildButtons(bool isLast) {
-    return Row(
-      children: [
-        TextButton(
-          key: const Key('tuto-passer'),
-          onPressed: controller.skip,
-          child: const Text('Passer', style: TextStyle(color: AppColors.textMuted)),
-        ),
-        const Spacer(),
-        if (controller.index > 0)
+    // Largeur imposee : sans elle le Wrap se retrecit sur son contenu, et
+    // spaceBetween n'a plus d'espace a repartir — « Passer » et « Suivant »
+    // se retrouvent colles a gauche au lieu d'occuper les deux bords.
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 8,
+        children: [
           TextButton(
-            key: const Key('tuto-precedent'),
-            onPressed: controller.previous,
-            child: const Text('Précédent', style: TextStyle(color: AppColors.textSecondary)),
+            key: const Key('tuto-passer'),
+            onPressed: controller.skip,
+            child: const Text('Passer',
+                style: TextStyle(color: AppColors.textMuted)),
           ),
-        const SizedBox(width: 8),
-        ElevatedButton(
-          key: const Key('tuto-suivant'),
-          onPressed: controller.next,
-          style: ElevatedButton.styleFrom(backgroundColor: AppColors.orange),
-          child: Text(isLast ? 'Terminer ✓' : 'Suivant'),
-        ),
-      ],
+          if (controller.index > 0)
+            TextButton(
+              key: const Key('tuto-precedent'),
+              onPressed: controller.previous,
+              child: const Text('Précédent',
+                  style: TextStyle(color: AppColors.textSecondary)),
+            ),
+          ElevatedButton(
+            key: const Key('tuto-suivant'),
+            onPressed: controller.next,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.orange,
+              // Le theme impose minimumSize: Size(double.infinity, 52) — un
+              // bouton d'action pleine largeur, ce qu'on veut dans une colonne
+              // mais pas ici : en rangee, le bouton reclamait une largeur
+              // infinie, la rangee debordait, et Flutter clippait le bouton
+              // hors de la zone touchable. D'ou un tutoriel qui n'avancait
+              // plus (constate sur appareil le 2026-09-13).
+              minimumSize: const Size(64, 44),
+            ),
+            child: Text(isLast ? 'Terminer ✓' : 'Suivant'),
+          ),
+        ],
+      ),
     );
   }
 }
