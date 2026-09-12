@@ -52,6 +52,23 @@ void main() {
       }
     });
 
+    // MapLibre ne rend pas la 3D en natif sur telephone (verifie le
+    // 2026-09-12) : l ombrage IGN est ce qui s en rapproche le plus, et il
+    // doit venir de la Geoplateforme comme le reste.
+    test('l ombrage du relief est actif par defaut et vient de l IGN', () {
+      expect(MapProvider().reliefEnabled, isTrue);
+      expect(MapProvider.estompageUrl, contains('data.geopf.fr'));
+      expect(MapProvider.estompageUrl, contains('ELEVATIONGRIDCOVERAGE.SHADOW'));
+    });
+
+    test('l ombrage du relief se coupe et se rallume', () {
+      final p = MapProvider();
+      p.toggleRelief();
+      expect(p.reliefEnabled, isFalse);
+      p.toggleRelief();
+      expect(p.reliefEnabled, isTrue);
+    });
+
     test('chaque couche declare la profondeur reellement servie', () {
       expect(MapLayer.ign.zoomNatifMax, 18);
       expect(MapLayer.photo.zoomNatifMax, 19);

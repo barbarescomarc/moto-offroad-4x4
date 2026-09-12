@@ -31,6 +31,8 @@ class LayerSelectorSheet extends StatelessWidget {
           const Text('OVERLAYS', style: TextStyle(
             fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1)),
           const SizedBox(height: 8),
+          _overlayTile(context, 'Ombrage du relief', Icons.landscape_outlined,
+            mapProv.reliefEnabled, mapProv.toggleRelief, AppColors.orange),
           _overlayTile(context, 'Radar pluie (RainViewer)', Icons.radar,
             mapProv.radarEnabled, mapProv.toggleRadar, AppColors.blue),
           _overlayTile(context, 'Zones impraticables', Icons.warning_outlined,

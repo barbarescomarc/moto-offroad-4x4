@@ -544,6 +544,23 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ),
 
 
+        // ── Ombrage du relief (IGN) ────────────────────────
+        // Posé juste au-dessus du fond et sous tout le reste : il assombrit
+        // les versants sans masquer les chemins ni les tracés. Semi-transparent
+        // pour rester une lecture du terrain, pas un filtre gris.
+        if (!navActive && mapProv.reliefEnabled)
+          Opacity(
+            opacity: 0.45,
+            child: TileLayer(
+              key: const ValueKey('estompage'),
+              urlTemplate: MapProvider.estompageUrl,
+              userAgentPackageName: 'app.motooffroad',
+              maxZoom: 18,
+              maxNativeZoom: 16,
+              tileProvider: MapTileCache.provider(),
+            ),
+          ),
+
         // ── Overlay radar pluie (RainViewer) ───────────────
         // L'URL est construite dynamiquement (voir MapProvider) : le service
         // ne sert pas de chemin fixe, chaque relevé a son propre identifiant.

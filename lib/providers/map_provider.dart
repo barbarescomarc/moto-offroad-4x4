@@ -231,6 +231,27 @@ class MapProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  // ── Ombrage du relief ───────────────────────────────────
+  // Surcouche grise semi-transparente de la Géoplateforme IGN : elle creuse
+  // les vallées et fait ressortir les crêtes sur n'importe quel fond. Ce n'est
+  // pas de la 3D — MapLibre ne sait pas encore la rendre en natif sur
+  // téléphone (vérifié le 2026-09-12) — mais c'est ce qui manque le plus pour
+  // lire une pente avant de s'y engager.
+  static const String estompageUrl =
+      'https://data.geopf.fr/wmts?'
+      'SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0'
+      '&LAYER=ELEVATION.ELEVATIONGRIDCOVERAGE.SHADOW'
+      '&STYLE=estompage_grayscale&FORMAT=image/png'
+      '&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}';
+
+  bool _reliefEnabled = true;
+  bool get reliefEnabled => _reliefEnabled;
+
+  void toggleRelief() {
+    _reliefEnabled = !_reliefEnabled;
+    notifyListeners();
+  }
+
   void toggleRadar() {
     _radarEnabled = !_radarEnabled;
     if (_radarEnabled) {
