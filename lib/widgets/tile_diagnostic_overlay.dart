@@ -21,12 +21,14 @@ class TileDiagnosticOverlay extends StatelessWidget {
     return ValueListenableBuilder<TileLoadingInterceptorMap>(
       valueListenable: MapTileCache.diagnostic,
       builder: (context, tuiles, _) {
-        var reseau = 0, cache = 0, erreurs = 0;
+        var reseau = 0, cache = 0, erreurs = 0, enCours = 0;
         String? hote;
         String? derniereErreur;
 
         for (final t in tuiles.values) {
-          if (t.error != null) {
+          if (t.resultPath == null && t.error == null) {
+            enCours++;
+          } else if (t.error != null) {
             erreurs++;
             derniereErreur = t.error!.error.toString();
           } else if (t.resultPath == TileLoadingInterceptorResultPath.fetchedFromNetwork) {
@@ -51,7 +53,7 @@ class TileDiagnosticOverlay extends StatelessWidget {
               children: [
                 Text('couche : $couche · tuiles : ${tuiles.length}',
                     style: const TextStyle(color: Colors.white, fontSize: 11)),
-                Text('réseau $reseau · cache $cache · erreurs $erreurs',
+                Text('réseau $reseau · cache $cache · erreurs $erreurs · attente $enCours',
                     style: const TextStyle(color: Colors.white70, fontSize: 11)),
                 if (hote != null)
                   Text(hote, style: const TextStyle(color: Colors.white70, fontSize: 11)),

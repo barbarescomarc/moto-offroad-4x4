@@ -313,9 +313,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           if (_tauntMessage != null) _buildTauntOverlay(),
 
           // Bandeau de diagnostic des tuiles (temporaire, 2026-09-11).
+          // Posé au-dessus de la barre de statistiques : à `bottom: 0` il
+          // passait derrière elle et restait invisible sur l'appareil.
           Positioned(
-            left: 0,
-            bottom: 0,
+            left: 6,
+            bottom: 118,
             child: TileDiagnosticOverlay(
               couche: context.watch<MapProvider>().activeLayer.name,
             ),
