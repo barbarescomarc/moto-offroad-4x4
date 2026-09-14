@@ -9,6 +9,7 @@ import 'package:moto_offroad/services/background_service_coordinator.dart';
 import 'package:moto_offroad/services/guidance_background_client.dart';
 import 'package:moto_offroad/services/guidance_voice_service.dart';
 import 'package:moto_offroad/services/location_service.dart';
+import 'package:moto_offroad/models/vehicle_kind.dart';
 import 'package:moto_offroad/services/routing_service.dart';
 import 'package:moto_offroad/services/speed_camera_service.dart';
 import 'package:moto_offroad/services/speed_limit_service.dart';
@@ -30,6 +31,10 @@ class _FakeRoutingService extends RoutingService {
   RouteResult Function()? nextResult;
   List<RouteResult> Function()? nextAlternatives;
   bool shouldThrow = false;
+  /// Gabarits reçus, dans l'ordre. Le premier vient du calcul initial, les
+  /// suivants des recalculs après déviation — c'est là que le gabarit se
+  /// perdait si on ne le retenait pas avec le profil.
+  final List<GabaritVehicule?> gabaritsRecus = [];
 
   @override
   Future<RouteResult> fetchRoute({
@@ -37,8 +42,10 @@ class _FakeRoutingService extends RoutingService {
     required LatLng destination,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
+    GabaritVehicule? gabarit,
   }) async {
     calls++;
+    gabaritsRecus.add(gabarit);
     if (shouldThrow) throw const RoutingException('pas de réseau');
     return nextResult!();
   }
@@ -49,9 +56,11 @@ class _FakeRoutingService extends RoutingService {
     required LatLng destination,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
+    GabaritVehicule? gabarit,
     int targetCount = 3,
   }) async {
     alternativesCalls++;
+    gabaritsRecus.add(gabarit);
     if (shouldThrow) throw const RoutingException('pas de réseau');
     return nextAlternatives!();
   }
@@ -289,6 +298,46 @@ void main() {
 
     expect(guidance.isOffRoute, isFalse);
     expect(routing.calls, 1); // uniquement l'appel initial
+  });
+
+  test('le recalcul après déviation repart avec le même gabarit', () async {
+    const gabarit = GabaritVehicule(hauteurM: 3.2, longueurM: 7.4, poidsT: 3.5);
+    routing.nextResult = _straightRoute;
+    await guidance.startToDestination(
+      origin: const LatLng(44.0, 6.0),
+      destination: const LatLng(44.0, 6.01),
+      profile: RoutingProfile.drivingHgv,
+      gabarit: gabarit,
+    );
+
+    positionController.add(_gps(const LatLng(44.002, 6.0), s: 1));
+    await Future<void>.delayed(Duration.zero);
+    positionController.add(_gps(const LatLng(44.002, 6.0), s: 2));
+    await Future<void>.delayed(Duration.zero);
+
+    // Le point de tout l'exercice : un recalcul qui repartirait sans gabarit
+    // rendrait un itinéraire passant sous les ponts qu'on venait d'écarter.
+    expect(routing.calls, 2);
+    expect(routing.gabaritsRecus, [gabarit, gabarit]);
+  });
+
+  test('le seuil de sortie de route du poids lourd est celui de la route', () async {
+    routing.nextResult = _straightRoute;
+    await guidance.startToDestination(
+      origin: const LatLng(44.0, 6.0),
+      destination: const LatLng(44.0, 6.01),
+      profile: RoutingProfile.drivingHgv,
+      gabarit: const GabaritVehicule(hauteurM: 2.8, longueurM: 6.0, poidsT: 3.5),
+    );
+
+    // Un écart qui déclenche la déviation sur route ; avec la tolérance
+    // tout-terrain, le camping-car serait recalculé bien plus tard.
+    positionController.add(_gps(const LatLng(44.002, 6.0), s: 1));
+    await Future<void>.delayed(Duration.zero);
+    positionController.add(_gps(const LatLng(44.002, 6.0), s: 2));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(guidance.isOffRoute, isTrue);
   });
 
   test('une déviation soutenue en mode destination redemande un itinéraire', () async {

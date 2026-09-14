@@ -92,6 +92,16 @@ class SettingsProvider extends ChangeNotifier {
   double      get gabaritHauteurM  => _gabaritHauteurM;
   double      get gabaritLongueurM => _gabaritLongueurM;
   double      get gabaritPoidsT    => _gabaritPoidsT;
+
+  /// Le gabarit à transmettre au calcul d'itinéraire, ou `null` quand le
+  /// véhicule n'en a pas — une moto passe partout où passe une voiture.
+  GabaritVehicule? get gabarit => _vehicleKind.hasGabarit
+      ? GabaritVehicule(
+          hauteurM:  _gabaritHauteurM,
+          longueurM: _gabaritLongueurM,
+          poidsT:    _gabaritPoidsT,
+        )
+      : null;
   SkillLevel  get skillLevel => _skillLevel;
   MotoPreset? get moto       => _moto;
   String      get riderName  => _riderName;

@@ -97,3 +97,44 @@ extension VehicleKindExt on VehicleKind {
   double get longueurParDefautM => 6.0;
   double get poidsParDefautT => 3.5;
 }
+
+/// L'encombrement du véhicule, tel qu'il faut le dire à un calculateur
+/// d'itinéraire pour qu'il évite ce qui ne passe pas.
+///
+/// Regroupé en un objet plutôt qu'en trois nombres baladeurs : ces valeurs ne
+/// voyagent jamais séparément, et en oublier une en chemin — sur un recalcul
+/// après déviation, typiquement — revient à envoyer le camping-car sous un
+/// pont qu'on savait trop bas.
+class GabaritVehicule {
+  const GabaritVehicule({
+    required this.hauteurM,
+    required this.longueurM,
+    required this.poidsT,
+  });
+
+  final double hauteurM;
+  final double longueurM;
+  final double poidsT;
+
+  /// Les restrictions au format attendu par OpenRouteService, en mètres et
+  /// en tonnes — les unités de l'API, qui sont aussi celles de la carte grise.
+  Map<String, double> get restrictionsOrs => {
+        'height': hauteurM,
+        'length': longueurM,
+        'weight': poidsT,
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is GabaritVehicule &&
+      other.hauteurM == hauteurM &&
+      other.longueurM == longueurM &&
+      other.poidsT == poidsT;
+
+  @override
+  int get hashCode => Object.hash(hauteurM, longueurM, poidsT);
+
+  @override
+  String toString() =>
+      'GabaritVehicule(${hauteurM}m x ${longueurM}m, ${poidsT}t)';
+}

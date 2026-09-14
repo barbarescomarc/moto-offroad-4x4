@@ -22,6 +22,7 @@ import '../../models/trace.dart';
 import '../../models/favorite_place.dart';
 import '../../models/route_result.dart';
 import '../../models/poi.dart';
+import '../../models/vehicle_kind.dart';
 import '../../services/location_service.dart';
 import '../../services/routing_service.dart';
 import '../../services/ride_repository.dart';
@@ -2108,9 +2109,15 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final settings = context.read<SettingsProvider>();
     // ORS n'a pas de profil "4x4" dédié : le mode réutilise le profil route,
     // seul à couvrir des pistes carrossables par un véhicule à quatre roues.
-    final profile = mapProv.navMode == NavMode.offroad
-        ? RoutingProfile.cyclingMountain
-        : RoutingProfile.drivingCar;
+    //
+    // Le camping-car, lui, passe par le profil poids lourd quel que soit le
+    // mode : c'est le seul qu'ORS laisse contraindre en hauteur, longueur et
+    // tonnage, et lui proposer une piste serait un mauvais service.
+    final profile = settings.vehicleKind.hasGabarit
+        ? RoutingProfile.drivingHgv
+        : mapProv.navMode == NavMode.offroad
+            ? RoutingProfile.cyclingMountain
+            : RoutingProfile.drivingCar;
     final avoid = <AvoidFeature>{
       if (settings.guidanceAvoidHighways) AvoidFeature.highways,
       if (settings.guidanceAvoidTolls) AvoidFeature.tollways,
@@ -2120,6 +2127,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final guidance = context.read<GuidanceProvider>();
     final ok = await guidance.startToDestination(
       origin: origin, destination: destination, profile: profile, avoid: avoid,
+      gabarit: settings.gabarit,
       preferCurvyRoutes: settings.guidancePreferCurvy,
     );
 

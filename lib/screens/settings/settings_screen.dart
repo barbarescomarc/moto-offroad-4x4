@@ -274,8 +274,28 @@ class _SettingsScreenState extends State<SettingsScreen>
         const SizedBox(height: 6),
         const Text(
           'Ce qui t\'arrête : une barre de hauteur, un pont, un tonnage. '
-          'Relève les valeurs sur la carte grise, pas sur la brochure.',
+          'Relève les valeurs sur la carte grise, pas sur la brochure. '
+          'Le guidage écarte les routes qui ne passent pas.',
           style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
+        const SizedBox(height: 8),
+        // La meme franchise que le reste du produit : l'evitement vaut ce que
+        // vaut la cartographie. Mieux vaut que le pilote le sache aux reglages
+        // qu'au pied du pont.
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            Icon(Icons.info_outline, size: 14, color: AppColors.textMuted),
+            SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Seuls les obstacles relevés dans OpenStreetMap peuvent être '
+                'évités. Un pont bas non cartographié ne le sera pas : ces '
+                'valeurs aident, elles ne remplacent pas les panneaux.',
+                style: TextStyle(color: AppColors.textMuted, fontSize: 11, height: 1.35),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 12),
         _gabaritCurseur(

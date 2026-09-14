@@ -8,6 +8,7 @@ import '../services/gpx_route_deriver.dart';
 import '../services/guidance_background_client.dart';
 import '../services/guidance_voice_service.dart';
 import '../services/location_service.dart';
+import '../models/vehicle_kind.dart';
 import '../services/routing_service.dart';
 import '../services/speed_camera_service.dart';
 import '../services/speed_limit_service.dart';
@@ -119,6 +120,10 @@ class GuidanceProvider extends ChangeNotifier {
   LatLng? _destination;
   RoutingProfile? _profile;
   Set<AvoidFeature> _avoid = const {};
+  // Retenu avec le profil, et pour la meme raison : un recalcul apres
+  // deviation qui repartirait sans gabarit enverrait le camping-car sous un
+  // pont qu'on avait justement ecarte au premier calcul.
+  GabaritVehicule? _gabarit;
 
   GuidanceMode? get mode => _mode;
   bool get isActive => _mode != null;
@@ -178,6 +183,7 @@ class GuidanceProvider extends ChangeNotifier {
     required LatLng destination,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
+    GabaritVehicule? gabarit,
     // Faute d'un vrai algorithme de recherche de route sinueuse côté ORS :
     // demande jusqu'à 3 itinéraires alternatifs et retient celui qui tourne
     // le plus (voir routeSinuosityDegPerKm), plutôt qu'une vraie recherche
@@ -189,18 +195,21 @@ class GuidanceProvider extends ChangeNotifier {
       final RouteResult result;
       if (preferCurvyRoutes) {
         final alternatives = await _routing.fetchRouteAlternatives(
-            origin: origin, destination: destination, profile: profile, avoid: avoid);
+            origin: origin, destination: destination, profile: profile,
+            avoid: avoid, gabarit: gabarit);
         result = alternatives.reduce((a, b) =>
             routeSinuosityDegPerKm(a.polyline) >= routeSinuosityDegPerKm(b.polyline) ? a : b);
       } else {
         result = await _routing.fetchRoute(
-            origin: origin, destination: destination, profile: profile, avoid: avoid);
+            origin: origin, destination: destination, profile: profile,
+            avoid: avoid, gabarit: gabarit);
       }
       _route = result;
       _mode = GuidanceMode.destination;
       _destination = destination;
       _profile = profile;
       _avoid = avoid;
+      _gabarit = gabarit;
       _resetProgress();
       _startListening();
       await _background.start('Guidage actif');
@@ -224,6 +233,7 @@ class GuidanceProvider extends ChangeNotifier {
     _destination = null;
     _profile = null;
     _avoid = const {};
+    _gabarit = null;
     _resetProgress();
     _startListening();
     _background.start('Guidage actif');
@@ -469,7 +479,7 @@ class GuidanceProvider extends ChangeNotifier {
     if (route == null || route.polyline.isEmpty) return;
 
     final threshold =
-        _mode == GuidanceMode.destination && _profile == RoutingProfile.drivingCar
+        _mode == GuidanceMode.destination && (_profile?.suitLaRoute ?? false)
             ? _offRouteThresholdRoute
             : _offRouteThresholdOffroad;
 
@@ -515,7 +525,8 @@ class GuidanceProvider extends ChangeNotifier {
 
     try {
       final result = await _routing.fetchRoute(
-          origin: position, destination: destination, profile: profile, avoid: _avoid);
+          origin: position, destination: destination, profile: profile,
+          avoid: _avoid, gabarit: _gabarit);
       _route = result;
       _resetStepsForNewRoute();
       notifyListeners();

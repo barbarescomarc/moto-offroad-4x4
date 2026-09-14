@@ -4,16 +4,29 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../config/api_keys.dart';
 import '../models/route_result.dart';
+import '../models/vehicle_kind.dart';
 
-enum RoutingProfile { drivingCar, cyclingMountain }
+enum RoutingProfile { drivingCar, cyclingMountain, drivingHgv }
 
 extension RoutingProfileExt on RoutingProfile {
   String get orsId {
     switch (this) {
       case RoutingProfile.drivingCar:      return 'driving-car';
       case RoutingProfile.cyclingMountain: return 'cycling-mountain';
+      case RoutingProfile.drivingHgv:      return 'driving-hgv';
     }
   }
+
+  /// L'itinéraire suit-il des routes ouvertes, par opposition aux pistes ?
+  ///
+  /// Décide de la tolérance avant de déclarer le pilote sorti de route : sur
+  /// bitume, quelques dizaines de mètres d'écart veulent dire qu'on a raté un
+  /// virage ; sur piste, c'est le GPS qui dérive.
+  bool get suitLaRoute => this != RoutingProfile.cyclingMountain;
+
+  /// Seul ce profil accepte des restrictions de gabarit côté ORS : demander à
+  /// `driving-car` d'éviter les ponts bas fait rejeter la requête entière.
+  bool get accepteGabarit => this == RoutingProfile.drivingHgv;
 }
 
 enum AvoidFeature { highways, tollways, ferries }
@@ -44,9 +57,11 @@ class RoutingService {
     required LatLng destination,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
+    GabaritVehicule? gabarit,
   }) async {
     final results = await _fetchRoutes(
       waypoints: [origin, destination], profile: profile, avoid: avoid,
+      gabarit: gabarit,
     );
     return results.first;
   }
@@ -60,12 +75,14 @@ class RoutingService {
     required LatLng destination,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
+    GabaritVehicule? gabarit,
     int targetCount = 3,
   }) =>
       _fetchRoutes(
         waypoints: [origin, destination],
         profile: profile,
         avoid: avoid,
+        gabarit: gabarit,
         alternativeRoutesTargetCount: targetCount,
       );
 
@@ -77,9 +94,11 @@ class RoutingService {
     required List<LatLng> waypoints,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
+    GabaritVehicule? gabarit,
   }) async {
     assert(waypoints.length >= 2, 'Il faut au moins deux points pour un itinéraire');
-    final results = await _fetchRoutes(waypoints: waypoints, profile: profile, avoid: avoid);
+    final results = await _fetchRoutes(
+        waypoints: waypoints, profile: profile, avoid: avoid, gabarit: gabarit);
     return results.first;
   }
 
@@ -87,17 +106,31 @@ class RoutingService {
     required List<LatLng> waypoints,
     required RoutingProfile profile,
     required Set<AvoidFeature> avoid,
+    GabaritVehicule? gabarit,
     int? alternativeRoutesTargetCount,
   }) async {
     final uri = Uri.parse(
         'https://api.openrouteservice.org/v2/directions/${profile.orsId}/geojson');
 
+    // `avoid_features` et `profile_params` logent tous deux sous `options` :
+    // on accumule, sous peine que le gabarit efface silencieusement les
+    // évitements du pilote, ou l'inverse.
+    final options = <String, dynamic>{
+      if (avoid.isNotEmpty) 'avoid_features': avoid.map((a) => a.orsId).toList(),
+      // Le gabarit n'est transmis qu'au profil qui sait le lire : ORS rejette
+      // la requête entière si on le joint à `driving-car`, et un guidage
+      // refusé est pire qu'un guidage sans restriction.
+      if (gabarit != null && profile.accepteGabarit) ...{
+        'vehicle_type': 'hgv',
+        'profile_params': {'restrictions': gabarit.restrictionsOrs},
+      },
+    };
+
     final body = <String, dynamic>{
       'coordinates': waypoints.map((p) => [p.longitude, p.latitude]).toList(),
       'instructions': true,
       'language': 'fr',
-      if (avoid.isNotEmpty)
-        'options': {'avoid_features': avoid.map((a) => a.orsId).toList()},
+      if (options.isNotEmpty) 'options': options,
       // Non cumulable avec plus de deux points ni avec les évitements selon
       // l'API ORS — n'est demandé que pour un guidage vers une destination
       // simple (voir GuidanceProvider).

@@ -12,6 +12,7 @@ import 'package:moto_offroad/models/route_result.dart';
 import 'package:moto_offroad/services/guidance_background_client.dart';
 import 'package:moto_offroad/services/guidance_voice_service.dart';
 import 'package:moto_offroad/services/location_service.dart';
+import 'package:moto_offroad/models/vehicle_kind.dart';
 import 'package:moto_offroad/services/routing_service.dart';
 import 'package:moto_offroad/services/speed_camera_service.dart';
 import 'package:moto_offroad/widgets/guidance_banner.dart';
@@ -48,6 +49,7 @@ class _FakeRoutingService extends RoutingService {
     required LatLng destination,
     required RoutingProfile profile,
     Set<AvoidFeature> avoid = const {},
+    GabaritVehicule? gabarit,
   }) async => _twoSegmentRoute();
 }
 
