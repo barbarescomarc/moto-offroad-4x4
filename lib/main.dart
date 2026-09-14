@@ -192,7 +192,7 @@ class MotoOffroadApp extends StatelessWidget {
         child: _SoloUplinkHost(
           child: _FallDetectionHost(
             child: MaterialApp.router(
-              title: 'Moto Offroad 4x4',
+              title: 'GO FREE',
               debugShowCheckedModeBanner: false,
               theme: AppTheme.dark,
               routerConfig: appRouter,

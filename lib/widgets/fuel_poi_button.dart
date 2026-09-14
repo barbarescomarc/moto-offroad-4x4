@@ -4,24 +4,32 @@ import 'package:provider/provider.dart';
 
 import '../app/theme.dart';
 import '../models/poi.dart';
+import '../models/vehicle_kind.dart';
 import '../providers/fuel_poi_provider.dart';
 import 'glass_control.dart';
 
 /// Bouton « stations à proximité » de la colonne de contrôles de la carte.
 ///
-/// Cherche les stations-service et réparateurs moto autour du pilote, à la
-/// demande — pensé pour le besoin urgent, panne sèche ou mécanique.
+/// Cherche les points d'appui du véhicule autour du pilote, à la demande —
+/// pensé pour le besoin urgent : panne sèche, mécanique, ou une aire à
+/// trouver avant la nuit.
 class FuelPoiButton extends StatefulWidget {
   const FuelPoiButton({
     super.key,
     required this.currentCenter,
     required this.radiusKm,
+    this.vehicule = VehicleKind.moto,
     this.onResults,
   });
 
   /// Lu au moment de l'appui : la position du pilote change pendant qu'il roule.
   final LatLng Function() currentCenter;
   final int radiusKm;
+
+  /// Décide de ce qu'on cherche : un camping-car veut des aires et des bornes
+  /// là où une moto veut un réparateur. Passé en paramètre plutôt que lu dans
+  /// un provider, comme tout ce dont ce bouton a besoin.
+  final VehicleKind vehicule;
 
   /// Appelé quand une recherche aboutit. Sans lui, le pilote appuie, l'icône
   /// change de couleur, et les stations restent hors cadre — de son point de
@@ -47,7 +55,11 @@ class _FuelPoiButtonState extends State<FuelPoiButton> {
       return;
     }
 
-    await poi.searchAround(widget.currentCenter(), radiusKm: widget.radiusKm);
+    await poi.searchAround(
+      widget.currentCenter(),
+      radiusKm: widget.radiusKm,
+      vehicule: widget.vehicule,
+    );
     if (!mounted) return;
     if (poi.results.isNotEmpty) widget.onResults?.call(poi.results);
   }

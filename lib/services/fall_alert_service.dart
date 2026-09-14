@@ -66,6 +66,6 @@ class FallAlertService {
     final positionLine = snap != null
         ? 'Position : ${snap.googleMapsUrl}'
         : 'Position indisponible';
-    return 'ALERTE — $label détectée sur MOTO OFFROAD 4X4.\n$positionLine';
+    return 'ALERTE — $label détectée sur GO FREE.\n$positionLine';
   }
 }

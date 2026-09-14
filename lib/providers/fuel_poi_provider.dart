@@ -2,9 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../models/poi.dart';
+import '../models/vehicle_kind.dart';
 import '../services/fuel_poi_service.dart';
 
-/// Stations-service et réparateurs moto autour du pilote.
+/// Les points d'appui du véhicule autour du pilote.
 ///
 /// `unavailable` est distinct d'une liste vide : « aucune station dans ce
 /// rayon » et « je n'ai pas pu joindre Overpass » n'appellent pas la même
@@ -30,12 +31,16 @@ class FuelPoiProvider extends ChangeNotifier {
   /// qu'on redemande à Overpass — service public, gratuit et irrégulier.
   bool get visible => _visible;
 
-  Future<void> searchAround(LatLng center, {required int radiusKm}) async {
+  Future<void> searchAround(
+    LatLng center, {
+    required int radiusKm,
+    VehicleKind vehicule = VehicleKind.moto,
+  }) async {
     _loading = true;
     notifyListeners();
 
     try {
-      _results = await _service.fetchAround(center, radiusKm: radiusKm);
+      _results = await _service.fetchAround(center, radiusKm: radiusKm, vehicule: vehicule);
       // Une recherche qui aboutit efface l'échec précédent : sans cela, une
       // seule coupure laisserait le pilote devant un message de panne
       // définitif alors que le réseau est revenu.

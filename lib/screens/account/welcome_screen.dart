@@ -21,7 +21,7 @@ class WelcomeScreen extends StatelessWidget {
               const Icon(Icons.motorcycle, size: 72),
               const SizedBox(height: 16),
               const Text(
-                'Moto Offroad 4x4',
+                'GO FREE',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),

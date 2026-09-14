@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 
 import '../models/poi.dart';
+import '../models/vehicle_kind.dart';
 import 'overpass.dart';
 
 // Overpass n'a pas répondu : réseau absent, service indisponible ou saturé.
@@ -14,8 +15,10 @@ class FuelPoiUnavailable implements Exception {
   const FuelPoiUnavailable();
 }
 
-// Stations-service (amenity=fuel) et réparateurs moto (shop=motorcycle) via
-// Overpass, comme le font déjà SpeedCameraService et SpeedLimitService.
+// Les points d'appui du véhicule via Overpass, comme le font déjà
+// SpeedCameraService et SpeedLimitService. Ce qu'on cherche dépend de ce
+// qu'on conduit : carburant et réparateur moto pour une moto, aires, vidange,
+// eau et bornes pour un camping-car.
 // Données OpenStreetMap : très bonnes en ville, inégales en campagne — c'est
 // justement là que roule le pilote, donc l'absence de résultat ne prouve
 // jamais l'absence de station.
@@ -24,15 +27,21 @@ class FuelPoiService {
 
   final http.Client _client;
 
-  Future<List<PoiModel>> fetchAround(LatLng center, {required int radiusKm}) async {
+  Future<List<PoiModel>> fetchAround(
+    LatLng center, {
+    required int radiusKm,
+    VehicleKind vehicule = VehicleKind.moto,
+  }) async {
     final rayonMetres = radiusKm * 1000;
     final autour = 'around:$rayonMetres,${center.latitude},${center.longitude}';
     // `nwr` et `out center` plutôt que `node` seul : beaucoup de stations sont
     // cartographiées comme surfaces, et seraient invisibles autrement.
-    final query = '[out:json][timeout:15];'
-        '(nwr($autour)[amenity=fuel];'
-        'nwr($autour)[shop=motorcycle];);'
-        'out center;';
+    final selecteurs = vehicule.poiCategories
+        .map((c) => c.overpassSelector)
+        .whereType<String>()
+        .map((s) => 'nwr($autour)$s;')
+        .join();
+    final query = '[out:json][timeout:15];($selecteurs);out center;';
 
     // Overpass public est tres irregulier : la meme requete rend 200 en cinq
     // secondes, 504, ou douze secondes, selon sa charge du moment. Une seule
@@ -75,11 +84,7 @@ class FuelPoiService {
 
   PoiModel? _toPoi(Map<String, dynamic> element) {
     final tags = element['tags'] as Map<String, dynamic>? ?? const {};
-    final category = tags['amenity'] == 'fuel'
-        ? PoiCategory.gasStation
-        : tags['shop'] == 'motorcycle'
-            ? PoiCategory.motoShop
-            : null;
+    final category = categorieDepuisTags(tags);
     if (category == null) return null;
 
     // Un point porte ses coordonnées ; une surface ne donne que son centre.

@@ -2,8 +2,13 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/moto_preset.dart';
 import '../models/rider_profile.dart';
+import '../models/vehicle_kind.dart';
 
 class SettingsProvider extends ChangeNotifier {
+  static const _kVehicle  = 'vehicle_kind';
+  static const _kHauteur  = 'gabarit_hauteur_m';
+  static const _kLongueur = 'gabarit_longueur_m';
+  static const _kPoids    = 'gabarit_poids_t';
   static const _kLevel    = 'skill_level';
   static const _kMoto     = 'moto_index';
   static const _kName     = 'rider_name';
@@ -43,6 +48,12 @@ class SettingsProvider extends ChangeNotifier {
   // Silence du GPS au-delà duquel la trace est coupée, en secondes.
   static const List<int> signalGapChoices = [60, 90, 180];
 
+  // Moto par defaut : c'est ce que conduisaient tous les installes avant que
+  // le choix existe, et leur reglage ne doit pas changer sous leurs pieds.
+  VehicleKind _vehicleKind = VehicleKind.moto;
+  double _gabaritHauteurM;
+  double _gabaritLongueurM;
+  double _gabaritPoidsT;
   SkillLevel _skillLevel  = SkillLevel.confirme;
   MotoPreset? _moto;
   String _riderName       = 'Pilote';
@@ -77,6 +88,10 @@ class SettingsProvider extends ChangeNotifier {
   // rider, comme un GPS auto — utile à l'arrêt comme en roulant.
   bool _mapHeadingUp          = false;
 
+  VehicleKind get vehicleKind      => _vehicleKind;
+  double      get gabaritHauteurM  => _gabaritHauteurM;
+  double      get gabaritLongueurM => _gabaritLongueurM;
+  double      get gabaritPoidsT    => _gabaritPoidsT;
   SkillLevel  get skillLevel => _skillLevel;
   MotoPreset? get moto       => _moto;
   String      get riderName  => _riderName;
@@ -106,8 +121,19 @@ class SettingsProvider extends ChangeNotifier {
   bool get guidanceVoiceMuted    => _guidanceVoiceMuted;
   bool get mapHeadingUp          => _mapHeadingUp;
 
+  SettingsProvider()
+      : _gabaritHauteurM  = VehicleKind.van.hauteurParDefautM,
+        _gabaritLongueurM = VehicleKind.van.longueurParDefautM,
+        _gabaritPoidsT    = VehicleKind.van.poidsParDefautT;
+
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    _vehicleKind = VehicleKind.values[
+      (prefs.getInt(_kVehicle) ?? 0).clamp(0, VehicleKind.values.length - 1)
+    ];
+    _gabaritHauteurM  = prefs.getDouble(_kHauteur)  ?? VehicleKind.van.hauteurParDefautM;
+    _gabaritLongueurM = prefs.getDouble(_kLongueur) ?? VehicleKind.van.longueurParDefautM;
+    _gabaritPoidsT    = prefs.getDouble(_kPoids)    ?? VehicleKind.van.poidsParDefautT;
     _skillLevel = SkillLevel.values[
       (prefs.getInt(_kLevel) ?? 1).clamp(0, SkillLevel.values.length - 1)
     ];
@@ -141,6 +167,26 @@ class SettingsProvider extends ChangeNotifier {
     _guidancePreferCurvy   = prefs.getBool(_kGuidancePreferCurvy)   ?? false;
     _guidanceVoiceMuted    = prefs.getBool(_kGuidanceVoiceMuted)    ?? false;
     _mapHeadingUp          = prefs.getBool(_kMapHeadingUp)          ?? false;
+    notifyListeners();
+  }
+
+  Future<void> setVehicleKind(VehicleKind kind) async {
+    _vehicleKind = kind;
+    (await SharedPreferences.getInstance()).setInt(_kVehicle, kind.index);
+    notifyListeners();
+  }
+
+  /// Gabarit du camping-car. Les bornes ne sont pas décoratives : au-delà, la
+  /// valeur ne décrit plus un véhicule mais une faute de frappe, et une faute
+  /// de frappe sur une hauteur sous barre se paie sur la route.
+  Future<void> setGabarit({double? hauteurM, double? longueurM, double? poidsT}) async {
+    if (hauteurM  != null) _gabaritHauteurM  = hauteurM.clamp(1.5, 4.5);
+    if (longueurM != null) _gabaritLongueurM = longueurM.clamp(3.0, 12.0);
+    if (poidsT    != null) _gabaritPoidsT    = poidsT.clamp(1.0, 19.0);
+    final prefs = await SharedPreferences.getInstance();
+    prefs.setDouble(_kHauteur,  _gabaritHauteurM);
+    prefs.setDouble(_kLongueur, _gabaritLongueurM);
+    prefs.setDouble(_kPoids,    _gabaritPoidsT);
     notifyListeners();
   }
 

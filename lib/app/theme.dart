@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-// ── Palette MOTO OFFROAD 4X4 ────────────────────────────────
+// ── Palette GO FREE ─────────────────────────────────────────
 class AppColors {
   // Primaires
   static const Color orange     = Color(0xFFE8601C);

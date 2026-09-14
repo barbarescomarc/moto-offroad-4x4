@@ -10,6 +10,9 @@ abstract class ForegroundServiceControl {
 }
 
 class FlutterForegroundServiceControl implements ForegroundServiceControl {
+  // Garde son identifiant d'origine malgré le passage à GO FREE : Android
+  // classe les réglages de notification par canal, et en renommer un revient
+  // à en créer un second en laissant l'ancien orphelin chez les installés.
   static const _channelId = 'moto_offroad_background';
   bool _initialized = false;
 
@@ -89,9 +92,9 @@ class BackgroundServiceCoordinator {
     }
     final text = _activeClients.values.join(' · ');
     if (await _control.isRunning()) {
-      await _control.update(title: 'Moto Offroad', text: text);
+      await _control.update(title: 'GO FREE', text: text);
     } else {
-      await _control.start(title: 'Moto Offroad', text: text);
+      await _control.start(title: 'GO FREE', text: text);
     }
   }
 }

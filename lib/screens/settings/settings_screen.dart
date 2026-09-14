@@ -6,6 +6,7 @@ import 'package:provider/provider.dart';
 import '../../app/router.dart';
 import '../../app/theme.dart';
 import '../../models/moto_preset.dart';
+import '../../models/vehicle_kind.dart';
 import '../../models/rider_profile.dart';
 import '../../providers/account_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -76,12 +77,23 @@ class _SettingsScreenState extends State<SettingsScreen>
           children: [
             GlassPanel(child: _accountSection(context)),
             const SizedBox(height: 16),
+            GlassPanel(child: _vehicleSection()),
+            const SizedBox(height: 16),
             GlassPanel(child: _riderSection()),
             const SizedBox(height: 16),
-            GlassPanel(child: _levelSection()),
-            const SizedBox(height: 16),
-            GlassPanel(child: _motoSection()),
-            const SizedBox(height: 16),
+            // Niveau et modele ne decrivent qu'un pilote de moto : les
+            // afficher pour un camping-car demanderait de repondre a des
+            // questions sans objet.
+            if (context.watch<SettingsProvider>().vehicleKind.usesMotoProfile) ...[
+              GlassPanel(child: _levelSection()),
+              const SizedBox(height: 16),
+              GlassPanel(child: _motoSection()),
+              const SizedBox(height: 16),
+            ],
+            if (context.watch<SettingsProvider>().vehicleKind.hasGabarit) ...[
+              GlassPanel(child: _gabaritSection()),
+              const SizedBox(height: 16),
+            ],
             GlassPanel(child: _recordingSection(context)),
             const SizedBox(height: 16),
             GlassPanel(child: _fallDetectionSection(context)),
@@ -164,7 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               await TrackerApiClient().unsubscribeNewsletter(email: email);
             }
           },
-          title: const Text('Recevoir les nouvelles de MOTO OFFROAD 4X4',
+          title: const Text('Recevoir les nouvelles de GO FREE',
             style: TextStyle(color: Colors.white, fontSize: 13)),
           controlAffinity: ListTileControlAffinity.leading,
           activeColor: AppColors.orange,
@@ -190,6 +202,151 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   // ── Niveau pilote ──────────────────────────────────────────
+  // ── Choix du véhicule ──────────────────────────────────────
+
+  Widget _vehicleSection() {
+    final settings = context.watch<SettingsProvider>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('MON VÉHICULE'),
+        const SizedBox(height: 12),
+        Row(
+          children: VehicleKind.values
+              .map((v) => Expanded(child: _vehicleCard(v, settings)))
+              .toList(),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          settings.vehicleKind.hasGabarit
+              ? 'Les aires, la vidange, l\'eau et les bornes remplacent le réparateur moto autour de toi.'
+              : 'Les stations-service et les réparateurs s\'affichent autour de toi.',
+          style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
+      ],
+    );
+  }
+
+  Widget _vehicleCard(VehicleKind kind, SettingsProvider settings) {
+    final active = settings.vehicleKind == kind;
+    return GestureDetector(
+      key: Key('vehicule-${kind.name}'),
+      onTap: () => settings.setVehicleKind(kind),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+        decoration: BoxDecoration(
+          color:        active ? AppColors.orange.withValues(alpha: .15) : AppColors.bgCard,
+          borderRadius: BorderRadius.circular(10),
+          border:       Border.all(
+            color: active ? AppColors.orange : const Color(0xFF2A2A3E),
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(kind.icon,
+                color: active ? AppColors.orange : AppColors.textSecondary, size: 24),
+            const SizedBox(height: 6),
+            Text(
+              kind.shortLabel,
+              style: TextStyle(
+                color:      active ? AppColors.orange : AppColors.textSecondary,
+                fontWeight: active ? FontWeight.w700 : FontWeight.normal,
+                fontSize:   12,
+                fontFamily: 'Rajdhani',
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ── Gabarit du camping-car ─────────────────────────────────
+
+  Widget _gabaritSection() {
+    final settings = context.watch<SettingsProvider>();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionLabel('MON GABARIT'),
+        const SizedBox(height: 6),
+        const Text(
+          'Ce qui t\'arrête : une barre de hauteur, un pont, un tonnage. '
+          'Relève les valeurs sur la carte grise, pas sur la brochure.',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
+        const SizedBox(height: 12),
+        _gabaritCurseur(
+          cle: 'gabarit-hauteur',
+          libelle: 'Hauteur',
+          valeur: settings.gabaritHauteurM,
+          min: 1.5, max: 4.5, pas: 0.05, unite: 'm',
+          onChange: (v) => settings.setGabarit(hauteurM: v),
+        ),
+        _gabaritCurseur(
+          cle: 'gabarit-longueur',
+          libelle: 'Longueur',
+          valeur: settings.gabaritLongueurM,
+          min: 3.0, max: 12.0, pas: 0.1, unite: 'm',
+          onChange: (v) => settings.setGabarit(longueurM: v),
+        ),
+        _gabaritCurseur(
+          cle: 'gabarit-poids',
+          libelle: 'Poids total',
+          valeur: settings.gabaritPoidsT,
+          min: 1.0, max: 19.0, pas: 0.1, unite: 't',
+          onChange: (v) => settings.setGabarit(poidsT: v),
+        ),
+      ],
+    );
+  }
+
+  Widget _gabaritCurseur({
+    required String cle,
+    required String libelle,
+    required double valeur,
+    required double min,
+    required double max,
+    required double pas,
+    required String unite,
+    required ValueChanged<double> onChange,
+  }) {
+    return Row(
+      children: [
+        SizedBox(
+          width: 88,
+          child: Text(libelle,
+              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+        ),
+        Expanded(
+          child: Slider(
+            key: Key(cle),
+            value: valeur.clamp(min, max),
+            min: min,
+            max: max,
+            divisions: ((max - min) / pas).round(),
+            activeColor: AppColors.orange,
+            onChanged: onChange,
+          ),
+        ),
+        SizedBox(
+          width: 56,
+          child: Text(
+            '${valeur.toStringAsFixed(unite == 't' ? 1 : 2)} $unite',
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontFeatures: [FontFeature.tabularFigures()],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _levelSection() {
     final settings = context.watch<SettingsProvider>();
     return Column(
@@ -381,8 +538,9 @@ class _SettingsScreenState extends State<SettingsScreen>
         ),
         ListTile(
           title: const Text('Seuil de la pause automatique'),
-          subtitle: const Text('Vitesse en dessous de laquelle on considère '
-              'que la moto est arrêtée.'),
+          subtitle: Text('Vitesse en dessous de laquelle on considère que '
+              '${settings.vehicleKind.avecArticle} est '
+              'arrêté${settings.vehicleKind.accordePasse}.'),
           trailing: DropdownButton<int>(
             value: settings.pauseSpeedKmh,
             items: SettingsProvider.pauseSpeedChoices

@@ -394,6 +394,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                     currentCenter: () =>
                         _mapReady ? _mapController.camera.center : mapProv.center,
                     radiusKm: context.read<FuelProvider>().searchRadiusKm,
+                    vehicule: context.watch<SettingsProvider>().vehicleKind,
                     // Reculer pour montrer ce qu'on vient de trouver : au zoom
                     // d'une rue, des stations reparties sur vingt kilometres
                     // sont toutes hors cadre, et le pilote croit que rien ne

@@ -33,7 +33,7 @@ class TutorialTargets {
 /// sa première sortie.
 List<TutorialStep> buildTutorialSteps(TutorialTargets t) => [
       const TutorialStep(
-        title: 'Bienvenue sur MOTO OFFROAD',
+        title: 'Bienvenue sur GO FREE',
         body: 'Ce tutoriel te montre les six fonctions essentielles en moins de deux minutes. '
             'Tu pourras le revoir à tout moment depuis les réglages.',
       ),

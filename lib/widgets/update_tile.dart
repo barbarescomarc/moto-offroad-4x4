@@ -69,7 +69,7 @@ class _UpdateTileState extends State<UpdateTile> {
               'Le destinataire devra autoriser l\'installation depuis '
               'cette source.'),
           onTap: () => Share.share(
-            'MOTO OFFROAD 4X4 — GPS pour la moto et le 4x4 tout-terrain.\n'
+            'GO FREE — GPS pour la moto, le 4x4 et le camping-car.\n'
             'Télécharger : ${UpdateChecker.downloadUrl}',
           ),
         ),
