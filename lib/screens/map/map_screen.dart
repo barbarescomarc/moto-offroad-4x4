@@ -47,6 +47,7 @@ import '../../utils/map_zoom.dart';
 import '../../widgets/map_search_bar.dart';
 import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
+import '../../widgets/alerte_groupe_banner.dart';
 import '../../widgets/guidance_banner.dart';
 import '../../widgets/speed_limit_badge.dart';
 import '../../widgets/maneuver_tile.dart';
@@ -343,6 +344,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // sortie sont en bas, le haut est libre.
             _buildGuidanceBanner(),
             _buildFullscreenExitBtn(),
+            // Au-dessus de tout : un rider a terre passe avant l'itineraire.
+            _buildAlerteGroupe(),
           ] else ...[
             // ── Header ──────────────────────────────────────
             Positioned(top: 0, left: 0, right: 0, child: _buildHeader()),
@@ -363,6 +366,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // En bas, au-dessus de la barre de stats : la route regardée
             // pendant la conduite est en bas de l'écran, pas en haut.
             _buildGuidanceBannerBottom(),
+
+            // ── Alerte d'un rider du groupe ──────────────────
+            // En haut et en dernier dans la pile : c'est le seul élément qui
+            // doit pouvoir recouvrir les autres.
+            _buildAlerteGroupe(),
 
             // ── Barre de dessin de trace à main levée ────────
             _buildDrawTraceBar(),
@@ -1743,6 +1751,31 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // En portrait fenêtré le bandeau se pose en bas (voir
   // _buildGuidanceBannerBottom) ; partout ailleurs il se pose en haut de la
   // carte, à droite de la colonne SOS/enregistrement qui occupe le même bord.
+  // ── BANDEAU D'ALERTE DU GROUPE ────────────────────────────
+  //
+  // Posé sous l'en-tête, pleine largeur : quand un rider de la sortie est à
+  // terre, rien de ce qu'il recouvre n'est plus important que lui.
+  Widget _buildAlerteGroupe() {
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 64,
+      left: 8,
+      right: 8,
+      child: AlerteGroupeBanner(
+        // La meme source que le guidage : le dernier releve GPS, et non le
+        // centre de la carte — le rider peut l'avoir deplacee pour regarder
+        // ailleurs, et la distance affichee serait alors fausse.
+        maPosition: () => _locationService.lastSnapshot?.position,
+        onYAller: _guiderVersRider,
+      ),
+    );
+  }
+
+  /// Lance le guidage vers le rider en difficulté, comme vers n'importe quelle
+  /// destination — même profil, mêmes évitements, même gabarit.
+  Future<void> _guiderVersRider(LatLng cible) async {
+    await _startGuidanceTo(cible);
+  }
+
   Widget _buildGuidanceBanner() {
     return Positioned(
       top: MediaQuery.of(context).padding.top + 8,

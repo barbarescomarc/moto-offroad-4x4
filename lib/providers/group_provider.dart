@@ -67,6 +67,56 @@ class GroupProvider extends ChangeNotifier {
   LatLng? _rallyPoint;
   LatLng? get rallyPoint => _rallyPoint;
 
+  // ── Alerte en cours sur la sortie ─────────────────────────
+  //
+  // Portée par le sondage des pairs, qui tourne déjà toutes les trois
+  // secondes : les autres riders l'apprennent dans ce délai, sans
+  // notification push à mettre en place.
+  AlerteGroupe? _alerte;
+  AlerteGroupe? get alerte => _alerte;
+
+  // Alerte que ce rider-ci a choisi de masquer. Locale à son téléphone : on
+  // ne retire jamais un appel à l'aide pour les autres. Sert au rider qui est
+  // déjà sur place et n'a plus besoin du bandeau devant sa carte.
+  AlerteGroupe? _alerteMasquee;
+
+  /// L'alerte à montrer, ou `null` si elle est masquée sur cet appareil. Une
+  /// alerte nouvelle réapparaît même si la précédente avait été masquée.
+  AlerteGroupe? get alerteAafficher =>
+      _alerte == _alerteMasquee ? null : _alerte;
+
+  /// Est-ce moi qui ai déclenché ? Seul l'auteur peut retirer son alerte.
+  bool get jeSuisLauteurDeLalerte =>
+      _alerte != null && _alerte!.memberId == _myMemberId;
+
+  void masquerAlerte() {
+    _alerteMasquee = _alerte;
+    notifyListeners();
+  }
+
+  /// Retire l'alerte pour tout le groupe. Refusé par le serveur si ce n'est
+  /// pas moi qui l'ai déclenchée.
+  Future<bool> retirerAlerte() async {
+    final sid = _hubSessionId, dk = _deviceKey, mid = _myMemberId;
+    if (sid == null || dk == null || mid == null) return false;
+    final ok = await _tracker.clearAlert(sessionId: sid, deviceKey: dk, memberId: mid);
+    if (ok) {
+      _alerte = null;
+      _alerteMasquee = null;
+      notifyListeners();
+    }
+    return ok;
+  }
+
+  /// Déclenche l'alerte auprès du groupe. Appelée par la chaîne d'alerte en
+  /// même temps que les SMS aux proches : les deux canaux partent, celui qui
+  /// arrive le premier a gagné.
+  Future<bool> declencherAlerte({required String kind}) async {
+    final sid = _hubSessionId, dk = _deviceKey, mid = _myMemberId;
+    if (sid == null || dk == null || mid == null || !_groupActive) return false;
+    return _tracker.sendAlert(sessionId: sid, deviceKey: dk, memberId: mid, kind: kind);
+  }
+
   Timer? _pollTimer;
   PositionUplinkService? _uplink;
   int _liveGeneration = 0;
@@ -209,6 +259,7 @@ class GroupProvider extends ChangeNotifier {
       final seenIds = result.peers.map((p) => p.memberId).toSet();
       _members.removeWhere((m) => m.id != _myMemberId && !seenIds.contains(m.id));
       _rallyPoint = result.rally;
+      _alerte = result.alerte;
       notifyListeners();
     });
   }
@@ -222,6 +273,8 @@ class GroupProvider extends ChangeNotifier {
   void leaveGroup() {
     _pollTimer?.cancel();
     _pollTimer = null;
+    _alerte = null;
+    _alerteMasquee = null;
     _uplink?.stop();
     _uplink = null;
     _liveGeneration++;

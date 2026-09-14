@@ -51,6 +51,7 @@ import 'services/grace_window.dart';
 // SettingsProvider/SoloProvider — pas de BuildContext à conserver ici.
 SettingsProvider? _fallSettingsRef;
 SoloProvider? _fallSoloRef;
+GroupProvider? _fallGroupRef;
 
 // Garde de ré-entrance : un second choc qualifiant pendant qu'un écran
 // d'alerte est déjà affiché (ou en cours d'ouverture) ne doit pas empiler un
@@ -146,7 +147,7 @@ class MotoOffroadApp extends StatelessWidget {
           return q;
         }),
         Provider<AlertChannelUnlock>(create: (_) => AlertChannelUnlock()),
-        ProxyProvider2<SettingsProvider, SoloProvider, FallAlertService>(
+        ProxyProvider3<SettingsProvider, SoloProvider, GroupProvider, FallAlertService>(
           create: (_) => FallAlertService(
             sendSms: CallBridge().sendSms,
             sendServerAlert: ({required kind}) async {
@@ -166,10 +167,15 @@ class MotoOffroadApp extends StatelessWidget {
             serverChannelEnabled: () => _fallSettingsRef?.alertChannelServer ?? true,
             trustedContacts: () => _fallSoloRef?.contacts ?? [],
             positionProvider: () => LocationService().getCurrentPosition(),
+            // Les riders de la sortie en cours. Rend false hors groupe, ce
+            // qui laisse la chaîne d'alerte inchangée en solo.
+            sendGroupAlert: ({required kind}) async =>
+                await _fallGroupRef?.declencherAlerte(kind: kind) ?? false,
           ),
-          update: (_, settings, solo, previous) {
+          update: (_, settings, solo, group, previous) {
             _fallSettingsRef = settings;
             _fallSoloRef = solo;
+            _fallGroupRef = group;
             return previous!;
           },
         ),

@@ -53,14 +53,58 @@ class PeerPosition {
   });
 }
 
-// Résultat du polling /peers : la liste des pairs, et le point de
-// ralliement partagé par le groupe (posé par n'importe quel membre).
+// Une alerte en cours sur la sortie, telle que les autres riders ont besoin
+// de la lire : qui, quoi, depuis quand, et surtout où aller.
+class AlerteGroupe {
+  const AlerteGroupe({
+    required this.memberId,
+    required this.name,
+    required this.kind,
+    required this.raisedAt,
+    required this.position,
+  });
+
+  final String memberId;
+  final String name;
+
+  /// `'sos'` (déclenché à la main) ou `'fall'` (chute détectée).
+  final String kind;
+  final DateTime raisedAt;
+
+  /// Dernière position connue de celui qui a déclenché. Nulle s'il n'avait
+  /// pas encore envoyé de point : l'alerte dit alors qu'il s'est passé
+  /// quelque chose sans dire où, ce que l'interface doit avouer.
+  final LatLng? position;
+
+  bool get estSos => kind == 'sos';
+
+  @override
+  bool operator ==(Object other) =>
+      other is AlerteGroupe &&
+      other.memberId == memberId &&
+      other.kind == kind &&
+      other.raisedAt == raisedAt &&
+      other.position == position;
+
+  @override
+  int get hashCode => Object.hash(memberId, kind, raisedAt, position);
+}
+
+// Résultat du polling /peers : la liste des pairs, le point de ralliement
+// partagé par le groupe (posé par n'importe quel membre), et l'alerte en
+// cours s'il y en a une.
 class PeersResult {
   final List<PeerPosition> peers;
   final LatLng? rally;
+  final AlerteGroupe? alerte;
   final bool ok; // false si la requete a echoue — les appelants ne doivent alors rien elaguer
 
-  const PeersResult({required this.peers, required this.rally, required this.ok});
+  const PeersResult({
+    required this.peers,
+    required this.rally,
+    required this.ok,
+    this.alerte,
+  });
 }
 
 class TrackerApiClient {
@@ -208,10 +252,24 @@ class TrackerApiClient {
       final rally = rallyLat != null && rallyLng != null
           ? LatLng(rallyLat.toDouble(), rallyLng.toDouble())
           : null;
-      return PeersResult(peers: peers, rally: rally, ok: true);
+      return PeersResult(peers: peers, rally: rally, ok: true, alerte: _alerte(j));
     } catch (_) {
       return const PeersResult(peers: [], rally: null, ok: false);
     }
+  }
+
+  AlerteGroupe? _alerte(Map<String, dynamic> j) {
+    final raw = j['alerte'] as Map<String, dynamic>?;
+    if (raw == null) return null;
+    final lat = raw['lat'] as num?;
+    final lng = raw['lng'] as num?;
+    return AlerteGroupe(
+      memberId: raw['memberId'] as String? ?? '',
+      name:     raw['name'] as String? ?? 'Un rider',
+      kind:     raw['kind'] as String? ?? 'sos',
+      raisedAt: DateTime.fromMillisecondsSinceEpoch((raw['raisedAt'] as num?)?.toInt() ?? 0),
+      position: lat != null && lng != null ? LatLng(lat.toDouble(), lng.toDouble()) : null,
+    );
   }
 
   Future<LatLng?> setRally({
@@ -311,6 +369,25 @@ class TrackerApiClient {
         _uri('/api/sessions/$sessionId/alert'),
         headers: await _headers(),
         body: jsonEncode({'deviceKey': deviceKey, 'memberId': memberId, 'kind': kind}),
+      );
+      return res.statusCode ~/ 100 == 2;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Retire une alerte déclenchée par erreur. Le serveur ne l'accepte que de
+  /// celui qui l'a déclenchée : les autres ne savent pas s'il va bien.
+  Future<bool> clearAlert({
+    required String sessionId,
+    required String deviceKey,
+    required String memberId,
+  }) async {
+    try {
+      final res = await _client.post(
+        _uri('/api/sessions/$sessionId/alert/clear'),
+        headers: await _headers(),
+        body: jsonEncode({'deviceKey': deviceKey, 'memberId': memberId}),
       );
       return res.statusCode ~/ 100 == 2;
     } catch (_) {
