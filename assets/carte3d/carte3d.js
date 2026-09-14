@@ -37,6 +37,13 @@ const CHEMINS = [
 // ne se chargeait alors pas du tout, et l'écran restait sur sa roue (constaté
 // sur appareil le 2026-09-12).
 const depart = { lon: 1.44, lat: 43.60, zoom: 12.5 };
+
+// Là où l'application veut nous emmener. Mémorisée plutôt qu'appliquée tout
+// de suite : `allerA` peut être appelée avant que la carte existe, puisque sa
+// construction attend un style téléchargé sur le réseau. Sans ce relais,
+// l'ordre arrivait dans le vide et la vue restait sur `depart` — c'est-à-dire
+// Toulouse, où que le rider regarde (constaté le 2026-09-14).
+let cible = null;
 let fond = 'photo';
 let exageration = 1.5;
 let liberty = null;
@@ -82,6 +89,24 @@ function appliquerVisibilite() {
 const appliquerRelief = () =>
   map.setTerrain({ source: 'releve', exaggeration: exageration });
 
+// Amène la carte sur la cible mémorisée. Sans effet tant que la carte n'est
+// pas construite : elle sera rappelée à ce moment-là.
+function appliquerCible() {
+  if (!cible || !map) return;
+  if ((cible.fond === 'topo' || cible.fond === 'photo') && cible.fond !== fond) {
+    bouton(cible.fond === 'topo' ? 'f-topo' : 'f-photo').click();
+  }
+  map.jumpTo({ center: [cible.lon, cible.lat], zoom: cible.zoom, pitch: 70 });
+}
+
+// Exposée des le chargement du script, avant toute attente reseau : c'est ce
+// qui garantit que l'ordre de l'application ne tombe jamais dans le vide.
+window.allerA = (lon, lat, zoom, fondDemande) => {
+  cible = { lon, lat, zoom, fond: fondDemande };
+  appliquerCible();
+  return 'ok';
+};
+
 (async () => {
   map = new maplibregl.Map({
     container: 'map', style: await styleCourant(),
@@ -102,18 +127,13 @@ const appliquerRelief = () =>
   }
   bouton('c-chemins').onclick = (e) => { bascule(e.target); appliquerVisibilite(); };
   bouton('c-noms').onclick = (e) => { bascule(e.target); appliquerVisibilite(); };
-  // Appelée par l'application dès que la page est prête.
-  window.allerA = (lon, lat, zoom, fondDemande) => {
-    if (fondDemande === 'topo' || fondDemande === 'photo') {
-      bouton(fondDemande === 'topo' ? 'f-topo' : 'f-photo').click();
-    }
-    map.jumpTo({ center: [lon, lat], zoom: zoom, pitch: 70 });
-    return 'ok';
-  };
-
   bouton('c-relief').onclick = (e) => {
     exageration = exageration >= 2.4 ? 1.5 : exageration + 0.45;
     e.target.classList.toggle('actif', exageration > 1.5);
     appliquerRelief();
   };
+
+  // Tout est en place, boutons de fond compris : si l'ordre de l'application
+  // est arrivé pendant le téléchargement du style, on l'honore maintenant.
+  appliquerCible();
 })();
