@@ -242,10 +242,18 @@ filtre « Aire camping-car » qu'aux camping-cars, coché d'office puisque c'est
 leur recherche la plus utile. Les aires municipales françaises apparaissent
 donc avec nom, adresse et contact, sans rien attendre du chantier serveur.
 
-**Reste à faire**, dans l'ordre : table `aires` côté serveur → ingestion OSM
-Europe → ingestion DATAtourisme → endpoint `bbox` → cache hors-ligne dans
-l'app → fiche détaillée au clic (nom, services, prix, places, gabarit) →
-contribution utilisateur sur les champs manquants (section 6).
+**Fait le 2026-09-14, côté serveur** (`moto-tracker-server`, commit
+`9261564`) : table `aire`, traduction des tags OSM, fusion des deux sources à
+moins de 120 m, ingestion Overpass par cases de 2° avec bascule de miroir, et
+`GET /api/aires?bbox=sud,ouest,nord,est`. Vérifié sur Overpass réel : 18
+aires sur une case du Lauragais, noms, places, tarifs et services compris.
+33 tests.
+
+**Reste à faire**, dans l'ordre : ingestion DATAtourisme côté serveur (le
+connecteur existe déjà dans l'app, il faut son équivalent serveur) → cache
+hors-ligne par région dans l'app → fiche détaillée au clic (nom, services,
+prix, places, gabarit) → contribution utilisateur sur les champs manquants
+(section 6), qui est la seule partie encore non commencée.
 
 À noter : tant que la fiche détaillée n'existe pas, les aires s'affichent avec
 ce que rend l'API — nom, adresse, téléphone, site. Le prix, les places et la
