@@ -249,11 +249,20 @@ moins de 120 m, ingestion Overpass par cases de 2° avec bascule de miroir, et
 aires sur une case du Lauragais, noms, places, tarifs et services compris.
 33 tests.
 
-**Reste à faire**, dans l'ordre : ingestion DATAtourisme côté serveur (le
-connecteur existe déjà dans l'app, il faut son équivalent serveur) → cache
-hors-ligne par région dans l'app → fiche détaillée au clic (nom, services,
-prix, places, gabarit) → contribution utilisateur sur les champs manquants
-(section 6), qui est la seule partie encore non commencée.
+**Fait le 2026-09-14, la chaîne complète** :
+
+| Morceau | Où |
+|---|---|
+| Ingestion DATAtourisme | `src/aires/datatourisme.js` — nom, position, adresse, description ; ni prix ni places structurés côté API, donc rien n'est extrait de la prose |
+| Contributions | `src/aires/contributions.js` + `POST /api/aires/:id/contribution` — journal, consensus à 2 avis, comptes vérifiés |
+| Client app | `lib/services/aires_api_client.dart` |
+| Cache hors-ligne | `lib/services/aires_cache.dart`, base locale v3 — réseau d'abord, cache ensuite |
+| Fiche au clic | `lib/widgets/aire_sheet.dart` — « Non renseigné · compléter » sur chaque champ vide |
+| Verdict de gabarit | affiché **seulement** si la hauteur de l'aire est connue |
+
+**Reste à faire** : le pack régional hors-ligne téléchargé d'avance (le cache
+actuel ne garde que ce qui a été affiché), et la modération des
+contributions si le volume l'exige.
 
 À noter : tant que la fiche détaillée n'existe pas, les aires s'affichent avec
 ce que rend l'API — nom, adresse, téléphone, site. Le prix, les places et la
