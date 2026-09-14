@@ -15,6 +15,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kMiles       = 'unit_miles';
   static const _kScreenOn    = 'map_keep_screen_on';
   static const _kAutoHideNav = 'map_auto_hide_nav_bar';
+  static const _kTileDiag    = 'map_tile_diagnostic';
   static const _kAutoReply     = 'call_auto_reply';
   static const _kAutoReplyPos  = 'call_auto_reply_position';
   static const _kAutoReplyAll  = 'call_auto_reply_all';
@@ -53,6 +54,10 @@ class SettingsProvider extends ChangeNotifier {
   bool _useMiles         = false;
   bool _keepScreenOnMap  = true;
   bool _autoHideNavBar   = true;
+  // Bandeau de diagnostic des tuiles : eteint par defaut. C'est un outil de
+  // depannage, pas un element de conduite — il n'a rien a faire sur la carte
+  // quand on roule.
+  bool _tileDiagnostic   = false;
   bool _autoReplyEnabled        = true;
   bool _autoReplyAttachPosition = true;
   bool _autoReplyAllCallers     = false;
@@ -83,6 +88,7 @@ class SettingsProvider extends ChangeNotifier {
   bool get useMiles         => _useMiles;
   bool get keepScreenOnMap  => _keepScreenOnMap;
   bool get autoHideNavBar   => _autoHideNavBar;
+  bool get tileDiagnostic   => _tileDiagnostic;
   bool   get autoReplyEnabled        => _autoReplyEnabled;
   bool   get autoReplyAttachPosition => _autoReplyAttachPosition;
   bool   get autoReplyAllCallers     => _autoReplyAllCallers;
@@ -118,6 +124,7 @@ class SettingsProvider extends ChangeNotifier {
     _useMiles         = prefs.getBool(_kMiles)      ?? false;
     _keepScreenOnMap  = prefs.getBool(_kScreenOn)   ?? true;
     _autoHideNavBar   = prefs.getBool(_kAutoHideNav) ?? true;
+    _tileDiagnostic   = prefs.getBool(_kTileDiag)   ?? false;
     _autoReplyEnabled        = prefs.getBool(_kAutoReply)    ?? true;
     _autoReplyAttachPosition = prefs.getBool(_kAutoReplyPos) ?? true;
     _autoReplyAllCallers     = prefs.getBool(_kAutoReplyAll) ?? false;
@@ -201,6 +208,12 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setAutoHideNavBar(bool v) async {
     _autoHideNavBar = v;
     (await SharedPreferences.getInstance()).setBool(_kAutoHideNav, v);
+    notifyListeners();
+  }
+
+  Future<void> setTileDiagnostic(bool v) async {
+    _tileDiagnostic = v;
+    (await SharedPreferences.getInstance()).setBool(_kTileDiag, v);
     notifyListeners();
   }
 

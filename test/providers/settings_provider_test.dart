@@ -187,4 +187,29 @@ void main() {
     await s.toggleMapHeadingUp();
     expect(s.mapHeadingUp, isFalse);
   });
+
+  // Le bandeau de diagnostic des tuiles est un outil de depannage, pas un
+  // element de conduite : il ne doit jamais s'inviter sur la carte sans
+  // qu'on l'ait demande (choix du 2026-09-14).
+  group('diagnostic des tuiles', () {
+    test('eteint par defaut', () async {
+      SharedPreferences.setMockInitialValues({});
+      final s = SettingsProvider();
+      await s.load();
+
+      expect(s.tileDiagnostic, isFalse);
+    });
+
+    test('le choix survit au redemarrage', () async {
+      SharedPreferences.setMockInitialValues({});
+      final premiere = SettingsProvider();
+      await premiere.load();
+      await premiere.setTileDiagnostic(true);
+
+      final seconde = SettingsProvider();
+      await seconde.load();
+
+      expect(seconde.tileDiagnostic, isTrue);
+    });
+  });
 }

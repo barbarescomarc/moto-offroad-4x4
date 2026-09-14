@@ -638,12 +638,25 @@ class _SettingsScreenState extends State<SettingsScreen>
 
   // ── Application : version, partage, mise à jour ─────────────
   Widget _appSection() {
+    final settings = context.watch<SettingsProvider>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _sectionLabel('APPLICATION'),
         const UpdateTile(),
         const MapCacheTile(),
+        // Outil de depannage : il dit d'ou vient chaque tuile (reseau, cache,
+        // erreur) et quel fond est reellement actif. Utile quand la carte se
+        // comporte mal ; hors de propos le reste du temps, d'ou l'extinction
+        // par defaut.
+        SwitchListTile(
+          secondary: const Icon(Icons.bug_report_outlined),
+          title: const Text('Diagnostic des tuiles'),
+          subtitle: const Text('Affiche sur la carte le fond actif et l\'origine '
+              'des tuiles. À n\'activer qu\'en cas de souci d\'affichage.'),
+          value: settings.tileDiagnostic,
+          onChanged: settings.setTileDiagnostic,
+        ),
       ],
     );
   }

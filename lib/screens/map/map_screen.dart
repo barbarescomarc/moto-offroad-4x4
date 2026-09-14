@@ -319,16 +319,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
           if (_tauntMessage != null) _buildTauntOverlay(),
 
-          // Bandeau de diagnostic des tuiles (temporaire, 2026-09-11).
-          // Posé au-dessus de la barre de statistiques : à `bottom: 0` il
-          // passait derrière elle et restait invisible sur l'appareil.
-          Positioned(
-            left: 6,
-            bottom: 118,
-            child: TileDiagnosticOverlay(
-              couche: context.watch<MapProvider>().activeLayer.name,
+          // Bandeau de diagnostic des tuiles — éteint par défaut, allumé
+          // depuis Réglages. Outil de dépannage, pas élément de conduite :
+          // la carte reste nette pour rouler. Posé au-dessus de l'échelle
+          // de distance, qui garde le bas de l'écran.
+          if (context.watch<SettingsProvider>().tileDiagnostic)
+            Positioned(
+              left: 6,
+              bottom: _margeEchelleStats + _hauteurEchelle,
+              child: TileDiagnosticOverlay(
+                couche: context.watch<MapProvider>().activeLayer.name,
+              ),
             ),
-          ),
 
           // ── HUD fullscreen ───────────────────────────────
           if (isFullscreen) ...[
@@ -509,6 +511,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   static const double _margeEchellePleinEcran = 150;
   static const double _margeEchelleStats = AppSizes.statsBarHeight + 8;
   static const double _margeEchelleRasDuBord = 8;
+  // Hauteur de la pastille d'échelle : ce qu'il faut dégager au-dessus
+  // d'elle pour que le bandeau de diagnostic ne la recouvre pas.
+  static const double _hauteurEchelle = 54;
 
   Widget _buildMap({required double margeEchelle}) {
     final mapProv   = context.watch<MapProvider>();
