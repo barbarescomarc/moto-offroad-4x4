@@ -22,7 +22,6 @@ import '../../models/trace.dart';
 import '../../models/favorite_place.dart';
 import '../../models/route_result.dart';
 import '../../models/poi.dart';
-import '../../models/vehicle_kind.dart';
 import '../../services/location_service.dart';
 import '../../services/routing_service.dart';
 import '../../services/ride_repository.dart';
@@ -1091,16 +1090,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Future<void> _finishDrawingTrace() async {
     if (_drawPoints.length < 2) return;
     final mapProv = context.read<MapProvider>();
+    final settings = context.read<SettingsProvider>();
     final routing = RoutingService();
-    final profile = mapProv.navMode == NavMode.offroad
-        ? RoutingProfile.cyclingMountain
-        : RoutingProfile.drivingCar;
+    final profile = profilItineraire(
+      vehicule: settings.vehicleKind,
+      modeHorsRoute: mapProv.navMode == NavMode.offroad,
+      autoriseHorsRoute: settings.autoriseHorsRoute,
+    );
 
     setState(() => _isComputingDrawnRoute = true);
     RouteResult route;
     try {
       route = await routing.fetchMultiPointRoute(
         waypoints: List.of(_drawPoints), profile: profile,
+        gabarit: settings.gabarit,
       );
     } on RoutingException catch (e) {
       if (mounted) {
@@ -1292,12 +1295,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     }
     setState(() => _isRecomputingEdit = true);
     final mapProv = context.read<MapProvider>();
-    final profile = mapProv.navMode == NavMode.offroad
-        ? RoutingProfile.cyclingMountain
-        : RoutingProfile.drivingCar;
+    final settings = context.read<SettingsProvider>();
+    final profile = profilItineraire(
+      vehicule: settings.vehicleKind,
+      modeHorsRoute: mapProv.navMode == NavMode.offroad,
+      autoriseHorsRoute: settings.autoriseHorsRoute,
+    );
     try {
       final route = await RoutingService().fetchMultiPointRoute(
         waypoints: List.of(_editWaypoints), profile: profile,
+        gabarit: settings.gabarit,
       );
       if (!mounted) return;
       setState(() {
@@ -2140,17 +2147,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
     final mapProv = context.read<MapProvider>();
     final settings = context.read<SettingsProvider>();
-    // ORS n'a pas de profil "4x4" dédié : le mode réutilise le profil route,
-    // seul à couvrir des pistes carrossables par un véhicule à quatre roues.
-    //
-    // Le camping-car, lui, passe par le profil poids lourd quel que soit le
-    // mode : c'est le seul qu'ORS laisse contraindre en hauteur, longueur et
-    // tonnage, et lui proposer une piste serait un mauvais service.
-    final profile = settings.vehicleKind.hasGabarit
-        ? RoutingProfile.drivingHgv
-        : mapProv.navMode == NavMode.offroad
-            ? RoutingProfile.cyclingMountain
-            : RoutingProfile.drivingCar;
+    final profile = profilItineraire(
+      vehicule: settings.vehicleKind,
+      modeHorsRoute: mapProv.navMode == NavMode.offroad,
+      autoriseHorsRoute: settings.autoriseHorsRoute,
+    );
     final avoid = <AvoidFeature>{
       if (settings.guidanceAvoidHighways) AvoidFeature.highways,
       if (settings.guidanceAvoidTolls) AvoidFeature.tollways,

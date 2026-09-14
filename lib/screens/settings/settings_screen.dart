@@ -223,7 +223,34 @@ class _SettingsScreenState extends State<SettingsScreen>
               : 'Les stations-service et les réparateurs s\'affichent autour de toi.',
           style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
         ),
+        // Le réglage n'a de sens que pour le camping-car : les deux autres
+        // véhicules vont déjà sur la piste sans avoir à le demander.
+        if (settings.vehicleKind.hasGabarit) _horsRouteInterrupteur(settings),
       ],
+    );
+  }
+
+  /// La piste, pour les fourgons 4x4 qui la pratiquent vraiment.
+  ///
+  /// Le sous-titre annonce la contrepartie plutôt que de la laisser
+  /// découvrir en route : sur piste, ORS n'accepte plus le profil poids
+  /// lourd, donc plus les restrictions de hauteur. Le pilote qui ouvre cet
+  /// interrupteur doit savoir ce qu'il échange.
+  Widget _horsRouteInterrupteur(SettingsProvider settings) {
+    return SwitchListTile(
+      key: const Key('van-hors-route'),
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Autoriser les pistes'),
+      subtitle: Text(
+        settings.vanToutTerrain
+            ? 'Mode Offroad ouvert. Sur piste, la hauteur et le tonnage ne '
+              'sont plus pris en compte dans l\'itinéraire.'
+            : 'Pour les fourgons 4x4. Sans ça, le guidage reste sur les '
+              'routes ouvertes, hauteur et tonnage respectés.',
+        style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
+      ),
+      value: settings.vanToutTerrain,
+      onChanged: settings.setVanToutTerrain,
     );
   }
 

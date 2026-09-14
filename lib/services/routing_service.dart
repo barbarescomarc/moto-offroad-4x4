@@ -29,6 +29,28 @@ extension RoutingProfileExt on RoutingProfile {
   bool get accepteGabarit => this == RoutingProfile.drivingHgv;
 }
 
+/// Le profil ORS à demander pour ce véhicule dans ce mode de navigation.
+///
+/// ORS n'a pas de profil « 4x4 » dédié : hors du mode hors-route, un véhicule
+/// à quatre roues reprend le profil route, seul à couvrir les pistes qu'il
+/// peut carrosser.
+///
+/// Le camping-car passe par le profil poids lourd, le seul qu'ORS laisse
+/// contraindre en hauteur, longueur et tonnage. Il n'en sort que si son
+/// pilote a ouvert la piste dans les Réglages — les fourgons 4x4 existent.
+/// Sur piste, le gabarit cesse d'être transmis : ORS rejette la requête
+/// entière si on le joint à un autre profil que le poids lourd. C'est le prix
+/// assumé d'aller là où un porteur de 3,5 t ne va pas, et le réglage le dit.
+RoutingProfile profilItineraire({
+  required VehicleKind vehicule,
+  required bool modeHorsRoute,
+  required bool autoriseHorsRoute,
+}) {
+  if (modeHorsRoute && autoriseHorsRoute) return RoutingProfile.cyclingMountain;
+  if (vehicule.hasGabarit) return RoutingProfile.drivingHgv;
+  return RoutingProfile.drivingCar;
+}
+
 enum AvoidFeature { highways, tollways, ferries }
 
 extension AvoidFeatureExt on AvoidFeature {

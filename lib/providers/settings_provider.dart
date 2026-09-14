@@ -9,6 +9,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _kHauteur  = 'gabarit_hauteur_m';
   static const _kLongueur = 'gabarit_longueur_m';
   static const _kPoids    = 'gabarit_poids_t';
+  static const _kVanToutTerrain = 'van_tout_terrain';
   static const _kLevel    = 'skill_level';
   static const _kMoto     = 'moto_index';
   static const _kName     = 'rider_name';
@@ -54,6 +55,7 @@ class SettingsProvider extends ChangeNotifier {
   double _gabaritHauteurM;
   double _gabaritLongueurM;
   double _gabaritPoidsT;
+  bool _vanToutTerrain = false;
   SkillLevel _skillLevel  = SkillLevel.confirme;
   MotoPreset? _moto;
   String _riderName       = 'Pilote';
@@ -92,6 +94,17 @@ class SettingsProvider extends ChangeNotifier {
   double      get gabaritHauteurM  => _gabaritHauteurM;
   double      get gabaritLongueurM => _gabaritLongueurM;
   double      get gabaritPoidsT    => _gabaritPoidsT;
+
+  bool get vanToutTerrain => _vanToutTerrain;
+
+  /// Le véhicule a-t-il le droit de quitter les routes ouvertes ?
+  ///
+  /// Le camping-car dit non par défaut : envoyer un profilé de 3,5 t sur une
+  /// piste DFCI serait un mauvais service. Mais les fourgons 4x4 existent, et
+  /// leur refuser la piste reviendrait à décider à leur place — d'où ce
+  /// réglage, qui n'a de sens que pour eux. Les autres véhicules y vont déjà
+  /// sans avoir à le demander.
+  bool get autoriseHorsRoute => _vehicleKind.roulesHorsRoute || _vanToutTerrain;
 
   /// Le gabarit à transmettre au calcul d'itinéraire, ou `null` quand le
   /// véhicule n'en a pas — une moto passe partout où passe une voiture.
@@ -144,6 +157,7 @@ class SettingsProvider extends ChangeNotifier {
     _gabaritHauteurM  = prefs.getDouble(_kHauteur)  ?? VehicleKind.van.hauteurParDefautM;
     _gabaritLongueurM = prefs.getDouble(_kLongueur) ?? VehicleKind.van.longueurParDefautM;
     _gabaritPoidsT    = prefs.getDouble(_kPoids)    ?? VehicleKind.van.poidsParDefautT;
+    _vanToutTerrain   = prefs.getBool(_kVanToutTerrain) ?? false;
     _skillLevel = SkillLevel.values[
       (prefs.getInt(_kLevel) ?? 1).clamp(0, SkillLevel.values.length - 1)
     ];
@@ -183,6 +197,13 @@ class SettingsProvider extends ChangeNotifier {
   Future<void> setVehicleKind(VehicleKind kind) async {
     _vehicleKind = kind;
     (await SharedPreferences.getInstance()).setInt(_kVehicle, kind.index);
+    notifyListeners();
+  }
+
+  /// Ouvre — ou referme — la piste au camping-car. Voir [autoriseHorsRoute].
+  Future<void> setVanToutTerrain(bool autorise) async {
+    _vanToutTerrain = autorise;
+    (await SharedPreferences.getInstance()).setBool(_kVanToutTerrain, autorise);
     notifyListeners();
   }
 

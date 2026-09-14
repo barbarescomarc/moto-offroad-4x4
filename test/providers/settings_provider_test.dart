@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:moto_offroad/models/vehicle_kind.dart';
 import 'package:moto_offroad/providers/settings_provider.dart';
 
 void main() {
@@ -210,6 +211,63 @@ void main() {
       await seconde.load();
 
       expect(seconde.tileDiagnostic, isTrue);
+    });
+  });
+
+  // Les fourgons 4x4 existent : leur refuser la piste reviendrait a decider a
+  // leur place. Mais un profile de 3,5 t n'a rien a y faire, donc le reglage
+  // part ferme et ne s'ouvre que sur demande explicite.
+  group('la piste pour le camping-car', () {
+    test('fermee par defaut', () async {
+      SharedPreferences.setMockInitialValues({});
+      final s = SettingsProvider();
+      await s.load();
+      await s.setVehicleKind(VehicleKind.van);
+
+      expect(s.vanToutTerrain, isFalse);
+      expect(s.autoriseHorsRoute, isFalse);
+    });
+
+    test('ouverte, elle autorise le camping-car hors route', () async {
+      SharedPreferences.setMockInitialValues({});
+      final s = SettingsProvider();
+      await s.load();
+      await s.setVehicleKind(VehicleKind.van);
+      await s.setVanToutTerrain(true);
+
+      expect(s.autoriseHorsRoute, isTrue);
+    });
+
+    test('le choix survit au redemarrage', () async {
+      SharedPreferences.setMockInitialValues({});
+      final premiere = SettingsProvider();
+      await premiere.load();
+      await premiere.setVanToutTerrain(true);
+
+      final seconde = SettingsProvider();
+      await seconde.load();
+
+      expect(seconde.vanToutTerrain, isTrue);
+    });
+
+    test('les autres vehicules vont hors route sans rien demander', () async {
+      SharedPreferences.setMockInitialValues({});
+      final s = SettingsProvider();
+      await s.load();
+      await s.setVehicleKind(VehicleKind.moto);
+
+      expect(s.vanToutTerrain, isFalse);
+      expect(s.autoriseHorsRoute, isTrue);
+    });
+
+    test('le gabarit reste transmis meme piste ouverte', () async {
+      SharedPreferences.setMockInitialValues({});
+      final s = SettingsProvider();
+      await s.load();
+      await s.setVehicleKind(VehicleKind.van);
+      await s.setVanToutTerrain(true);
+
+      expect(s.gabarit, isNotNull);
     });
   });
 }
