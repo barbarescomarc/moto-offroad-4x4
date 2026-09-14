@@ -13,6 +13,11 @@ const Map<PoiCategory, String> _apiTypeFor = {
   PoiCategory.guestHouse:  'Guesthouse',
   PoiCategory.naturalSite: 'NaturalHeritage',
   PoiCategory.heritage:    'CulturalSite',
+  // L'aire de camping-car est le seul de ces types qu'OpenStreetMap couvre
+  // mal : les aires municipales sont tenues par les offices de tourisme, qui
+  // alimentent DATAtourisme et pas OSM. Les deux sources se complètent donc
+  // au lieu de se répéter (voir la note de conception du 2026-09-14).
+  PoiCategory.aireCampingCar: 'CamperVanArea',
 };
 
 class DataTourismeService {

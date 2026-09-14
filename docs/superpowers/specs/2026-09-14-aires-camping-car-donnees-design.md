@@ -233,13 +233,21 @@ Deux conditions à ne pas oublier : annoncer clairement dans les CGU que les
 contributions deviennent partie de la base, et garder l'attribution ODbL pour
 ce qui vient d'OSM.
 
-## 7. Prochaine étape recommandée
+## 7. Avancement
 
-Gain immédiat, coût d'une ligne : ajouter le type `CamperVanArea` à l'appel
-DATAtourisme (`data_tourisme_service.dart:47`, qui ne demande aujourd'hui
-que `Camping`). Les aires municipales françaises apparaissent, avec nom,
-services et tarifs — sans attendre le chantier serveur.
+**Fait le 2026-09-14** — les aires DATAtourisme sont branchées :
+`PoiCategory.aireCampingCar` interroge le type `CamperVanArea`
+(`data_tourisme_service.dart`), et la feuille de recherche ne propose le
+filtre « Aire camping-car » qu'aux camping-cars, coché d'office puisque c'est
+leur recherche la plus utile. Les aires municipales françaises apparaissent
+donc avec nom, adresse et contact, sans rien attendre du chantier serveur.
 
-Puis, dans l'ordre : table `aires` côté serveur → ingestion OSM Europe →
-ingestion DATAtourisme → endpoint `bbox` → cache hors-ligne dans l'app →
-contribution utilisateur sur les champs manquants.
+**Reste à faire**, dans l'ordre : table `aires` côté serveur → ingestion OSM
+Europe → ingestion DATAtourisme → endpoint `bbox` → cache hors-ligne dans
+l'app → fiche détaillée au clic (nom, services, prix, places, gabarit) →
+contribution utilisateur sur les champs manquants (section 6).
+
+À noter : tant que la fiche détaillée n'existe pas, les aires s'affichent avec
+ce que rend l'API — nom, adresse, téléphone, site. Le prix, les places et la
+hauteur limite viendront avec le serveur, seul endroit où les contributions
+peuvent être écrites.

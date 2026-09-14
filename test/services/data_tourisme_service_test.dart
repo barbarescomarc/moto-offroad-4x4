@@ -117,6 +117,63 @@ void main() {
       expect(types, containsAll(['type=Guesthouse', 'type=Camping']));
     });
 
+    // L'aire de camping-car est le seul type DATAtourisme que les bases
+    // libres couvrent mal : OSM n'en connaît qu'une fraction, et ce sont les
+    // offices de tourisme qui tiennent les aires municipales.
+    test('l aire de camping-car interroge le type CamperVanArea', () async {
+      final types = <String>[];
+      final service = DataTourismeService(client: MockClient((request) async {
+        types.add(request.url.queryParameters['filters'] ?? '');
+        return http.Response(jsonEncode(_catalogResponse(const [])), 200);
+      }));
+
+      await service.searchAround(
+        position, radiusKm: 20, categories: {PoiCategory.aireCampingCar},
+      );
+
+      expect(types, ['type=CamperVanArea']);
+    });
+
+    test('une aire trouvée garde la catégorie aire de camping-car', () async {
+      final body = jsonEncode(_catalogResponse([
+        _place(
+          uuid: 'aire1',
+          nameFr: 'Aire de services de Saumur',
+          types: ['PointOfInterest', 'Accommodation', 'CampingAndCaravanning',
+                  'CamperVanArea'],
+          lat: 47.26, lon: -0.07,
+          locality: 'Saumur',
+        ),
+      ]));
+      final service = DataTourismeService(
+          client: MockClient((_) async => http.Response(body, 200)));
+
+      final results = await service.searchAround(
+        position, radiusKm: 20, categories: {PoiCategory.aireCampingCar},
+      );
+
+      expect(results, hasLength(1));
+      expect(results.first.category, PoiCategory.aireCampingCar);
+      expect(results.first.name, 'Aire de services de Saumur');
+    });
+
+    // Les autres véhicules n'ont rien à faire d'une aire de camping-car : la
+    // demander pour eux ferait payer un appel réseau pour des points qui ne
+    // seront jamais affichés.
+    test('chercher un point de vue n interroge pas les aires', () async {
+      final types = <String>[];
+      final service = DataTourismeService(client: MockClient((request) async {
+        types.add(request.url.queryParameters['filters'] ?? '');
+        return http.Response(jsonEncode(_catalogResponse(const [])), 200);
+      }));
+
+      await service.searchAround(
+        position, radiusKm: 20, categories: {PoiCategory.viewpoint},
+      );
+
+      expect(types, ['type=PointOfView']);
+    });
+
     test('dédoublonne les résultats par identifiant entre catégories', () async {
       final shared = _place(
         uuid: 'dup1', nameFr: 'Site partagé',

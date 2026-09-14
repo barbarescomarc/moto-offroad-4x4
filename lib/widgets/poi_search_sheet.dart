@@ -5,15 +5,24 @@ import 'package:provider/provider.dart';
 import '../app/theme.dart';
 import '../models/poi.dart';
 import '../providers/guidance_provider.dart';
+import '../models/vehicle_kind.dart';
 import '../providers/poi_search_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/location_service.dart';
 
-const _searchableCategories = [
-  PoiCategory.viewpoint,
-  PoiCategory.guestHouse,
-  PoiCategory.naturalSite,
-  PoiCategory.heritage,
-];
+/// Ce que le véhicule permet de chercher dans DATAtourisme.
+///
+/// L'aire de camping-car n'a de sens que pour qui en conduit un — la proposer
+/// à une moto remplirait la liste d'un filtre qu'elle ne cochera jamais. Pour
+/// le camping-car en revanche c'est la recherche la plus utile de la liste,
+/// donc elle passe devant et se coche d'office.
+List<PoiCategory> _categoriesCherchables(VehicleKind vehicule) => [
+      if (vehicule.hasGabarit) PoiCategory.aireCampingCar,
+      PoiCategory.viewpoint,
+      PoiCategory.guestHouse,
+      PoiCategory.naturalSite,
+      PoiCategory.heritage,
+    ];
 
 class PoiSearchSheet extends StatefulWidget {
   final LocationService locationService;
@@ -25,7 +34,18 @@ class PoiSearchSheet extends StatefulWidget {
 
 class _PoiSearchSheetState extends State<PoiSearchSheet> {
   PoiSearchMode _mode = PoiSearchMode.aroundMe;
-  final Set<PoiCategory> _selected = {PoiCategory.viewpoint};
+  final Set<PoiCategory> _selected = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // La première catégorie de la liste est celle qui sert le plus au
+    // véhicule courant : point de vue pour une moto, aire pour un
+    // camping-car. Ouvrir la feuille sans rien de coché obligerait à cocher
+    // avant de pouvoir chercher.
+    final vehicule = context.read<SettingsProvider>().vehicleKind;
+    _selected.add(_categoriesCherchables(vehicule).first);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +93,10 @@ class _PoiSearchSheetState extends State<PoiSearchSheet> {
             fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1)),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8,
-            children: _searchableCategories.map(_categoryChip).toList()),
+            children: _categoriesCherchables(
+                    context.watch<SettingsProvider>().vehicleKind)
+                .map(_categoryChip)
+                .toList()),
           const SizedBox(height: 20),
 
           SizedBox(
