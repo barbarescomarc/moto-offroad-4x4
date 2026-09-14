@@ -16,6 +16,9 @@ import '../../providers/solo_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/favorites_provider.dart';
 import '../../providers/guidance_provider.dart';
+import '../../models/aire.dart';
+import '../../models/vehicle_kind.dart';
+import '../../providers/aires_provider.dart';
 import '../../providers/poi_search_provider.dart';
 import '../../providers/fuel_poi_provider.dart';
 import '../../models/trace.dart';
@@ -50,6 +53,7 @@ import '../../widgets/alerte_groupe_banner.dart';
 import '../../widgets/guidance_banner.dart';
 import '../../widgets/speed_limit_badge.dart';
 import '../../widgets/maneuver_tile.dart';
+import '../../widgets/aire_sheet.dart';
 import '../../widgets/poi_search_sheet.dart';
 import '../../widgets/offline_download_sheet.dart';
 
@@ -416,6 +420,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       );
                     },
                   ),
+                  // Reserve au camping-car : les aires n'interessent que lui,
+                  // et un bouton de plus sur la carte d'une moto est un bouton
+                  // de trop.
+                  if (context.watch<SettingsProvider>().vehicleKind.hasGabarit) ...[
+                    const SizedBox(height: 6),
+                    _boutonAires(),
+                  ],
                   const SizedBox(height: 6),
                   _mapCtrlBtn(
                     Icons.explore,
@@ -745,6 +756,26 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   ))
               .toList(),
         ),
+
+        // ── Aires de camping-car ────────────────────────────
+        // Calque a part des POI : une aire porte un gabarit, un tarif et un
+        // nombre de places, et sa fiche propose de completer ce qui manque.
+        // Rien a voir avec un point d'interet touristique.
+        if (context.watch<AiresProvider>().visible)
+          MarkerLayer(
+            markers: context
+                .watch<AiresProvider>()
+                .aires
+                .map((aire) => Marker(
+                      point: aire.position,
+                      width: 34, height: 34,
+                      child: GestureDetector(
+                        onTap: () => _ouvrirFicheAire(aire),
+                        child: _marqueurAire(),
+                      ),
+                    ))
+                .toList(),
+          ),
 
         // ── Trace en cours d'édition ─────────────────────────
         if (_isEditingTrace) ...[
@@ -1405,6 +1436,75 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => PoiSearchSheet(locationService: _locationService),
+    );
+  }
+
+  Widget _marqueurAire() => Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0277BD),
+          shape: BoxShape.circle,
+          border: Border.all(color: Colors.white, width: 2),
+        ),
+        alignment: Alignment.center,
+        child: const Text('🚐', style: TextStyle(fontSize: 16)),
+      );
+
+  Widget _boutonAires() {
+    final aires = context.watch<AiresProvider>();
+    return _mapCtrlBtn(
+      aires.chargement ? Icons.hourglass_top : Icons.local_parking,
+      _chargerAires,
+      active: aires.aires.isNotEmpty && aires.visible,
+    );
+  }
+
+  Future<void> _chargerAires() async {
+    final aires = context.read<AiresProvider>();
+    // Deja chargees et visibles : le bouton les masque plutot que de
+    // redemander la meme chose au serveur.
+    if (aires.aires.isNotEmpty && aires.visible) {
+      aires.basculerVisibilite();
+      return;
+    }
+    if (aires.aires.isNotEmpty && !aires.visible) {
+      aires.basculerVisibilite();
+      return;
+    }
+
+    final centre = _mapReady
+        ? _mapController.camera.center
+        : context.read<MapProvider>().center;
+    final messenger = ScaffoldMessenger.of(context);
+    await aires.charger(centre: centre);
+    if (!mounted) return;
+
+    final erreur = aires.erreur;
+    if (erreur != null) {
+      messenger.showSnackBar(SnackBar(content: Text(erreur)));
+      return;
+    }
+    if (aires.origine == OrigineAires.cache) {
+      messenger.showSnackBar(const SnackBar(
+        content: Text('Hors ligne : aires gardées sur le téléphone'),
+      ));
+    }
+  }
+
+  void _ouvrirFicheAire(AireModel aire) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.bgPanel,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => AireSheet(
+        aire: aire,
+        onGuider: () {
+          Navigator.pop(ctx);
+          _startGuidanceTo(aire.position);
+        },
+      ),
     );
   }
 

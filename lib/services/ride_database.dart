@@ -4,7 +4,7 @@ import 'package:sqflite/sqflite.dart';
 
 // ── Base de données locale des sorties ───────────────────────
 class RideDatabase {
-  static const int schemaVersion = 2;
+  static const int schemaVersion = 3;
   static const String fileName = 'rides.db';
 
   static Database? _instance;
@@ -64,6 +64,53 @@ class RideDatabase {
     await db.execute(
       'CREATE INDEX idx_ride_points_ride ON ride_points (ride_id, seq)',
     );
+
+    await creerTablesAires(db);
+  }
+
+  // ── Aires de camping-car gardées hors ligne (v3) ─────────
+  //
+  // Un camping-car cherche une aire précisément là où il n'y a pas de
+  // réseau. Le hors-ligne n'est donc pas un confort : sans lui la
+  // fonctionnalité manque au moment où elle sert.
+  //
+  // `aires_zone` retient quel rectangle a été téléchargé et quand, pour
+  // pouvoir dire à l'écran « données du 12 septembre » plutôt que de laisser
+  // croire que la carte est à jour.
+  static Future<void> creerTablesAires(Database db) async {
+    await db.execute('''
+      CREATE TABLE aires (
+        id            TEXT PRIMARY KEY,
+        lat           REAL    NOT NULL,
+        lng           REAL    NOT NULL,
+        source        TEXT    NOT NULL,
+        name          TEXT,
+        description   TEXT,
+        services_json TEXT,
+        price_text    TEXT,
+        price_eur     REAL,
+        capacity      INTEGER,
+        max_height_m  REAL,
+        max_length_m  REAL,
+        opening_hours TEXT,
+        phone         TEXT,
+        website       TEXT,
+        updated_at    INTEGER
+      )
+    ''');
+
+    await db.execute('CREATE INDEX idx_aires_position ON aires (lat, lng)');
+
+    await db.execute('''
+      CREATE TABLE aires_zone (
+        id         INTEGER PRIMARY KEY AUTOINCREMENT,
+        sud        REAL    NOT NULL,
+        ouest      REAL    NOT NULL,
+        nord       REAL    NOT NULL,
+        est        REAL    NOT NULL,
+        charge_le  INTEGER NOT NULL
+      )
+    ''');
   }
 
   // ── Migrations ───────────────────────────────────────────
@@ -76,6 +123,11 @@ class RideDatabase {
   // comprise, comme le veut sqflite pour une installation neuve) ne doit pas
   // faire échouer un ALTER TABLE en double si onUpgrade est rejoué dessus.
   static Future<void> onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 3) {
+      final tables = await db.rawQuery(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='aires'");
+      if (tables.isEmpty) await creerTablesAires(db);
+    }
     if (oldVersion < 2) {
       final columns = await db.rawQuery('PRAGMA table_info(rides)');
       final hasSharedTraceId = columns.any((c) => c['name'] == 'shared_trace_id');
