@@ -194,7 +194,9 @@ class MotoOffroadApp extends StatelessWidget {
               client: AiresApiClient(readToken: () => AccountStorage().readToken()),
             )),
         ChangeNotifierProvider(create: (_) => AccountProvider()..restore()),
-        ChangeNotifierProvider(create: (_) => FuelPoiProvider()),
+        // Les filtres de categories sont relus au demarrage : c'est une
+        // preference du pilote, pas un reglage d'un apres-midi.
+        ChangeNotifierProvider(create: (_) => FuelPoiProvider()..chargerFiltres()),
         ChangeNotifierProvider(
           create: (_) => SharedTracesProvider(
             SharedTracesApiClient(readToken: () => AccountStorage().readToken()),

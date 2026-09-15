@@ -54,6 +54,7 @@ import '../../widgets/guidance_banner.dart';
 import '../../widgets/speed_limit_badge.dart';
 import '../../widgets/maneuver_tile.dart';
 import '../../widgets/aire_sheet.dart';
+import '../../widgets/poi_filter_sheet.dart';
 import '../../widgets/poi_search_sheet.dart';
 import '../../widgets/offline_download_sheet.dart';
 
@@ -420,6 +421,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       );
                     },
                   ),
+                  // N'apparait qu'une fois qu'il y a quelque chose a filtrer :
+                  // un bouton qui ouvre une feuille vide est un bouton qui
+                  // ment.
+                  if (context.watch<FuelPoiProvider>().results.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    _mapCtrlBtn(
+                      Icons.filter_alt_outlined,
+                      _ouvrirFiltresPoi,
+                      active: context.watch<FuelPoiProvider>().resultatsFiltres.length
+                          != context.watch<FuelPoiProvider>().results.length,
+                    ),
+                  ],
                   // Reserve au camping-car : les aires n'interessent que lui,
                   // et un bouton de plus sur la carte d'une moto est un bouton
                   // de trop.
@@ -743,8 +756,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             ...context.watch<PoiSearchProvider>().results,
             // Masquees sans etre oubliees : le bouton bascule leur affichage
             // sans rien redemander a Overpass.
+            // Filtres compris : sur une carte de ville, chaque fontaine
+            // publique est un point d'eau, et la carte cache alors ce qu'on
+            // cherchait vraiment.
             if (context.watch<FuelPoiProvider>().visible)
-              ...context.watch<FuelPoiProvider>().results,
+              ...context.watch<FuelPoiProvider>().resultatsFiltres,
           ]
               .map((poi) => Marker(
                     point: poi.position,
@@ -1436,6 +1452,20 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => PoiSearchSheet(locationService: _locationService),
+    );
+  }
+
+  void _ouvrirFiltresPoi() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.bgPanel,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => ChangeNotifierProvider.value(
+        value: context.read<FuelPoiProvider>(),
+        child: const PoiFilterSheet(),
+      ),
     );
   }
 
