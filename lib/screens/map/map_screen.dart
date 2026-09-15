@@ -53,6 +53,7 @@ import '../../widgets/speed_limit_badge.dart';
 import '../../widgets/maneuver_tile.dart';
 import '../../widgets/aire_sheet.dart';
 import '../../widgets/feuille_poi.dart';
+import '../../widgets/feuille_famille.dart';
 import '../../widgets/offline_download_sheet.dart';
 
 class MapScreen extends StatefulWidget {
@@ -398,7 +399,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // en pastilles séparées s'atteint maintenant à l'appui long.
             Positioned(
               right: 12,
-              bottom: AppSizes.statsBarHeight + 16,
+              // 60 dp : la colonne descend un peu plus bas que la barre de
+              // statistiques ne l'imposait, pour rester à portée de pouce.
+              bottom: 60,
               child: _buildMapControls(),
             ),
 
@@ -938,99 +941,120 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   // ── CONTRÔLES CARTE ──────────────────────────────────────
   //
-  // Sept boutons, là où la colonne en portait douze. Trois d'entre eux sont
-  // des centres de menu radial : appui court pour leur action, appui long
-  // puis glissement pour atteindre ce qu'ils replient.
+  // Dix boutons, dont trois centres de menu radial groupés par famille :
+  // Enregistrement, Communauté, Guidage. Le regroupement par sens a remplacé
+  // le fourre-tout d'origine, où le cadran de Recentrer portait huit
+  // commandes sans rapport entre elles.
   //
-  // La colonne pend depuis le bas (voir le Positioned qui l'accueille), donc
-  // chaque bouton replié la fait descendre d'autant. À douze, elle mesurait
-  // 678 dp et son sommet passait derrière l'en-tête ; à sept, elle en fait
-  // 368 et démarre à 332 dp, tout entière à portée de pouce.
+  // Chaque centre garde une action à l'appui court : il ouvre la feuille qui
+  // liste sa famille en toutes lettres. Le cadran est un raccourci pour qui
+  // le connaît, jamais le seul chemin — une commande qu'on n'atteint que par
+  // un geste que personne n'a enseigné est une commande perdue.
   //
-  // Les angles ne sont pas au jugé. Deux pastilles ne se distinguent que si
-  // la corde qui les sépare vaut au moins leur largeur : à 48 dp et 150 de
-  // rayon, cela impose 22° entre voisines, et l'arc atteignable — borné par
-  // le bord de l'écran d'un côté, par la colonne de l'autre — n'en offre que
-  // 161. D'où huit segments à 23°, et pas un de plus.
+  // Les angles viennent du schéma de montage, pas du jugement : deux
+  // pastilles de 68 dp ne se distinguent qu'au-delà de 17,5° d'écart à 250 dp
+  // de rayon, et l'arc atteignable — borné par le bord de l'écran et par la
+  // colonne — en offre 149.
   Widget _buildMapControls({bool pleinEcran = true}) {
     final mapProv   = context.watch<MapProvider>();
-    final traceProv = context.watch<TraceProvider>();
     final settings  = context.watch<SettingsProvider>();
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Recherche de lieu — en tête de colonne.
-        _mapCtrlBtn(Icons.search, _openSearchSheet),
+        _mapCtrlBtn(Icons.layers_outlined, _showLayerSelector),
         const SizedBox(height: 6),
-
-        // Enregistrement, avec son propre menu (pause, arrêt). Il a quitté
-        // le bord gauche : le SOS y reste seul, sans voisin qu'on puisse
-        // confondre avec lui sous le casque.
-        KeyedSubtree(key: _tutoRecordingKey, child: const RecordingPanel()),
+        _mapCtrlBtn(Icons.explore, _toggleMapOrientation,
+            active: settings.mapHeadingUp),
         const SizedBox(height: 6),
-
-        // Recentrer et son cadran.
-        RadialActionMenu(
-          key: _tutoActionsKey,
-          centerIcon:  mapProv.followPosition ? Icons.my_location : Icons.location_searching,
-          centerColor: AppColors.accent,
-          centerActive: mapProv.followPosition,
-          radius: 150,
-          onCenterTap: () {
+        _mapCtrlBtn(
+          mapProv.followPosition ? Icons.my_location : Icons.location_searching,
+          () {
             mapProv.toggleFollowPosition();
             final snap = _locationService.lastSnapshot;
             if (snap != null) {
               _mapController.move(snap.position, _mapController.camera.zoom);
             }
           },
+          active: mapProv.followPosition,
+        ),
+        const SizedBox(height: 6),
+
+        // Enregistrement et son menu : pause, arrêt.
+        KeyedSubtree(key: _tutoRecordingKey, child: const RecordingPanel()),
+        const SizedBox(height: 6),
+
+        // ── Communauté ─────────────────────────────────────
+        RadialActionMenu(
+          centerIcon: Icons.diversity_3,
+          centerColor: AppColors.secondary,
+          radius: 230,
+          segmentSize: 68,
+          onCenterTap: _ouvrirCommunaute,
           segments: [
-            // Le guidage n'apparaît que s'il y a une trace à suivre : un
-            // segment qui ouvrirait un choix vide est un segment qui ment.
-            if (traceProv.hasTrace)
-              RadialMenuSegment(
-                icon: Icons.alt_route, color: AppColors.accent, angleDeg: 178,
-                onSelect: () => _showGpxGuidanceChooser(traceProv.activeTrace!),
-              ),
             RadialMenuSegment(
-              icon: Icons.radar, color: AppColors.secondary, angleDeg: 201,
-              onSelect: mapProv.toggleRadar,
-            ),
-            RadialMenuSegment(
-              icon: Icons.gesture, color: AppColors.accent, angleDeg: 224,
-              onSelect: _startDrawingTrace,
-            ),
-            RadialMenuSegment(
-              icon: Icons.download_for_offline_outlined, color: AppColors.accent, angleDeg: 247,
-              onSelect: _downloadVisibleAreaOffline,
-            ),
-            RadialMenuSegment(
-              icon: Icons.cloud, color: AppColors.secondary, angleDeg: 270,
-              onSelect: () => context.go(AppRoutes.weather),
-            ),
-            RadialMenuSegment(
-              icon: Icons.shield, color: AppColors.accent, angleDeg: 293,
+              icon: Icons.shield, color: AppColors.accent, angleDeg: 197,
               onSelect: () => context.push(AppRoutes.solo),
             ),
-            // Seule entrée vers la liste des favoris : sans elle, un point
-            // enregistré depuis l'appui long sur la carte n'était plus
-            // atteignable pour lancer un guidage dessus.
             RadialMenuSegment(
-              icon: Icons.star, color: AppColors.accent, angleDeg: 316,
-              onSelect: _openFavorites,
-            ),
-            RadialMenuSegment(
-              icon: Icons.groups, color: AppColors.secondary, angleDeg: 339,
+              icon: Icons.groups, color: AppColors.secondary, angleDeg: 343,
               onSelect: () => context.push(AppRoutes.group),
             ),
           ],
         ),
         const SizedBox(height: 6),
 
+        // ── Guidage ────────────────────────────────────────
+        RadialActionMenu(
+          key: _tutoActionsKey,
+          centerIcon: Icons.navigation,
+          centerColor: AppColors.accent,
+          radius: 250,
+          segmentSize: 68,
+          onCenterTap: _ouvrirGuidage,
+          segments: [
+            RadialMenuSegment(
+              icon: Icons.gesture, color: AppColors.accent, angleDeg: 195,
+              onSelect: _startDrawingTrace,
+            ),
+            RadialMenuSegment(
+              icon: Icons.upload_file, color: AppColors.accent, angleDeg: 220,
+              onSelect: _showImportSheet,
+            ),
+            // N'a de sens qu'avec une trace à suivre.
+            if (context.watch<TraceProvider>().hasTrace)
+              RadialMenuSegment(
+                icon: Icons.alt_route, color: AppColors.accent, angleDeg: 245,
+                onSelect: () => _showGpxGuidanceChooser(
+                    context.read<TraceProvider>().activeTrace!),
+              ),
+            RadialMenuSegment(
+              icon: Icons.search, color: AppColors.accent, angleDeg: 270,
+              onSelect: _openSearchSheet,
+            ),
+            RadialMenuSegment(
+              icon: Icons.star, color: AppColors.accent, angleDeg: 294,
+              onSelect: _openFavorites,
+            ),
+            RadialMenuSegment(
+              icon: Icons.cloud, color: AppColors.secondary, angleDeg: 319,
+              onSelect: () => context.go(AppRoutes.weather),
+            ),
+            RadialMenuSegment(
+              icon: Icons.download_for_offline_outlined, color: AppColors.accent,
+              angleDeg: 344,
+              onSelect: _downloadVisibleAreaOffline,
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        _mapCtrlBtn(Icons.radar, mapProv.toggleRadar,
+            active: mapProv.radarEnabled, activeColor: AppColors.secondary),
+        const SizedBox(height: 6),
+
         // Points d'intérêt : un appui, une feuille, tout est dedans.
-        // Le cadran qu'il portait est parti avec la feuille unique — ses
-        // trois segments y sont devenus des cases à cocher.
         _mapCtrlBtn(
           Icons.travel_explore,
           _ouvrirFeuillePoi,
@@ -1038,25 +1062,92 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
         const SizedBox(height: 6),
 
-        // Orientation de la carte — nord en haut, ou cap en haut.
-        _mapCtrlBtn(
-          Icons.explore,
-          _toggleMapOrientation,
-          active: settings.mapHeadingUp,
-        ),
-        const SizedBox(height: 6),
-
-        // Reconnaissance 3D : pour préparer et observer un terrain, pas pour
-        // rouler. Elle ouvre sur la zone actuellement regardée.
         _mapCtrlBtn(Icons.terrain_outlined, _ouvrirReconnaissance3d),
 
-        // Plein écran : uniquement en portrait, la vue paysage dédie déjà
-        // 35% de l'écran au panneau de statistiques.
         if (pleinEcran) ...[
           const SizedBox(height: 6),
           _mapCtrlBtn(Icons.fullscreen, mapProv.toggleFullscreen),
         ],
       ],
+    );
+  }
+
+  void _ouvrirCommunaute() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => FeuilleFamille(
+        titre: 'Communauté',
+        actions: [
+          ActionFamille(
+            icone: Icons.shield, nom: 'Mode Solo',
+            description: 'Contacts de confiance, suivi de trajet',
+            onChoisi: () => context.push(AppRoutes.solo),
+          ),
+          ActionFamille(
+            icone: Icons.groups, nom: 'Mode Groupe',
+            couleur: AppColors.secondary,
+            description: 'Créer, rejoindre ou gérer un groupe qui roule ensemble',
+            onChoisi: () => context.push(AppRoutes.group),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _ouvrirGuidage() {
+    final traceProv = context.read<TraceProvider>();
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.card,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (_) => FeuilleFamille(
+        titre: 'Guidage',
+        actions: [
+          ActionFamille(
+            icone: Icons.gesture, nom: 'Trace à main levée',
+            description: 'Tracer un itinéraire au doigt et le faire calculer',
+            onChoisi: _startDrawingTrace,
+          ),
+          ActionFamille(
+            icone: Icons.upload_file, nom: 'Importer un GPX',
+            description: 'Charger une trace depuis un fichier',
+            onChoisi: _showImportSheet,
+          ),
+          if (traceProv.hasTrace)
+            ActionFamille(
+              icone: Icons.alt_route, nom: 'Guidage sur la trace',
+              description: 'Alerte de déviation, virage par virage, roadbook',
+              onChoisi: () => _showGpxGuidanceChooser(traceProv.activeTrace!),
+            ),
+          ActionFamille(
+            icone: Icons.search, nom: 'Recherche de lieu',
+            description: 'Chercher une adresse et lancer le guidage dessus',
+            onChoisi: _openSearchSheet,
+          ),
+          ActionFamille(
+            icone: Icons.star, nom: 'Favoris',
+            description: 'Les points enregistrés',
+            onChoisi: _openFavorites,
+          ),
+          ActionFamille(
+            icone: Icons.cloud, nom: 'Météo', couleur: AppColors.secondary,
+            description: 'Praticabilité, 48 h, 7 jours',
+            onChoisi: () => context.go(AppRoutes.weather),
+          ),
+          ActionFamille(
+            icone: Icons.download_for_offline_outlined, nom: 'Zone hors ligne',
+            description: 'Mettre la zone visible en cache pour rouler sans réseau',
+            onChoisi: _downloadVisibleAreaOffline,
+          ),
+        ],
+      ),
     );
   }
 
