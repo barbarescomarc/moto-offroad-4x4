@@ -1,7 +1,7 @@
 name: moto_offroad
 description: GO FREE — GPS tout-terrain moto, 4x4 et camping-car, France & Europe
 publish_to: 'none'
-version: 1.18.0+43
+version: 1.19.0+44
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
