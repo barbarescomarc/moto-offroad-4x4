@@ -8,12 +8,17 @@ import 'poi.dart';
 /// va chercher autour de lui, ce qu'elle lui demande de renseigner, et ce
 /// qu'elle a le droit de lui proposer. Un camping-car n'a rien à faire d'un
 /// réparateur moto, et un enduro n'a pas de hauteur sous barre à surveiller.
-enum VehicleKind { moto, quatreQuatre, van }
+/// La moto de route et la moto tout-terrain sont deux véhicules, pas deux
+/// styles de conduite : l'une coupe par la piste, l'autre non. C'est la
+/// distinction que portait l'ancien « mode de navigation », remise là où
+/// elle se décide vraiment.
+enum VehicleKind { motoRoute, moto, quatreQuatre, van }
 
 extension VehicleKindExt on VehicleKind {
   String get label {
     switch (this) {
-      case VehicleKind.moto:         return 'Moto';
+      case VehicleKind.motoRoute:    return 'Moto de route';
+      case VehicleKind.moto:         return 'Moto tout-terrain';
       case VehicleKind.quatreQuatre: return '4x4';
       case VehicleKind.van:          return 'Van / Camping-car';
     }
@@ -22,7 +27,8 @@ extension VehicleKindExt on VehicleKind {
   /// Libellé court, pour les endroits serrés : puces, barres, bandeaux.
   String get shortLabel {
     switch (this) {
-      case VehicleKind.moto:         return 'Moto';
+      case VehicleKind.motoRoute:    return 'Route';
+      case VehicleKind.moto:         return 'Offroad';
       case VehicleKind.quatreQuatre: return '4x4';
       case VehicleKind.van:          return 'Van';
     }
@@ -33,6 +39,7 @@ extension VehicleKindExt on VehicleKind {
   /// le véhicule plutôt que d'être recalculé à chaque phrase.
   String get avecArticle {
     switch (this) {
+      case VehicleKind.motoRoute:    return 'la moto';
       case VehicleKind.moto:         return 'la moto';
       case VehicleKind.quatreQuatre: return 'le 4x4';
       case VehicleKind.van:          return 'le camping-car';
@@ -40,10 +47,12 @@ extension VehicleKindExt on VehicleKind {
   }
 
   /// Accord du participe passé qui suit `avecArticle`.
-  String get accordePasse => this == VehicleKind.moto ? 'e' : '';
+  String get accordePasse =>
+      (this == VehicleKind.moto || this == VehicleKind.motoRoute) ? 'e' : '';
 
   IconData get icon {
     switch (this) {
+      case VehicleKind.motoRoute:    return Icons.two_wheeler;
       case VehicleKind.moto:         return Icons.motorcycle;
       case VehicleKind.quatreQuatre: return Icons.directions_car_filled;
       case VehicleKind.van:          return Icons.airport_shuttle;
@@ -57,6 +66,7 @@ extension VehicleKindExt on VehicleKind {
   /// et fait payer à Overpass une requête pour rien.
   List<PoiCategory> get poiCategories {
     switch (this) {
+      case VehicleKind.motoRoute:
       case VehicleKind.moto:
         return const [PoiCategory.gasStation, PoiCategory.motoShop];
       case VehicleKind.quatreQuatre:
@@ -83,13 +93,16 @@ extension VehicleKindExt on VehicleKind {
   /// Le profil de pilotage moto (modèle, pneus, difficulté ressentie)
   /// s'applique-t-il ? Le coefficient de pneus d'un enduro n'a aucun sens
   /// appliqué à un porteur de 3,5 tonnes.
-  bool get usesMotoProfile => this == VehicleKind.moto;
+  bool get usesMotoProfile =>
+      this == VehicleKind.moto || this == VehicleKind.motoRoute;
 
   /// Le véhicule a-t-il sa place hors des routes ouvertes ?
   ///
-  /// La moto et le 4x4 y vont ; un camping-car n'y a rien à faire, et lui
-  /// proposer une piste DFCI serait un mauvais service, pas une liberté.
-  bool get roulesHorsRoute => this != VehicleKind.van;
+  /// La moto tout-terrain et le 4x4 y vont ; une moto de route n'a pas les
+  /// pneus pour, et un camping-car n'y a rien à faire — lui proposer une
+  /// piste DFCI serait un mauvais service, pas une liberté.
+  bool get roulesHorsRoute =>
+      this != VehicleKind.van && this != VehicleKind.motoRoute;
 
   /// Gabarit par défaut, en mètres et en tonnes : un profilé de 6 m courant.
   /// Sert de point de départ, le pilote corrige avec ses vraies valeurs.
@@ -105,6 +118,29 @@ extension VehicleKindExt on VehicleKind {
 /// voyagent jamais séparément, et en oublier une en chemin — sur un recalcul
 /// après déviation, typiquement — revient à envoyer le camping-car sous un
 /// pont qu'on savait trop bas.
+/// De quelle source vient une catégorie de point d'intérêt.
+///
+/// Le pilote n'a pas à le savoir — il coche ce qu'il veut voir et les points
+/// arrivent. Mais l'application, elle, doit adresser la bonne requête : le
+/// tourisme vient de DATAtourisme, le pratique d'OpenStreetMap, et les aires
+/// de camping-car du serveur GO FREE, qui les sert avec leur gabarit et les
+/// relevés des autres pilotes.
+extension PoiCategorieSource on PoiCategory {
+  bool get vientDuTourisme => const {
+        PoiCategory.viewpoint,
+        PoiCategory.guestHouse,
+        PoiCategory.naturalSite,
+        PoiCategory.heritage,
+        PoiCategory.camping,
+      }.contains(this);
+
+  /// Les aires ont leur propre chaîne, plus riche que les deux autres
+  /// sources : elle porte la hauteur limite et les contributions.
+  bool get vientDuServeurAires => this == PoiCategory.aireCampingCar;
+
+  bool get vientDOverpass => !vientDuTourisme && !vientDuServeurAires;
+}
+
 class GabaritVehicule {
   const GabaritVehicule({
     required this.hauteurM,

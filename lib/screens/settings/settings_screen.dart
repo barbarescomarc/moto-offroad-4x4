@@ -90,7 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen>
               GlassPanel(child: _motoSection()),
               const SizedBox(height: 16),
             ],
-            if (context.watch<SettingsProvider>().vehicleKind.hasGabarit) ...[
+            if (context.watch<SettingsProvider>().garage.any((v) => v.hasGabarit)) ...[
               GlassPanel(child: _gabaritSection()),
               const SizedBox(height: 16),
             ],
@@ -204,28 +204,56 @@ class _SettingsScreenState extends State<SettingsScreen>
   // ── Niveau pilote ──────────────────────────────────────────
   // ── Choix du véhicule ──────────────────────────────────────
 
+  // ── Le garage ─────────────────────────────────────────────────────
+  //
+  // Ce que le pilote possède, et non ce qu'il conduit aujourd'hui. Les deux
+  // étaient confondus tant qu'il n'y avait qu'un véhicule ; ils se séparent
+  // ici, et c'est la carte qui porte désormais le choix du jour.
   Widget _vehicleSection() {
     final settings = context.watch<SettingsProvider>();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionLabel('MON VÉHICULE'),
+        _sectionLabel('MES VÉHICULES'),
+        const SizedBox(height: 4),
+        const Text(
+          'Coche ce que tu possèdes. Le dernier ne peut pas partir : sans '
+          'véhicule, l\'application n\'a plus de gabarit ni de profil.',
+          style: TextStyle(color: AppColors.textMuted, fontSize: 12),
+        ),
         const SizedBox(height: 12),
         Row(
           children: VehicleKind.values
               .map((v) => Expanded(child: _vehicleCard(v, settings)))
               .toList(),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Icon(settings.vehicleKind.icon, size: 18, color: AppColors.accent),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                settings.plusieursVehicules
+                    ? 'Tu conduis ${settings.vehicleKind.avecArticle} aujourd\'hui. '
+                      'Le sélecteur en haut de la carte en change.'
+                    : 'Tu conduis ${settings.vehicleKind.avecArticle}.',
+                style: const TextStyle(color: AppColors.mutedForeground, fontSize: 12),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         Text(
-          settings.vehicleKind.hasGabarit
-              ? 'Les aires, la vidange, l\'eau et les bornes remplacent le réparateur moto autour de toi.'
+          settings.garage.any((v) => v.hasGabarit)
+              ? 'Les aires, la vidange, l\'eau et les bornes s\'ajoutent autour de toi '
+                'quand tu roules en camping-car.'
               : 'Les stations-service et les réparateurs s\'affichent autour de toi.',
           style: const TextStyle(color: AppColors.textMuted, fontSize: 12),
         ),
         // Le réglage n'a de sens que pour le camping-car : les deux autres
         // véhicules vont déjà sur la piste sans avoir à le demander.
-        if (settings.vehicleKind.hasGabarit) _horsRouteInterrupteur(settings),
+        if (settings.garage.any((v) => v.hasGabarit)) _horsRouteInterrupteur(settings),
       ],
     );
   }
@@ -255,10 +283,17 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Widget _vehicleCard(VehicleKind kind, SettingsProvider settings) {
-    final active = settings.vehicleKind == kind;
+    final possede = settings.garage.contains(kind);
+    final conduit = settings.vehicleKind == kind;
+    final active = possede;
     return GestureDetector(
       key: Key('vehicule-${kind.name}'),
-      onTap: () => settings.setVehicleKind(kind),
+      // Un appui ajoute au garage ou en retire. Sur un véhicule déjà
+      // possédé mais pas conduit, il le met au volant plutôt que de le
+      // vendre : c'est le geste qu'on attend le plus souvent.
+      onTap: () => possede
+          ? (conduit ? settings.retirerDuGarage(kind) : settings.setVehicleKind(kind))
+          : settings.ajouterAuGarage(kind),
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
@@ -271,7 +306,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         ),
         child: Column(
           children: [
-            Icon(kind.icon,
+            Icon(conduit ? kind.icon : (possede ? kind.icon : Icons.add),
                 color: active ? AppColors.accent : AppColors.mutedForeground, size: 24),
             const SizedBox(height: 6),
             Text(

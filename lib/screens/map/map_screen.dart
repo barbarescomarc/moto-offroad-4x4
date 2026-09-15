@@ -19,8 +19,7 @@ import '../../providers/guidance_provider.dart';
 import '../../models/aire.dart';
 import '../../models/vehicle_kind.dart';
 import '../../providers/aires_provider.dart';
-import '../../providers/poi_search_provider.dart';
-import '../../providers/fuel_poi_provider.dart';
+import '../../providers/poi_provider.dart';
 import '../../models/trace.dart';
 import '../../models/favorite_place.dart';
 import '../../models/route_result.dart';
@@ -39,13 +38,11 @@ import '../../widgets/echelle_carte.dart';
 import '../../widgets/tile_diagnostic_overlay.dart';
 import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/sos_button.dart';
-import '../../widgets/mode_switch.dart';
+import '../../widgets/selecteur_vehicule.dart';
 import '../../widgets/stats_bar.dart';
 import '../../widgets/layer_selector.dart';
 import '../../widgets/gpx_import_sheet.dart';
 import '../../widgets/glass_control.dart';
-import '../../widgets/fuel_poi_button.dart';
-import '../../utils/map_zoom.dart';
 import '../../widgets/map_search_bar.dart';
 import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
@@ -55,8 +52,7 @@ import '../../widgets/guidance_banner.dart';
 import '../../widgets/speed_limit_badge.dart';
 import '../../widgets/maneuver_tile.dart';
 import '../../widgets/aire_sheet.dart';
-import '../../widgets/poi_filter_sheet.dart';
-import '../../widgets/poi_search_sheet.dart';
+import '../../widgets/feuille_poi.dart';
 import '../../widgets/offline_download_sheet.dart';
 
 class MapScreen extends StatefulWidget {
@@ -161,7 +157,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  /// Le centre après le dernier déplacement. Sert à décider si « Chercher
+  /// ici » a quelque chose à proposer — voir PoiProvider.proposerIci.
+  LatLng? _centreApresDeplacement;
+
   void _onMapEvent(MapEvent event, MapProvider mapProv, SettingsProvider settings) {
+    if (event is MapEventMoveEnd || event is MapEventFlingAnimationEnd) {
+      final centre = event.camera.center;
+      if (_centreApresDeplacement != centre) {
+        setState(() => _centreApresDeplacement = centre);
+      }
+    }
+
     if (!settings.autoHideNavBar) return;
 
     if (event.source == MapEventSource.dragStart) {
@@ -360,6 +367,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             // du bas : la prochaine manœuvre reste visible même quand
             // l'oeil est déjà en haut de l'écran.
             _buildManeuverTileTop(),
+
+            // ── Chercher ici ────────────────────────────────
+            _buildChercherIci(),
 
             // ── Bouton SOS (toujours visible) ───────────────
             _buildSideControls(),
@@ -675,19 +685,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
         // ── Points d'intérêt ────────────────────────────────
         // Deux sources, un seul calque : DATAtourisme pour le tourisme,
-        // Overpass pour le carburant et la mécanique. Elles partagent le
-        // même modèle, donc le même marqueur et la même fiche.
+        // Overpass pour le carburant et la mécanique. Le pilote coche ce
+        // qu'il veut voir dans une seule feuille ; d'où viennent les points
+        // ne le regarde pas.
         MarkerLayer(
-          markers: [
-            ...context.watch<PoiSearchProvider>().results,
-            // Masquees sans etre oubliees : le bouton bascule leur affichage
-            // sans rien redemander a Overpass.
-            // Filtres compris : sur une carte de ville, chaque fontaine
-            // publique est un point d'eau, et la carte cache alors ce qu'on
-            // cherchait vraiment.
-            if (context.watch<FuelPoiProvider>().visible)
-              ...context.watch<FuelPoiProvider>().resultatsFiltres,
-          ]
+          markers: context.watch<PoiProvider>().resultats
               .map((poi) => Marker(
                     point: poi.position,
                     width: 34, height: 34,
@@ -789,6 +791,61 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
+  // ── CHERCHER ICI ──────────────────────────────────────────
+  //
+  // Le pilote a déplacé la carte pour regarder ailleurs : ce qu'il voit
+  // n'est plus ce qu'il a cherché. La pastille propose de relancer la même
+  // sélection autour de ce qu'il regarde — le geste de Google Maps, et celui
+  // qu'on attend sans y penser.
+  Widget _buildChercherIci() {
+    final poi = context.watch<PoiProvider>();
+    final centre = _centreApresDeplacement;
+    if (centre == null ||
+        !poi.proposerIci(centre,
+            positionPilote: _locationService.lastSnapshot?.position)) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      top: MediaQuery.of(context).padding.top + 60,
+      left: 0, right: 0,
+      child: Center(
+        child: GestureDetector(
+          key: const Key('chercher-ici'),
+          onTap: () => poi.chercher(
+            autour: centre,
+            vehicule: context.read<SettingsProvider>().vehicleKind,
+          ),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.card,
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: AppColors.border),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.foreground.withValues(alpha: .14),
+                  blurRadius: 16, offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.search, size: 18, color: AppColors.accent),
+                SizedBox(width: 8),
+                Text('Chercher ici', style: TextStyle(
+                  fontSize: 13, fontWeight: FontWeight.w600,
+                  color: AppColors.foreground,
+                )),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   // ── HEADER ────────────────────────────────────────────────
   Widget _buildHeader() {
     final traceProv = context.watch<TraceProvider>();
@@ -832,7 +889,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 : const SizedBox.shrink(),
           ),
           // Switch offroad/route
-          KeyedSubtree(key: _tutoModeSwitchKey, child: const ModeSwitchWidget()),
+          KeyedSubtree(key: _tutoModeSwitchKey, child: const SelecteurVehicule()),
           const SizedBox(width: 4),
           // Import GPX
           _iconBtn(Icons.upload_file, () => _showImportSheet()),
@@ -841,9 +898,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             key: _tutoLayersKey,
             child: _iconBtn(Icons.layers_outlined, () => _showLayerSelector()),
           ),
-          const SizedBox(width: 4),
-          // Réglages
-          _iconBtn(Icons.settings_outlined, () => context.go(AppRoutes.settings)),
+          // Les réglages ont quitté l'en-tête : ils ont leur propre onglet
+          // dans la barre du bas, et une carte de conduite n'a pas à porter
+          // deux fois la même porte.
         ],
       ),
     );
@@ -899,7 +956,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final mapProv   = context.watch<MapProvider>();
     final traceProv = context.watch<TraceProvider>();
     final settings  = context.watch<SettingsProvider>();
-    final poiProv   = context.watch<FuelPoiProvider>();
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -972,32 +1028,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         ),
         const SizedBox(height: 6),
 
-        // Points d'intérêt et son cadran : tout ce qu'on cherche autour de
-        // soi tient derrière ce seul bouton.
-        RadialActionMenu(
-          centerIcon:  Icons.travel_explore,
-          centerColor: AppColors.accent,
-          centerActive: context.watch<PoiSearchProvider>().results.isNotEmpty,
-          radius: 150,
-          onCenterTap: _openPoiSearchSheet,
-          segments: [
-            RadialMenuSegment(
-              icon: Icons.local_gas_station, color: AppColors.accent, angleDeg: 224,
-              onSelect: _chercherStations,
-            ),
-            // N'apparait qu'une fois qu'il y a quelque chose a filtrer.
-            if (poiProv.results.isNotEmpty)
-              RadialMenuSegment(
-                icon: Icons.filter_alt_outlined, color: AppColors.accent, angleDeg: 260,
-                onSelect: _ouvrirFiltresPoi,
-              ),
-            // Reserve au camping-car : les aires n'interessent que lui.
-            if (settings.vehicleKind.hasGabarit)
-              RadialMenuSegment(
-                icon: Icons.local_parking, color: AppColors.accent, angleDeg: 300,
-                onSelect: _chargerAires,
-              ),
-          ],
+        // Points d'intérêt : un appui, une feuille, tout est dedans.
+        // Le cadran qu'il portait est parti avec la feuille unique — ses
+        // trois segments y sont devenus des cases à cocher.
+        _mapCtrlBtn(
+          Icons.travel_explore,
+          _ouvrirFeuillePoi,
+          active: context.watch<PoiProvider>().resultats.isNotEmpty,
         ),
         const SizedBox(height: 6),
 
@@ -1020,43 +1057,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           _mapCtrlBtn(Icons.fullscreen, mapProv.toggleFullscreen),
         ],
       ],
-    );
-  }
-
-  // ── STATIONS ET RÉPARATEURS ───────────────────────────────
-  // Depuis que la recherche vit dans un segment de menu, elle n'a plus de
-  // pastille où afficher son indicateur « service indisponible » : c'est le
-  // bandeau qui s'en charge. Sans lui, un pilote en panne sèche appuierait
-  // dans le vide sans savoir qu'Overpass ne répond pas.
-  Future<void> _chercherStations() async {
-    final poi      = context.read<FuelPoiProvider>();
-    final mapProv  = context.read<MapProvider>();
-    final rayon    = context.read<FuelProvider>().searchRadiusKm;
-    final vehicule = context.read<SettingsProvider>().vehicleKind;
-
-    await basculerStationsProximite(
-      poi,
-      centre: _mapReady ? _mapController.camera.center : mapProv.center,
-      radiusKm: rayon,
-      vehicule: vehicule,
-      // Reculer pour montrer ce qu'on vient de trouver : au zoom d'une rue,
-      // des stations reparties sur vingt kilometres sont toutes hors cadre,
-      // et le pilote croit que rien ne s'est passe.
-      onResults: (_) {
-        if (!_mapReady) return;
-        _mapController.move(
-          _mapController.camera.center,
-          zoomPourRayonKm(rayon).toDouble(),
-        );
-      },
-    );
-
-    if (!mounted || !poi.unavailable) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Le service des points d\'intérêt ne répond pas. '
-            'Réessaie dans un moment.'),
-      ),
     );
   }
 
@@ -1149,12 +1149,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   Future<void> _finishDrawingTrace() async {
     if (_drawPoints.length < 2) return;
-    final mapProv = context.read<MapProvider>();
     final settings = context.read<SettingsProvider>();
     final routing = RoutingService();
     final profile = profilItineraire(
       vehicule: settings.vehicleKind,
-      modeHorsRoute: mapProv.navMode == NavMode.offroad,
+      modeHorsRoute: context.read<SettingsProvider>().autoriseHorsRoute,
       autoriseHorsRoute: settings.autoriseHorsRoute,
     );
 
@@ -1354,11 +1353,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       return;
     }
     setState(() => _isRecomputingEdit = true);
-    final mapProv = context.read<MapProvider>();
     final settings = context.read<SettingsProvider>();
     final profile = profilItineraire(
       vehicule: settings.vehicleKind,
-      modeHorsRoute: mapProv.navMode == NavMode.offroad,
+      modeHorsRoute: context.read<SettingsProvider>().autoriseHorsRoute,
       autoriseHorsRoute: settings.autoriseHorsRoute,
     );
     try {
@@ -1456,7 +1454,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     );
   }
 
-  void _openPoiSearchSheet() {
+  void _ouvrirFeuillePoi() {
+    final guidance = context.read<GuidanceProvider>();
     showModalBottomSheet(
       context: context,
       backgroundColor: AppColors.card,
@@ -1464,20 +1463,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
-      builder: (_) => PoiSearchSheet(locationService: _locationService),
-    );
-  }
-
-  void _ouvrirFiltresPoi() {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.card,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (_) => ChangeNotifierProvider.value(
-        value: context.read<FuelPoiProvider>(),
-        child: const PoiFilterSheet(),
+      builder: (_) => FeuillePoi(
+        positionPilote: _locationService.lastSnapshot?.position,
+        centreCarte: _mapReady
+            ? _mapController.camera.center
+            : context.read<MapProvider>().center,
+        destination: guidance.isActive ? guidance.route?.polyline.last : null,
+        itineraire: guidance.isActive ? guidance.route?.polyline : null,
+        onAires: _chargerAires,
       ),
     );
   }
@@ -1754,18 +1747,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           const Divider(height: 16),
           Row(
             children: [
-              // Mode de navigation — offroad / route / 4x4
-              Expanded(child: _landscapeCtrlBtn(
-                switch (context.watch<MapProvider>().navMode) {
-                  NavMode.offroad => Icons.terrain,
-                  NavMode.route => Icons.route,
-                  NavMode.fourByFour => Icons.directions_car,
-                },
-                context.watch<MapProvider>().navMode.label,
-                true,
-                () => context.read<MapProvider>().toggleNavMode(),
-              )),
-              const SizedBox(width: 6),
+              // Véhicule en cours — n'a de sens qu'avec un garage fourni.
+              if (context.watch<SettingsProvider>().plusieursVehicules) ...[
+                Expanded(child: _landscapeCtrlBtn(
+                  context.watch<SettingsProvider>().vehicleKind.icon,
+                  context.watch<SettingsProvider>().vehicleKind.shortLabel,
+                  true,
+                  () => context.read<SettingsProvider>().vehiculeSuivant(),
+                )),
+                const SizedBox(width: 6),
+              ],
               // Sélecteur de couche
               Expanded(child: _landscapeCtrlBtn(
                 Icons.layers_outlined,
@@ -2277,11 +2268,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final origin = _locationService.lastSnapshot?.position;
     if (origin == null) return;
 
-    final mapProv = context.read<MapProvider>();
     final settings = context.read<SettingsProvider>();
     final profile = profilItineraire(
       vehicule: settings.vehicleKind,
-      modeHorsRoute: mapProv.navMode == NavMode.offroad,
+      modeHorsRoute: context.read<SettingsProvider>().autoriseHorsRoute,
       autoriseHorsRoute: settings.autoriseHorsRoute,
     );
     final avoid = <AvoidFeature>{

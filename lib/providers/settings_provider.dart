@@ -5,7 +5,9 @@ import '../models/rider_profile.dart';
 import '../models/vehicle_kind.dart';
 
 class SettingsProvider extends ChangeNotifier {
-  static const _kVehicle  = 'vehicle_kind';
+  static const _kVehicle  = 'vehicle_kind';         // ancien : un index
+  static const _kVehiculeNom = 'vehicule_nom';      // le nom, depuis 1.18
+  static const _kGarage   = 'garage_vehicules';
   static const _kHauteur  = 'gabarit_hauteur_m';
   static const _kLongueur = 'gabarit_longueur_m';
   static const _kPoids    = 'gabarit_poids_t';
@@ -52,6 +54,11 @@ class SettingsProvider extends ChangeNotifier {
   // Moto par defaut : c'est ce que conduisaient tous les installes avant que
   // le choix existe, et leur reglage ne doit pas changer sous leurs pieds.
   VehicleKind _vehicleKind = VehicleKind.moto;
+  // Le garage : ce que le pilote possède, par opposition à ce qu'il conduit
+  // aujourd'hui. Les deux étaient confondus tant qu'il n'y avait qu'un seul
+  // véhicule — et l'en-tête portait un « mode de navigation » qui disait la
+  // même chose dans d'autres mots.
+  Set<VehicleKind> _garage = {VehicleKind.moto};
   double _gabaritHauteurM;
   double _gabaritLongueurM;
   double _gabaritPoidsT;
@@ -91,6 +98,10 @@ class SettingsProvider extends ChangeNotifier {
   bool _mapHeadingUp          = false;
 
   VehicleKind get vehicleKind      => _vehicleKind;
+  Set<VehicleKind> get garage      => Set.unmodifiable(_garage);
+  /// Vrai dès qu'il y a un choix à faire : sous cette condition, le
+  /// sélecteur de l'en-tête n'a aucune raison d'occuper l'écran.
+  bool get plusieursVehicules      => _garage.length > 1;
   double      get gabaritHauteurM  => _gabaritHauteurM;
   double      get gabaritLongueurM => _gabaritLongueurM;
   double      get gabaritPoidsT    => _gabaritPoidsT;
@@ -151,9 +162,23 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    _vehicleKind = VehicleKind.values[
-      (prefs.getInt(_kVehicle) ?? 0).clamp(0, VehicleKind.values.length - 1)
-    ];
+    // Le véhicule se lisait par son index dans l'énumération. Ajouter la
+    // moto de route au milieu aurait donc transformé les 4x4 en motos et
+    // les camping-cars en 4x4 : on lit le nom, et l'ancien index ne sert
+    // plus qu'une fois, pour les installations d'avant.
+    final nomLu = prefs.getString(_kVehiculeNom);
+    _vehicleKind = nomLu != null
+        ? VehicleKind.values.firstWhere((v) => v.name == nomLu,
+            orElse: () => VehicleKind.moto)
+        : _vehiculeDepuisAncienIndex(prefs.getInt(_kVehicle));
+    // Une installation antérieure au garage n'en a pas : elle possède ce
+    // qu'elle conduit, et rien d'autre.
+    final garageLu = (prefs.getStringList(_kGarage) ?? const <String>[])
+        .map((n) => VehicleKind.values.where((v) => v.name == n))
+        .expand((v) => v)
+        .toSet();
+    _garage = garageLu.isEmpty ? {_vehicleKind} : garageLu;
+    if (!_garage.contains(_vehicleKind)) _vehicleKind = _garage.first;
     _gabaritHauteurM  = prefs.getDouble(_kHauteur)  ?? VehicleKind.van.hauteurParDefautM;
     _gabaritLongueurM = prefs.getDouble(_kLongueur) ?? VehicleKind.van.longueurParDefautM;
     _gabaritPoidsT    = prefs.getDouble(_kPoids)    ?? VehicleKind.van.poidsParDefautT;
@@ -195,9 +220,53 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> setVehicleKind(VehicleKind kind) async {
+    // Conduire un véhicule, c'est le posséder : le sélectionner l'ajoute au
+    // garage plutôt que de laisser l'app afficher un gabarit fantôme.
     _vehicleKind = kind;
-    (await SharedPreferences.getInstance()).setInt(_kVehicle, kind.index);
+    _garage.add(kind);
+    await _ecrireVehicule();
     notifyListeners();
+  }
+
+  /// Ajoute un véhicule au garage sans changer celui qu'on conduit.
+  Future<void> ajouterAuGarage(VehicleKind kind) async {
+    if (!_garage.add(kind)) return;
+    await _ecrireVehicule();
+    notifyListeners();
+  }
+
+  /// Retire un véhicule du garage. Le dernier ne peut pas partir : sans
+  /// véhicule, l'app n'a plus ni profil de routage ni gabarit.
+  Future<void> retirerDuGarage(VehicleKind kind) async {
+    if (_garage.length <= 1 || !_garage.remove(kind)) return;
+    if (_vehicleKind == kind) _vehicleKind = _garage.first;
+    await _ecrireVehicule();
+    notifyListeners();
+  }
+
+  /// Passe au véhicule suivant du garage, dans l'ordre de l'énumération.
+  Future<void> vehiculeSuivant() async {
+    if (_garage.length <= 1) return;
+    final ordonne = VehicleKind.values.where(_garage.contains).toList();
+    final i = ordonne.indexOf(_vehicleKind);
+    await setVehicleKind(ordonne[(i + 1) % ordonne.length]);
+  }
+
+  /// L'ancien enregistrement : 0 = moto, 1 = 4x4, 2 = van, dans l'ordre
+  /// de l'énumération d'alors.
+  static VehicleKind _vehiculeDepuisAncienIndex(int? index) {
+    switch (index) {
+      case 1:  return VehicleKind.quatreQuatre;
+      case 2:  return VehicleKind.van;
+      default: return VehicleKind.moto;
+    }
+  }
+
+  Future<void> _ecrireVehicule() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kVehiculeNom, _vehicleKind.name);
+    await prefs.setStringList(
+        _kGarage, VehicleKind.values.where(_garage.contains).map((v) => v.name).toList());
   }
 
   /// Ouvre — ou referme — la piste au camping-car. Voir [autoriseHorsRoute].

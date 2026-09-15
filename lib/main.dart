@@ -22,8 +22,7 @@ import 'providers/quick_reply_provider.dart';
 import 'providers/favorites_provider.dart';
 import 'providers/guidance_provider.dart';
 import 'providers/aires_provider.dart';
-import 'providers/poi_search_provider.dart';
-import 'providers/fuel_poi_provider.dart';
+import 'providers/poi_provider.dart';
 import 'providers/account_provider.dart';
 import 'providers/shared_traces_provider.dart';
 import 'services/aires_api_client.dart';
@@ -189,7 +188,7 @@ class MotoOffroadApp extends StatelessWidget {
           return f;
         }),
         ChangeNotifierProvider(create: (_) => GuidanceProvider()),
-        ChangeNotifierProvider(create: (_) => PoiSearchProvider()),
+        ChangeNotifierProvider(create: (_) => PoiProvider()..charger()),
         // Les aires de camping-car viennent du hub, pas d'Overpass en direct :
         // voir docs/superpowers/specs/2026-09-14-aires-camping-car-donnees-design.md
         ChangeNotifierProvider(create: (_) => AiresProvider(
@@ -198,7 +197,6 @@ class MotoOffroadApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AccountProvider()..restore()),
         // Les filtres de categories sont relus au demarrage : c'est une
         // preference du pilote, pas un reglage d'un apres-midi.
-        ChangeNotifierProvider(create: (_) => FuelPoiProvider()..chargerFiltres()),
         ChangeNotifierProvider(
           create: (_) => SharedTracesProvider(
             SharedTracesApiClient(readToken: () => AccountStorage().readToken()),

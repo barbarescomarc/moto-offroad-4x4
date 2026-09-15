@@ -73,19 +73,6 @@ extension MapLayerExt on MapLayer {
 
 }
 
-// ── Mode de navigation ───────────────────────────────────────
-enum NavMode { offroad, route, fourByFour }
-
-extension NavModeExt on NavMode {
-  String get label {
-    switch (this) {
-      case NavMode.offroad:    return 'Offroad';
-      case NavMode.route:      return 'Route';
-      case NavMode.fourByFour: return '4X4';
-    }
-  }
-}
-
 // ── Provider — État de la carte ──────────────────────────────
 class MapProvider extends ChangeNotifier {
   // Couche de fond
@@ -99,11 +86,6 @@ class MapProvider extends ChangeNotifier {
   // sélectionnables, mais aucune n'est imposée au démarrage.
   MapLayer _activeLayer = MapLayer.ign;
   MapLayer get activeLayer => _activeLayer;
-
-  // Mode navigation
-  NavMode _navMode = NavMode.offroad;
-  NavMode get navMode => _navMode;
-  bool get isOffroad => _navMode == NavMode.offroad;
 
   // Plein écran
   bool _isFullscreen = false;
@@ -205,20 +187,6 @@ class MapProvider extends ChangeNotifier {
   bool _isNavigationNight(DateTime Function() now) {
     final hour = now().hour;
     return hour < 7 || hour >= 20;
-  }
-
-  void setNavMode(NavMode mode) {
-    _navMode = mode;
-    notifyListeners();
-  }
-
-  void toggleNavMode() {
-    _navMode = switch (_navMode) {
-      NavMode.offroad    => NavMode.route,
-      NavMode.route      => NavMode.fourByFour,
-      NavMode.fourByFour => NavMode.offroad,
-    };
-    notifyListeners();
   }
 
   void toggleFullscreen() {
