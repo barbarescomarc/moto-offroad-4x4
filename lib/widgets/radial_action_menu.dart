@@ -36,6 +36,16 @@ class RadialActionMenu extends StatefulWidget {
   final List<RadialMenuSegment> segments;
   final double radius;
 
+  /// Taille des pastilles une fois le menu déployé. Plus grosses que le
+  /// centre : ce sont elles qu'il faut viser, gantée, à bout de pouce. Le
+  /// centre, lui, n'est que le point de départ du geste.
+  ///
+  /// Elle se paie en écart angulaire : deux pastilles ne se chevauchent que
+  /// si la corde qui les sépare, 2·radius·sin(θ/2), vaut au moins leur
+  /// largeur. À 48 dp et 150 de rayon, cela fait 22° au minimum entre deux
+  /// voisines.
+  final double segmentSize;
+
   const RadialActionMenu({
     super.key,
     required this.centerIcon,
@@ -44,6 +54,7 @@ class RadialActionMenu extends StatefulWidget {
     required this.segments,
     this.centerActive = false,
     this.radius = 82,
+    this.segmentSize = 48,
   });
 
   @override
@@ -120,13 +131,16 @@ class _RadialActionMenuState extends State<RadialActionMenu> {
               ),
               for (var i = 0; i < widget.segments.length; i++)
                 Positioned(
-                  top:  _segmentOffset(widget.segments[i].angleDeg).dy,
-                  left: _segmentOffset(widget.segments[i].angleDeg).dx,
+                  top:  _segmentOffset(widget.segments[i].angleDeg).dy
+                        - (widget.segmentSize - _buttonSize) / 2,
+                  left: _segmentOffset(widget.segments[i].angleDeg).dx
+                        - (widget.segmentSize - _buttonSize) / 2,
                   child: GlassPuck(
-                    icon:   widget.segments[i].icon,
-                    color:  widget.segments[i].color,
-                    active: _activeIndex == i,
-                    size:   _buttonSize,
+                    icon:     widget.segments[i].icon,
+                    color:    widget.segments[i].color,
+                    active:   _activeIndex == i,
+                    size:     widget.segmentSize,
+                    iconSize: widget.segmentSize * 0.46,
                   ),
                 ),
             ],

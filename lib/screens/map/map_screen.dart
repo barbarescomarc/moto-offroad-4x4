@@ -384,81 +384,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             _buildEditTraceBar(),
 
             // ── Contrôles carte ──────────────────────────────
-            // Recherche d'adresse, Météo et Mode Solo ont rejoint le menu
-            // radial de Recentrer (voir _buildMapControls) : appui long
-            // dessus pour les atteindre, plutôt qu'une barre de recherche
-            // en permanence à l'écran.
+            // Sept boutons, trois cadrans : tout ce que la colonne portait
+            // en pastilles séparées s'atteint maintenant à l'appui long.
             Positioned(
               right: 12,
               bottom: AppSizes.statsBarHeight + 16,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  _buildMapControls(),
-                  const SizedBox(height: 6),
-                  // Stations et réparateurs autour du pilote, à la demande :
-                  // pensé pour la panne sèche ou mécanique, quand chercher
-                  // dans un menu n'est pas une option.
-                  FuelPoiButton(
-                    // Suivi actif — le cas en roulant — le centre de la carte
-                    // EST la position du pilote. S'il a déplacé la carte pour
-                    // regarder ailleurs, chercher autour de ce qu'il regarde
-                    // est ce qu'il attend.
-                    currentCenter: () =>
-                        _mapReady ? _mapController.camera.center : mapProv.center,
-                    radiusKm: context.read<FuelProvider>().searchRadiusKm,
-                    vehicule: context.watch<SettingsProvider>().vehicleKind,
-                    // Reculer pour montrer ce qu'on vient de trouver : au zoom
-                    // d'une rue, des stations reparties sur vingt kilometres
-                    // sont toutes hors cadre, et le pilote croit que rien ne
-                    // s'est passe.
-                    onResults: (_) {
-                      if (!_mapReady) return;
-                      final rayon = context.read<FuelProvider>().searchRadiusKm;
-                      _mapController.move(
-                        _mapController.camera.center,
-                        zoomPourRayonKm(rayon).toDouble(),
-                      );
-                    },
-                  ),
-                  // N'apparait qu'une fois qu'il y a quelque chose a filtrer :
-                  // un bouton qui ouvre une feuille vide est un bouton qui
-                  // ment.
-                  if (context.watch<FuelPoiProvider>().results.isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    _mapCtrlBtn(
-                      Icons.filter_alt_outlined,
-                      _ouvrirFiltresPoi,
-                      active: context.watch<FuelPoiProvider>().resultatsFiltres.length
-                          != context.watch<FuelPoiProvider>().results.length,
-                    ),
-                  ],
-                  // Reserve au camping-car : les aires n'interessent que lui,
-                  // et un bouton de plus sur la carte d'une moto est un bouton
-                  // de trop.
-                  if (context.watch<SettingsProvider>().vehicleKind.hasGabarit) ...[
-                    const SizedBox(height: 6),
-                    _boutonAires(),
-                  ],
-                  const SizedBox(height: 6),
-                  _mapCtrlBtn(
-                    Icons.explore,
-                    _toggleMapOrientation,
-                    active: context.watch<SettingsProvider>().mapHeadingUp,
-                  ),
-                  const SizedBox(height: 6),
-                  // Reconnaissance 3D : pour préparer et observer un terrain,
-                  // pas pour rouler. Elle ouvre sur la zone actuellement
-                  // regardée, dans une vue web séparée — la carte 2D garde
-                  // l'enregistrement, le guidage et le SOS.
-                  _mapCtrlBtn(Icons.terrain_outlined, _ouvrirReconnaissance3d),
-                  const SizedBox(height: 6),
-                  // Plein écran : uniquement en portrait, la vue paysage
-                  // dédie déjà 35% de l'écran au panneau de statistiques.
-                  _mapCtrlBtn(Icons.fullscreen, mapProv.toggleFullscreen),
-                ],
-              ),
+              child: _buildMapControls(),
             ),
 
             // ── Stats bar + fullscreen btn ───────────────────
@@ -502,19 +433,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               _buildSoloBadge(),
               Positioned(
                 bottom: 8, right: 8,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    _buildMapControls(),
-                    const SizedBox(height: 6),
-                    _mapCtrlBtn(
-                      Icons.explore,
-                      _toggleMapOrientation,
-                      active: context.watch<SettingsProvider>().mapHeadingUp,
-                    ),
-                  ],
-                ),
+                child: _buildMapControls(pleinEcran: false),
               ),
 
               // ── Tutoriel de première ouverture ─────────────
@@ -962,23 +881,47 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   // ── CONTRÔLES CARTE ──────────────────────────────────────
   //
-  // Zoom +/- retirés : le pincement à deux doigts fait déjà le travail, et
-  // ces deux boutons ne servaient à rien.
-  Widget _buildMapControls() {
-    final mapProv = context.watch<MapProvider>();
+  // Sept boutons, là où la colonne en portait douze. Trois d'entre eux sont
+  // des centres de menu radial : appui court pour leur action, appui long
+  // puis glissement pour atteindre ce qu'ils replient.
+  //
+  // La colonne pend depuis le bas (voir le Positioned qui l'accueille), donc
+  // chaque bouton replié la fait descendre d'autant. À douze, elle mesurait
+  // 678 dp et son sommet passait derrière l'en-tête ; à sept, elle en fait
+  // 368 et démarre à 332 dp, tout entière à portée de pouce.
+  //
+  // Les angles ne sont pas au jugé. Deux pastilles ne se distinguent que si
+  // la corde qui les sépare vaut au moins leur largeur : à 48 dp et 150 de
+  // rayon, cela impose 22° entre voisines, et l'arc atteignable — borné par
+  // le bord de l'écran d'un côté, par la colonne de l'autre — n'en offre que
+  // 161. D'où huit segments à 23°, et pas un de plus.
+  Widget _buildMapControls({bool pleinEcran = true}) {
+    final mapProv   = context.watch<MapProvider>();
     final traceProv = context.watch<TraceProvider>();
+    final settings  = context.watch<SettingsProvider>();
+    final poiProv   = context.watch<FuelPoiProvider>();
+
     return Column(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        // Recentrer : appui court inchangé. Appui long puis glissement vers
-        // le haut-gauche (côté opposé au bord droit de l'écran et aux
-        // boutons Radar/Plein écran juste en dessous) révèle Recherche,
-        // Météo et Mode Solo.
+        // Recherche de lieu — en tête de colonne.
+        _mapCtrlBtn(Icons.search, _openSearchSheet),
+        const SizedBox(height: 6),
+
+        // Enregistrement, avec son propre menu (pause, arrêt). Il a quitté
+        // le bord gauche : le SOS y reste seul, sans voisin qu'on puisse
+        // confondre avec lui sous le casque.
+        KeyedSubtree(key: _tutoRecordingKey, child: const RecordingPanel()),
+        const SizedBox(height: 6),
+
+        // Recentrer et son cadran.
         RadialActionMenu(
           key: _tutoActionsKey,
           centerIcon:  mapProv.followPosition ? Icons.my_location : Icons.location_searching,
           centerColor: AppColors.accent,
           centerActive: mapProv.followPosition,
+          radius: 150,
           onCenterTap: () {
             mapProv.toggleFollowPosition();
             final snap = _locationService.lastSnapshot;
@@ -987,72 +930,133 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             }
           },
           segments: [
+            // Le guidage n'apparaît que s'il y a une trace à suivre : un
+            // segment qui ouvrirait un choix vide est un segment qui ment.
+            if (traceProv.hasTrace)
+              RadialMenuSegment(
+                icon: Icons.alt_route, color: AppColors.accent, angleDeg: 178,
+                onSelect: () => _showGpxGuidanceChooser(traceProv.activeTrace!),
+              ),
             RadialMenuSegment(
-              icon: Icons.search, color: AppColors.accent, angleDeg: 190,
-              onSelect: _openSearchSheet,
+              icon: Icons.radar, color: AppColors.secondary, angleDeg: 201,
+              onSelect: mapProv.toggleRadar,
             ),
             RadialMenuSegment(
-              icon: Icons.cloud, color: AppColors.secondary, angleDeg: 227,
+              icon: Icons.gesture, color: AppColors.accent, angleDeg: 224,
+              onSelect: _startDrawingTrace,
+            ),
+            RadialMenuSegment(
+              icon: Icons.download_for_offline_outlined, color: AppColors.accent, angleDeg: 247,
+              onSelect: _downloadVisibleAreaOffline,
+            ),
+            RadialMenuSegment(
+              icon: Icons.cloud, color: AppColors.secondary, angleDeg: 270,
               onSelect: () => context.go(AppRoutes.weather),
             ),
             RadialMenuSegment(
-              icon: Icons.shield, color: AppColors.accent, angleDeg: 265,
+              icon: Icons.shield, color: AppColors.accent, angleDeg: 293,
               onSelect: () => context.push(AppRoutes.solo),
             ),
             // Seule entrée vers la liste des favoris : sans elle, un point
             // enregistré depuis l'appui long sur la carte n'était plus
             // atteignable pour lancer un guidage dessus.
             RadialMenuSegment(
-              icon: Icons.star, color: AppColors.accent, angleDeg: 302,
+              icon: Icons.star, color: AppColors.accent, angleDeg: 316,
               onSelect: _openFavorites,
             ),
-            // Seule entrée vers le mode groupe : l'écran (créer/rejoindre,
-            // ou gérer un groupe actif) existait déjà côté code mais
-            // n'était accessible depuis nulle part dans l'appli.
             RadialMenuSegment(
               icon: Icons.groups, color: AppColors.secondary, angleDeg: 339,
               onSelect: () => context.push(AppRoutes.group),
             ),
           ],
         ),
-        if (traceProv.hasTrace) ...[
+        const SizedBox(height: 6),
+
+        // Points d'intérêt et son cadran : tout ce qu'on cherche autour de
+        // soi tient derrière ce seul bouton.
+        RadialActionMenu(
+          centerIcon:  Icons.travel_explore,
+          centerColor: AppColors.accent,
+          centerActive: context.watch<PoiSearchProvider>().results.isNotEmpty,
+          radius: 150,
+          onCenterTap: _openPoiSearchSheet,
+          segments: [
+            RadialMenuSegment(
+              icon: Icons.local_gas_station, color: AppColors.accent, angleDeg: 224,
+              onSelect: _chercherStations,
+            ),
+            // N'apparait qu'une fois qu'il y a quelque chose a filtrer.
+            if (poiProv.results.isNotEmpty)
+              RadialMenuSegment(
+                icon: Icons.filter_alt_outlined, color: AppColors.accent, angleDeg: 260,
+                onSelect: _ouvrirFiltresPoi,
+              ),
+            // Reserve au camping-car : les aires n'interessent que lui.
+            if (settings.vehicleKind.hasGabarit)
+              RadialMenuSegment(
+                icon: Icons.local_parking, color: AppColors.accent, angleDeg: 300,
+                onSelect: _chargerAires,
+              ),
+          ],
+        ),
+        const SizedBox(height: 6),
+
+        // Orientation de la carte — nord en haut, ou cap en haut.
+        _mapCtrlBtn(
+          Icons.explore,
+          _toggleMapOrientation,
+          active: settings.mapHeadingUp,
+        ),
+        const SizedBox(height: 6),
+
+        // Reconnaissance 3D : pour préparer et observer un terrain, pas pour
+        // rouler. Elle ouvre sur la zone actuellement regardée.
+        _mapCtrlBtn(Icons.terrain_outlined, _ouvrirReconnaissance3d),
+
+        // Plein écran : uniquement en portrait, la vue paysage dédie déjà
+        // 35% de l'écran au panneau de statistiques.
+        if (pleinEcran) ...[
           const SizedBox(height: 6),
-          GestureDetector(
-            onTap: () => _showGpxGuidanceChooser(traceProv.activeTrace!),
-            child: const GlassPuck(icon: Icons.alt_route, color: AppColors.accent),
-          ),
+          _mapCtrlBtn(Icons.fullscreen, mapProv.toggleFullscreen),
         ],
-        const SizedBox(height: 6),
-        // Radar
-        _mapCtrlBtn(
-          Icons.radar,
-          mapProv.toggleRadar,
-          active: mapProv.radarEnabled,
-          activeColor: AppColors.secondary,
-        ),
-        const SizedBox(height: 6),
-        // Points d'intérêt (DATAtourisme)
-        _mapCtrlBtn(
-          Icons.travel_explore,
-          _openPoiSearchSheet,
-          active: context.watch<PoiSearchProvider>().results.isNotEmpty,
-          activeColor: AppColors.accent,
-        ),
-        const SizedBox(height: 6),
-        // Trace à main levée
-        _mapCtrlBtn(
-          Icons.gesture,
-          _startDrawingTrace,
-          active: _isDrawingTrace,
-          activeColor: AppColors.accent,
-        ),
-        const SizedBox(height: 6),
-        // Télécharger la zone visible pour hors-ligne
-        _mapCtrlBtn(
-          Icons.download_for_offline_outlined,
-          _downloadVisibleAreaOffline,
-        ),
       ],
+    );
+  }
+
+  // ── STATIONS ET RÉPARATEURS ───────────────────────────────
+  // Depuis que la recherche vit dans un segment de menu, elle n'a plus de
+  // pastille où afficher son indicateur « service indisponible » : c'est le
+  // bandeau qui s'en charge. Sans lui, un pilote en panne sèche appuierait
+  // dans le vide sans savoir qu'Overpass ne répond pas.
+  Future<void> _chercherStations() async {
+    final poi      = context.read<FuelPoiProvider>();
+    final mapProv  = context.read<MapProvider>();
+    final rayon    = context.read<FuelProvider>().searchRadiusKm;
+    final vehicule = context.read<SettingsProvider>().vehicleKind;
+
+    await basculerStationsProximite(
+      poi,
+      centre: _mapReady ? _mapController.camera.center : mapProv.center,
+      radiusKm: rayon,
+      vehicule: vehicule,
+      // Reculer pour montrer ce qu'on vient de trouver : au zoom d'une rue,
+      // des stations reparties sur vingt kilometres sont toutes hors cadre,
+      // et le pilote croit que rien ne s'est passe.
+      onResults: (_) {
+        if (!_mapReady) return;
+        _mapController.move(
+          _mapController.camera.center,
+          zoomPourRayonKm(rayon).toDouble(),
+        );
+      },
+    );
+
+    if (!mounted || !poi.unavailable) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Le service des points d\'intérêt ne répond pas. '
+            'Réessaie dans un moment.'),
+      ),
     );
   }
 
@@ -1488,15 +1492,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         child: const Text('🚐', style: TextStyle(fontSize: 16)),
       );
 
-  Widget _boutonAires() {
-    final aires = context.watch<AiresProvider>();
-    return _mapCtrlBtn(
-      aires.chargement ? Icons.hourglass_top : Icons.local_parking,
-      _chargerAires,
-      active: aires.aires.isNotEmpty && aires.visible,
-    );
-  }
-
   Future<void> _chargerAires() async {
     final aires = context.read<AiresProvider>();
     // Deja chargees et visibles : le bouton les masque plutot que de
@@ -1895,9 +1890,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Seul au bord gauche depuis que l'enregistrement a rejoint la
+          // colonne de droite : rien ne peut plus être confondu avec lui.
           SosButton(key: _tutoSosKey, onPressed: () => context.push(AppRoutes.sos)),
-          const SizedBox(height: 8),
-          KeyedSubtree(key: _tutoRecordingKey, child: const RecordingPanel()),
         ],
       ),
     );

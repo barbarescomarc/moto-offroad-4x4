@@ -136,14 +136,15 @@ class RadialRecordingControl extends StatefulWidget {
 
 class _RadialRecordingControlState extends State<RadialRecordingControl> {
   // Distance du centre à chaque segment ouvert.
-  static const double _radius = 78;
-  // Angles depuis la verticale basse, vers la droite : les deux segments
-  // restent sous et à droite du bouton, jamais au-dessus (le SOS y est) ni
-  // vers la gauche (bord de l'écran).
-  // Décalé vers la droite : à la main gauche, le pouce qui tient le geste
-  // masque ce qui est trop proche de la verticale sous le bouton.
-  static const double _angleStopDeg = 40;
-  static const double _anglePauseResumeDeg = 80;
+  static const double _radius = 144;
+  // Angles depuis la verticale basse, dans le sens horaire. Ils ont basculé
+  // de l'autre côté le jour où ce bouton a quitté le bord gauche pour la
+  // colonne de droite : ce qui ouvrait vers le bas-droite y sortait de
+  // l'écran. Les deux segments partent maintenant vers la gauche, comme ceux
+  // des autres cadrans, et restent à 79° l'un de l'autre là où 22 suffiraient
+  // — de la marge à revendre pour les deux seules actions qui comptent ici.
+  static const double _angleStopDeg = 307;
+  static const double _anglePauseResumeDeg = 228;
   // Rayon mort autour du point de départ avant qu'un segment soit visé.
   static const double _deadZoneRadius = 28;
   static const Duration _stopDwell = Duration(milliseconds: 550);

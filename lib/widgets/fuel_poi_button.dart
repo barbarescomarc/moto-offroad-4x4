@@ -40,29 +40,45 @@ class FuelPoiButton extends StatefulWidget {
   State<FuelPoiButton> createState() => _FuelPoiButtonState();
 }
 
-class _FuelPoiButtonState extends State<FuelPoiButton> {
-  /// Interrupteur : le bouton affiche les stations, et les masque.
-  ///
-  /// Masquer n'oublie rien et ne redemande rien : le rallumage est instantané.
-  Future<void> _basculer() async {
-    final poi = context.read<FuelPoiProvider>();
-
-    // Des resultats en memoire : on bascule leur affichage, sans rien
-    // redemander. Apres un echec en revanche, ce que veut le pilote est
-    // reessayer.
-    if (poi.results.isNotEmpty) {
-      poi.toggleVisible();
-      return;
-    }
-
-    await poi.searchAround(
-      widget.currentCenter(),
-      radiusKm: widget.radiusKm,
-      vehicule: widget.vehicule,
-    );
-    if (!mounted) return;
-    if (poi.results.isNotEmpty) widget.onResults?.call(poi.results);
+/// L'action du bouton, isolée du bouton lui-même.
+///
+/// Un `RadialMenuSegment` attend un `VoidCallback`, pas un widget : depuis
+/// que les stations vivent dans le menu radial des points d'intérêt, la
+/// recherche doit pouvoir se déclencher sans que la pastille soit à l'écran.
+/// Le provider est passé plutôt que lu dans un contexte, pour qu'aucun
+/// BuildContext ne traverse le `await`.
+///
+/// Interrupteur : elle affiche les stations, et les masque. Masquer n'oublie
+/// rien et ne redemande rien — le rallumage est instantané.
+Future<void> basculerStationsProximite(
+  FuelPoiProvider poi, {
+  required LatLng centre,
+  required int radiusKm,
+  required VehicleKind vehicule,
+  void Function(List<PoiModel> resultats)? onResults,
+}) async {
+  // Des resultats en memoire : on bascule leur affichage, sans rien
+  // redemander. Apres un echec en revanche, ce que veut le pilote est
+  // reessayer.
+  if (poi.results.isNotEmpty) {
+    poi.toggleVisible();
+    return;
   }
+
+  await poi.searchAround(centre, radiusKm: radiusKm, vehicule: vehicule);
+  if (poi.results.isNotEmpty) onResults?.call(poi.results);
+}
+
+class _FuelPoiButtonState extends State<FuelPoiButton> {
+  Future<void> _basculer() => basculerStationsProximite(
+        context.read<FuelPoiProvider>(),
+        centre: widget.currentCenter(),
+        radiusKm: widget.radiusKm,
+        vehicule: widget.vehicule,
+        onResults: (resultats) {
+          if (mounted) widget.onResults?.call(resultats);
+        },
+      );
 
   @override
   Widget build(BuildContext context) {
