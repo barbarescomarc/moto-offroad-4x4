@@ -62,15 +62,22 @@ class LocationService {
   StreamSubscription<Position>? _subscription;
   final _controller = StreamController<GpsSnapshot>.broadcast();
 
-  GpsSnapshot? _lastSnapshot;
-  GpsSnapshot? get lastSnapshot => _lastSnapshot;
+  // Dernière position connue, sous une forme que l'affichage peut écouter.
+  // Un simple champ ne suffisait pas : l'écran carte le lisait pendant son
+  // build et ne réapprenait donc jamais qu'un relevé plus récent existait —
+  // le marqueur du pilote restait figé pendant que la carte, déplacée par le
+  // contrôleur, continuait de suivre (constaté le 2026-09-15).
+  final ValueNotifier<GpsSnapshot?> _position = ValueNotifier(null);
+  ValueListenable<GpsSnapshot?> get positionListenable => _position;
+
+  GpsSnapshot? get lastSnapshot => _position.value;
 
   // Singleton réel, sans plugin GPS disponible en test : seul moyen pour un
   // test widget de simuler « une position est déjà connue » sans démarrer un
   // vrai suivi Geolocator (indisponible hors appareil).
   @visibleForTesting
   void debugSetLastSnapshot(GpsSnapshot? snapshot) {
-    _lastSnapshot = snapshot;
+    _position.value = snapshot;
   }
 
   Stream<GpsSnapshot> get stream => _controller.stream;
@@ -103,7 +110,7 @@ class LocationService {
     _subscription = Geolocator.getPositionStream(locationSettings: settings)
         .listen((position) {
       final snap = GpsSnapshot.fromPosition(position);
-      _lastSnapshot = snap;
+      _position.value = snap;
       _controller.add(snap);
     });
   }
@@ -125,7 +132,7 @@ class LocationService {
         timeLimit: const Duration(seconds: 10),
       );
       final snap = GpsSnapshot.fromPosition(pos);
-      _lastSnapshot = snap;
+      _position.value = snap;
       return snap;
     } catch (_) {
       return null;
@@ -143,5 +150,6 @@ class LocationService {
   void dispose() {
     _subscription?.cancel();
     _controller.close();
+    _position.dispose();
   }
 }
