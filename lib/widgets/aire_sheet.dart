@@ -44,8 +44,8 @@ class AireSheet extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('🚐 ${aire.nomAffiche}', style: const TextStyle(
-                fontFamily: 'Rajdhani', fontSize: 18, fontWeight: FontWeight.w700,
-                color: Colors.white,
+                fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700,
+                color: AppColors.foreground,
               )),
               const SizedBox(height: 4),
               const Text('Aire camping-car',
@@ -67,7 +67,7 @@ class AireSheet extends StatelessWidget {
               if (aire.description != null) ...[
                 const SizedBox(height: 14),
                 Text(aire.description!, style: const TextStyle(
-                    color: Colors.white70, fontSize: 13, height: 1.4)),
+                    color: AppColors.mutedForeground, fontSize: 13, height: 1.4)),
               ],
 
               if (aire.phone != null) ...[
@@ -136,7 +136,7 @@ class AireSheet extends StatelessWidget {
           Expanded(
             child: renseigne
                 ? Text(valeur,
-                    style: const TextStyle(color: Colors.white, fontSize: 14))
+                    style: const TextStyle(color: AppColors.foreground, fontSize: 14))
                 : Row(children: [
                     const Text('Non renseigné',
                         style: TextStyle(color: AppColors.textMuted, fontSize: 13,
@@ -146,7 +146,7 @@ class AireSheet extends StatelessWidget {
                       key: Key('completer-${champ.cleServeur}'),
                       onTap: () => _ouvrirSaisie(context, champ),
                       child: const Text('· compléter',
-                          style: TextStyle(color: AppColors.orange, fontSize: 13,
+                          style: TextStyle(color: AppColors.accent, fontSize: 13,
                               fontWeight: FontWeight.w600)),
                     ),
                   ]),
@@ -165,12 +165,12 @@ class AireSheet extends StatelessWidget {
           .map((s) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: BoxDecoration(
-                  color: AppColors.bgCard,
+                  color: AppColors.card,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFF2A2A3E)),
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: Text(AireServices.libelles[s] ?? s,
-                    style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    style: const TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
               ))
           .toList(),
     );
@@ -179,10 +179,10 @@ class AireSheet extends StatelessWidget {
   Widget _ligneContact(IconData icone, String texte) => Padding(
         padding: const EdgeInsets.only(top: 8),
         child: Row(children: [
-          Icon(icone, color: AppColors.textSecondary, size: 18),
+          Icon(icone, color: AppColors.mutedForeground, size: 18),
           const SizedBox(width: 8),
           Expanded(child: Text(texte,
-              style: const TextStyle(color: Colors.white70, fontSize: 13),
+              style: const TextStyle(color: AppColors.mutedForeground, fontSize: 13),
               overflow: TextOverflow.ellipsis)),
         ]),
       );
@@ -249,9 +249,9 @@ class _DialogueReleveState extends State<_DialogueReleve> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       title: Text(widget.champ.libelle,
-          style: const TextStyle(color: Colors.white, fontFamily: 'Rajdhani')),
+          style: const TextStyle(color: AppColors.foreground, fontFamily: 'Inter')),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,7 +265,7 @@ class _DialogueReleveState extends State<_DialogueReleve> {
             key: const Key('saisie-releve'),
             controller: _controleur,
             autofocus: true,
-            style: const TextStyle(color: Colors.white),
+            style: const TextStyle(color: AppColors.foreground),
             keyboardType: widget.champ.estNumerique
                 ? const TextInputType.numberWithOptions(decimal: true)
                 : TextInputType.text,

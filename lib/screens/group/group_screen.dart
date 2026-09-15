@@ -12,7 +12,7 @@ class GroupScreen extends StatelessWidget {
     final group = context.watch<GroupProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('👥  GROUPE')),
       body: group.groupActive ? _buildActive(context, group) : _buildInactive(context, group),
     );
@@ -29,23 +29,23 @@ class GroupScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: AppColors.bgCard,
+              color: AppColors.card,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF2A2A3E)),
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Mode groupe — jusqu\'à 20 motos', style: TextStyle(
-                  fontFamily: 'Rajdhani', fontSize: 18, fontWeight: FontWeight.w700,
-                  color: Colors.white)),
+                  fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700,
+                  color: AppColors.foreground)),
                 const SizedBox(height: 4),
                 const Text('Partagez votre position, envoyez un point de ralliement et partagez une trace en temps réel.',
-                  style: TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+                  style: TextStyle(fontSize: 12, color: AppColors.mutedForeground)),
                 const SizedBox(height: 16),
                 TextField(
                   controller: nameCtrl,
-                  style: const TextStyle(color: Colors.white),
+                  style: const TextStyle(color: AppColors.foreground),
                   decoration: const InputDecoration(
                     labelText: 'Votre nom dans le groupe',
                     prefixIcon: Icon(Icons.person_outline, color: AppColors.textMuted),
@@ -75,7 +75,7 @@ class GroupScreen extends StatelessWidget {
                 TextField(
                   controller: joinCodeCtrl,
                   textCapitalization: TextCapitalization.characters,
-                  style: const TextStyle(color: Colors.white, letterSpacing: 4, fontSize: 18),
+                  style: const TextStyle(color: AppColors.foreground, letterSpacing: 4, fontSize: 18),
                   decoration: const InputDecoration(
                     labelText: 'Code du groupe',
                     prefixIcon: Icon(Icons.tag, color: AppColors.textMuted),
@@ -126,7 +126,7 @@ class GroupScreen extends StatelessWidget {
 
           // ── Liste membres ────────────────────────────
           Text('MEMBRES (${group.onlineCount}/${GroupProvider.maxMembers})',
-            style: const TextStyle(fontFamily: 'Rajdhani', fontSize: 12,
+            style: const TextStyle(fontFamily: 'Inter', fontSize: 12,
               color: AppColors.textMuted, letterSpacing: 1.5)),
           const SizedBox(height: 8),
           ...group.members.map((m) => _memberTile(m)),
@@ -141,7 +141,7 @@ class GroupScreen extends StatelessWidget {
               label: const Text('Quitter le groupe',
                 style: TextStyle(color: AppColors.statusRed)),
               style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.red),
+                side: const BorderSide(color: AppColors.destructive),
                 minimumSize: const Size(double.infinity, 48),
               ),
             ),
@@ -155,24 +155,24 @@ class GroupScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.orange.withOpacity(.4)),
+        border: Border.all(color: AppColors.accent.withOpacity(.4)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('SESSION ACTIVE', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5)),
+            fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5)),
           const SizedBox(height: 8),
           Row(
             children: [
               Text(group.sessionId ?? '------',
-                style: const TextStyle(fontFamily: 'Rajdhani', fontSize: 32,
-                  fontWeight: FontWeight.w700, color: AppColors.orange, letterSpacing: 4)),
+                style: const TextStyle(fontFamily: 'Inter', fontSize: 32,
+                  fontWeight: FontWeight.w700, color: AppColors.accent, letterSpacing: 4)),
               const Spacer(),
               IconButton(
-                icon: const Icon(Icons.copy, color: AppColors.textSecondary, size: 20),
+                icon: const Icon(Icons.copy, color: AppColors.mutedForeground, size: 20),
                 onPressed: () {
                   Clipboard.setData(ClipboardData(text: group.sessionId ?? ''));
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -193,10 +193,10 @@ class GroupScreen extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: sharing ? AppColors.statusGreen.withOpacity(.08) : AppColors.bgCard,
+          color: sharing ? AppColors.statusGreen.withOpacity(.08) : AppColors.card,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: sharing ? AppColors.statusGreen.withOpacity(.4) : const Color(0xFF2A2A3E)),
+            color: sharing ? AppColors.statusGreen.withOpacity(.4) : AppColors.border),
         ),
         child: Row(
           children: [
@@ -208,7 +208,7 @@ class GroupScreen extends StatelessWidget {
               children: [
                 Text(sharing ? 'Ma position est visible par le groupe' : 'Position masquée',
                   style: TextStyle(
-                    color: sharing ? AppColors.statusGreen : AppColors.textSecondary,
+                    color: sharing ? AppColors.statusGreen : AppColors.mutedForeground,
                     fontWeight: FontWeight.w600, fontSize: 13)),
                 Text(sharing ? 'Tap pour masquer' : 'Tap pour partager',
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
@@ -231,7 +231,7 @@ class GroupScreen extends StatelessWidget {
         Expanded(child: _actionBtn(
           Icons.flag,
           group.rallyPoint != null ? 'Supprimer le\nralliement' : 'Point de\nralliement',
-          AppColors.orange,
+          AppColors.accent,
           () {
             if (group.rallyPoint != null) {
               group.setRallyPoint(null);
@@ -246,7 +246,7 @@ class GroupScreen extends StatelessWidget {
         Expanded(child: _actionBtn(
           Icons.route,
           'Partager\nla trace',
-          AppColors.blue,
+          AppColors.secondary,
           () => ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Trace partagée avec le groupe'))),
         )),
@@ -270,7 +270,7 @@ class GroupScreen extends StatelessWidget {
             const SizedBox(height: 6),
             Text(label, textAlign: TextAlign.center,
               style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600,
-                fontFamily: 'Rajdhani')),
+                fontFamily: 'Inter')),
           ],
         ),
       ),
@@ -283,20 +283,20 @@ class GroupScreen extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF2A2A3E)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
           CircleAvatar(radius: 16, backgroundColor: color,
             child: Text(m.name.isNotEmpty ? m.name[0] : '?',
-              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700))),
+              style: const TextStyle(color: AppColors.onPrimary, fontWeight: FontWeight.w700))),
           const SizedBox(width: 12),
           Expanded(child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(m.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              Text(m.name, style: const TextStyle(color: AppColors.foreground, fontWeight: FontWeight.w600)),
               Text(
                 m.isSharing
                     ? (m.speedKmh != null ? '${m.speedKmh!.toStringAsFixed(0)} km/h' : 'En ligne')
@@ -309,7 +309,7 @@ class GroupScreen extends StatelessWidget {
           // spec suivi-sécurité) n'existe pas — la position d'un membre du
           // groupe n'est pas encore une vraie destination guidable.
           IconButton(
-            icon: const Icon(Icons.directions, color: Colors.white24, size: 20),
+            icon: const Icon(Icons.directions, color: AppColors.border, size: 20),
             tooltip: 'Nécessite le hub de positions du groupe (à venir)',
             onPressed: null,
           ),

@@ -25,8 +25,8 @@ class StatsBar extends StatelessWidget {
     return Container(
       height: AppSizes.statsBarHeight,
       decoration: const BoxDecoration(
-        color: AppColors.bgCard,
-        border: Border(top: BorderSide(color: Color(0xFF2A2A3E), width: 1)),
+        color: AppColors.card,
+        border: Border(top: BorderSide(color: AppColors.border, width: 1)),
       ),
       child: Row(
         children: [
@@ -40,7 +40,7 @@ class StatsBar extends StatelessWidget {
             fuelOk ? AppColors.statusGreen : AppColors.statusRed),
           if (altitude != null) ...[
             _divider(),
-            _stat('ALT.', '${altitude!.toStringAsFixed(0)} m', AppColors.textSecondary),
+            _stat('ALT.', '${altitude!.toStringAsFixed(0)} m', AppColors.mutedForeground),
           ],
         ],
       ),
@@ -61,7 +61,7 @@ class StatsBar extends StatelessWidget {
             children: [
               Text('${speedKmh.toStringAsFixed(0)} km/h', style: const TextStyle(
                 fontSize: 15, fontWeight: FontWeight.w700,
-                color: Colors.white, fontFamily: 'Rajdhani')),
+                color: AppColors.foreground, fontFamily: 'Inter')),
               if (limit != null) ...[
                 const SizedBox(width: 6),
                 SpeedLimitBadge(limitKmh: limit, size: 24),
@@ -83,7 +83,7 @@ class StatsBar extends StatelessWidget {
           const SizedBox(height: 2),
           Text(value, style: TextStyle(
             fontSize: 15, fontWeight: FontWeight.w700,
-            color: valueColor, fontFamily: 'Rajdhani')),
+            color: valueColor, fontFamily: 'Inter')),
         ],
       ),
     );
@@ -91,6 +91,6 @@ class StatsBar extends StatelessWidget {
 
   Widget _divider() => Container(
     width: 1, height: 28,
-    color: const Color(0xFF2A2A3E),
+    color: AppColors.border,
   );
 }

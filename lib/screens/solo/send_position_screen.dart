@@ -55,7 +55,7 @@ class _SendPositionScreenState extends State<SendPositionScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A1A0A),
       appBar: AppBar(
-        backgroundColor: AppColors.green,
+        backgroundColor: AppColors.accent,
         title: const Text('Envoyer ma position'),
       ),
       body: SafeArea(
@@ -90,9 +90,9 @@ class _SendPositionScreenState extends State<SendPositionScreen> {
                 const SizedBox(height: 8),
                 if (solo.contacts.isEmpty) _noContacts()
                 else ...solo.contacts.map((c) => ListTile(
-                  title: Text(c.name, style: const TextStyle(color: Colors.white)),
+                  title: Text(c.name, style: const TextStyle(color: AppColors.foreground)),
                   subtitle: Text(c.phone,
-                    style: const TextStyle(color: AppColors.textSecondary)),
+                    style: const TextStyle(color: AppColors.mutedForeground)),
                   trailing: ElevatedButton(
                     onPressed: () => _sendTo(c),
                     child: const Text('Envoyer'),
@@ -117,7 +117,7 @@ class _SendPositionScreenState extends State<SendPositionScreen> {
       return Column(
         children: [
           const Text('Position indisponible — vérifiez que le GPS est actif',
-            style: TextStyle(color: AppColors.textSecondary)),
+            style: TextStyle(color: AppColors.mutedForeground)),
           const SizedBox(height: 12),
           ElevatedButton(onPressed: _locate, child: const Text('Réessayer')),
         ],
@@ -126,15 +126,15 @@ class _SendPositionScreenState extends State<SendPositionScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2A2A3E)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(_snapshot!.sosText,
-            style: const TextStyle(color: Colors.white, fontSize: 13)),
+            style: const TextStyle(color: AppColors.foreground, fontSize: 13)),
           const SizedBox(height: 8),
           Text('Mesurée à ${_snapshot!.timestamp.toLocal()}',
             style: const TextStyle(color: AppColors.textMuted, fontSize: 11)),
@@ -149,7 +149,7 @@ class _SendPositionScreenState extends State<SendPositionScreen> {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       const Text('Aucun contact de confiance enregistré',
-        style: TextStyle(color: AppColors.textSecondary)),
+        style: TextStyle(color: AppColors.mutedForeground)),
       const SizedBox(height: 8),
       ElevatedButton(
         onPressed: () => Navigator.of(context).pop(),

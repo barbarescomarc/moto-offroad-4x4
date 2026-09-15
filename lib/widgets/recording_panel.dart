@@ -260,7 +260,7 @@ class _RadialRecordingControlState extends State<RadialRecordingControl> {
                   height: _radius * 2,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white.withOpacity(.15), width: 1.5),
+                    border: Border.all(color: AppColors.border, width: 1.5),
                   ),
                 ),
               ),
@@ -311,8 +311,8 @@ class _RadialRecordingControlState extends State<RadialRecordingControl> {
               child: CircularProgressIndicator(
                 value: progress,
                 strokeWidth: 3,
-                backgroundColor: Colors.white.withOpacity(.15),
-                color: Colors.white,
+                backgroundColor: AppColors.onPrimary.withValues(alpha: .3),
+                color: AppColors.onPrimary,
               ),
             ),
           _RoundVisual(icon: icon, color: color, highlight: active),
@@ -334,13 +334,13 @@ class _StatsPill extends StatelessWidget {
       constraints: const BoxConstraints(maxWidth: 132),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: AppColors.bgPanel.withOpacity(.9),
+        color: AppColors.card.withOpacity(.9),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: bordure, width: 1.5),
       ),
       child: Text(
         texte,
-        style: const TextStyle(color: Colors.white, fontSize: 12),
+        style: const TextStyle(color: AppColors.foreground, fontSize: 12),
         overflow: TextOverflow.ellipsis,
       ),
     );

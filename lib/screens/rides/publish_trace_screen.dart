@@ -251,7 +251,7 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
                 ? const SizedBox(
                     height: 18,
                     width: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary),
                   )
                 : const Text('Publier'),
           ),
@@ -348,7 +348,7 @@ class _PublishTraceScreenState extends State<PublishTraceScreen> {
               const SizedBox(height: 2),
               const Text(
                 'Ma trace restera au catalogue même si je supprime mon compte.',
-                style: TextStyle(fontSize: 12, color: Colors.black54),
+                style: TextStyle(fontSize: 12, color: AppColors.mutedForeground),
               ),
             ],
           ),

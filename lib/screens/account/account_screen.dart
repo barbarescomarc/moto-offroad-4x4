@@ -7,6 +7,7 @@ import '../../providers/shared_traces_provider.dart';
 import '../../services/account_api_client.dart';
 import '../../services/tutorial_controller.dart';
 import 'account_error_messages.dart';
+import '../../app/theme.dart';
 
 /// Écran « Mon compte » : identité du rider connecté, et les trois actions
 /// qui ne trouvent leur place nulle part ailleurs.
@@ -110,7 +111,7 @@ class _AccountScreenState extends State<AccountScreen> {
           ),
           const SizedBox(height: 4),
           Text(compte.email ?? '',
-              style: const TextStyle(color: Colors.white70)),
+              style: const TextStyle(color: AppColors.mutedForeground)),
           if (_erreur != null) ...[
             const SizedBox(height: 16),
             Text(_erreur!, style: const TextStyle(color: Colors.redAccent)),

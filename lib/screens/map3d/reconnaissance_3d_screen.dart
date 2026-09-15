@@ -57,7 +57,7 @@ class _Reconnaissance3dScreenState extends State<Reconnaissance3dScreen> {
     super.initState();
     _controleur = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(AppColors.bgPanel)
+      ..setBackgroundColor(AppColors.card)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (_) async {
@@ -92,16 +92,16 @@ class _Reconnaissance3dScreenState extends State<Reconnaissance3dScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       appBar: AppBar(
-        backgroundColor: AppColors.bgPanel,
+        backgroundColor: AppColors.card,
         title: const Text('Reconnaissance 3D'),
       ),
       body: Stack(
         children: [
           WebViewWidget(controller: _controleur),
           if (_chargement)
-            const Center(child: CircularProgressIndicator(color: AppColors.orange)),
+            const Center(child: CircularProgressIndicator(color: AppColors.accent)),
         ],
       ),
     );

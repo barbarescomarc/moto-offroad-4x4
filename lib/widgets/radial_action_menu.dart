@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'glass_control.dart';
+import '../app/theme.dart';
 
 // ── Segment d'un menu radial ─────────────────────────────────
 class RadialMenuSegment {
@@ -113,7 +114,7 @@ class _RadialActionMenuState extends State<RadialActionMenu> {
                   height: widget.radius * 2,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white.withOpacity(.15), width: 1.5),
+                    border: Border.all(color: AppColors.border, width: 1.5),
                   ),
                 ),
               ),

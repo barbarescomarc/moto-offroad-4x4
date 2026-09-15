@@ -25,19 +25,19 @@ class ManeuverTile extends StatelessWidget {
       height: size,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: AppColors.orange.withValues(alpha: .15),
+        color: AppColors.accent.withValues(alpha: .15),
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.orange.withValues(alpha: .5)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: .5)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(maneuverIcon(step?.maneuver), color: AppColors.orange, size: 34),
+          Icon(maneuverIcon(step?.maneuver), color: AppColors.accent, size: 34),
           if (step != null) ...[
             const SizedBox(height: 2),
             Text(
               _distanceLabel(distanceToNextStepMeters),
-              style: const TextStyle(color: AppColors.orange, fontSize: 12, fontWeight: FontWeight.w700),
+              style: const TextStyle(color: AppColors.accent, fontSize: 12, fontWeight: FontWeight.w700),
             ),
           ],
         ],

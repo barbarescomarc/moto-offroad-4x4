@@ -96,7 +96,7 @@ class TutorialOverlay extends StatelessWidget {
           maxHeight: MediaQuery.of(context).size.height - 32,
         ),
         child: Material(
-          color: AppColors.bgPanel,
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(16),
           clipBehavior: Clip.antiAlias,
           // Le pied ne defile pas. Seul le texte est dans la zone defilante :
@@ -118,10 +118,10 @@ class TutorialOverlay extends StatelessWidget {
                       Text(
                         'ÉTAPE ${controller.index + 1} / ${controller.total}',
                         style: const TextStyle(
-                          fontFamily: 'Rajdhani',
+                          fontFamily: 'Inter',
                           fontSize: 13,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.orange,
+                          color: AppColors.accent,
                           letterSpacing: 1.2,
                         ),
                       ),
@@ -129,10 +129,10 @@ class TutorialOverlay extends StatelessWidget {
                       Text(
                         step.title,
                         style: const TextStyle(
-                          fontFamily: 'Rajdhani',
+                          fontFamily: 'Inter',
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
-                          color: AppColors.textPrimary,
+                          color: AppColors.foreground,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -141,7 +141,7 @@ class TutorialOverlay extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 14,
                           height: 1.35,
-                          color: AppColors.textSecondary,
+                          color: AppColors.mutedForeground,
                         ),
                       ),
                       const SizedBox(height: 16),
@@ -172,7 +172,7 @@ class TutorialOverlay extends StatelessWidget {
             width: active ? 18 : 6,
             height: 6,
             decoration: BoxDecoration(
-              color: active ? AppColors.orange : AppColors.textMuted,
+              color: active ? AppColors.accent : AppColors.textMuted,
               borderRadius: BorderRadius.circular(3),
             ),
           ),
@@ -216,13 +216,13 @@ class TutorialOverlay extends StatelessWidget {
               key: const Key('tuto-precedent'),
               onPressed: controller.previous,
               child: const Text('Précédent',
-                  style: TextStyle(color: AppColors.textSecondary)),
+                  style: TextStyle(color: AppColors.mutedForeground)),
             ),
           ElevatedButton(
             key: const Key('tuto-suivant'),
             onPressed: controller.next,
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.orange,
+              backgroundColor: AppColors.accent,
               // Le theme impose minimumSize: Size(double.infinity, 52) — un
               // bouton d'action pleine largeur, ce qu'on veut dans une colonne
               // mais pas ici : en rangee, le bouton reclamait une largeur
@@ -249,7 +249,9 @@ class _SpotlightPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final fullScreen = Offset.zero & size;
-    final veilPaint = Paint()..color = Colors.black.withOpacity(0.84);
+    // Le voile du tutoriel prend le marine du site plutôt qu'un noir
+    // neutre : c'est le même écran d'emphase que le bloc d'appel.
+    final veilPaint = Paint()..color = AppColors.primary.withValues(alpha: 0.84);
 
     canvas.saveLayer(fullScreen, Paint());
     canvas.drawRect(fullScreen, veilPaint);

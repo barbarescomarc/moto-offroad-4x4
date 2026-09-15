@@ -38,25 +38,29 @@ class _SosScreenState extends State<SosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Seul écran resté sombre après la reprise de la charte claire du
+      // site (2026-09-15) : c'est un état d'alarme, pas une surface de
+      // marque. Un fond blanc ici affaiblirait le signal, et l'écran doit
+      // rester lisible de nuit, casque sur la tête, sans éblouir.
       backgroundColor: const Color(0xFF0D0000),
       appBar: AppBar(
-        backgroundColor: AppColors.red,
+        backgroundColor: AppColors.destructive,
         title: const Text('🆘  URGENCE — SOS',
-          style: TextStyle(color: Colors.white, fontFamily: 'Rajdhani', fontSize: 20, fontWeight: FontWeight.w700)),
+          style: TextStyle(color: AppColors.onPrimary, fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w700)),
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
+          icon: const Icon(Icons.close, color: AppColors.onPrimary),
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Je vais bien', style: TextStyle(color: Colors.white70, fontSize: 12)),
+            child: const Text('Je vais bien', style: TextStyle(color: AppColors.onPrimaryMuted, fontSize: 12)),
           ),
         ],
       ),
       body: SafeArea(
         child: _loading
-            ? const Center(child: CircularProgressIndicator(color: AppColors.red))
+            ? const Center(child: CircularProgressIndicator(color: AppColors.destructive))
             : SingleChildScrollView(
                 padding: const EdgeInsets.all(16),
                 child: Column(
@@ -100,19 +104,19 @@ class _SosScreenState extends State<SosScreen> {
       decoration: BoxDecoration(
         color: const Color(0xFF1A0000),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.red.withOpacity(.5)),
+        border: Border.all(color: AppColors.destructive.withOpacity(.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('MA POSITION GPS', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 12,
+            fontFamily: 'Inter', fontSize: 12,
             color: AppColors.textMuted, letterSpacing: 1.5,
           )),
           const SizedBox(height: 12),
           if (snap == null) ...[
             const Center(child: Text('GPS en cours de localisation…',
-              style: TextStyle(color: AppColors.textSecondary))),
+              style: TextStyle(color: AppColors.mutedForeground))),
           ] else ...[
             _coordRow('Latitude',  '${snap.position.latitude.toStringAsFixed(6)}° N', isMain: true),
             _coordRow('Longitude', '${snap.position.longitude.toStringAsFixed(6)}° E', isMain: true),
@@ -130,17 +134,17 @@ class _SosScreenState extends State<SosScreen> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: AppColors.blue.withOpacity(.1),
+                  color: AppColors.secondary.withOpacity(.1),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppColors.blue.withOpacity(.3)),
+                  border: Border.all(color: AppColors.secondary.withOpacity(.3)),
                 ),
                 child: Row(children: [
-                  const Icon(Icons.map, color: AppColors.blue, size: 16),
+                  const Icon(Icons.map, color: AppColors.secondary, size: 16),
                   const SizedBox(width: 8),
                   Expanded(child: Text(snap.googleMapsUrl,
-                    style: const TextStyle(color: AppColors.blue, fontSize: 11),
+                    style: const TextStyle(color: AppColors.secondary, fontSize: 11),
                     overflow: TextOverflow.ellipsis)),
-                  const Icon(Icons.copy, color: AppColors.blue, size: 14),
+                  const Icon(Icons.copy, color: AppColors.secondary, size: 14),
                 ]),
               ),
             ),
@@ -156,12 +160,12 @@ class _SosScreenState extends State<SosScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+          Text(label, style: const TextStyle(fontSize: 12, color: AppColors.mutedForeground)),
           Text(value, style: TextStyle(
             fontSize: isMain ? 18 : 14,
             fontWeight: isMain ? FontWeight.w700 : FontWeight.w500,
-            color: valueColor ?? (isMain ? const Color(0xFFEF9A9A) : Colors.white),
-            fontFamily: 'Rajdhani',
+            color: valueColor ?? (isMain ? const Color(0xFFEF9A9A) : AppColors.onPrimary),
+            fontFamily: 'Inter',
           )),
         ],
       ),
@@ -181,7 +185,7 @@ class _SosScreenState extends State<SosScreen> {
           icon: Icons.sms,
           label: 'SMS Secours',
           sublabel: 'Message pré-rempli',
-          color: AppColors.red,
+          color: AppColors.destructive,
           onTap: () async {
             await _sosService.sendSms(number: '112');
           },
@@ -190,7 +194,7 @@ class _SosScreenState extends State<SosScreen> {
           icon: Icons.content_copy,
           label: 'Copier GPS',
           sublabel: 'Presse-papier',
-          color: AppColors.blue,
+          color: AppColors.secondary,
           onTap: () async {
             final text = await _sosService.getCoordinatesText();
             if (text != null) {
@@ -210,7 +214,7 @@ class _SosScreenState extends State<SosScreen> {
           icon: Icons.share,
           label: 'Partager',
           sublabel: 'Signal, Mail…',
-          color: AppColors.orange,
+          color: AppColors.accent,
           onTap: () => _sosService.shareGeneric(),
         ),
       ],
@@ -239,7 +243,7 @@ class _SosScreenState extends State<SosScreen> {
             Icon(icon, color: color, size: 26),
             const SizedBox(height: 6),
             Text(label, style: TextStyle(
-              fontSize: 13, fontWeight: FontWeight.w700, color: color, fontFamily: 'Rajdhani')),
+              fontSize: 13, fontWeight: FontWeight.w700, color: color, fontFamily: 'Inter')),
             Text(sublabel, style: const TextStyle(fontSize: 10, color: AppColors.textMuted)),
           ],
         ),
@@ -255,13 +259,13 @@ class _SosScreenState extends State<SosScreen> {
         onPressed: () => _sosService.call112(),
         icon: const Icon(Icons.phone, size: 22),
         label: const Text('APPELER LE 112', style: TextStyle(
-          fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 1, fontFamily: 'Rajdhani')),
+          fontSize: 18, fontWeight: FontWeight.w700, letterSpacing: 1, fontFamily: 'Inter')),
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.red,
-          foregroundColor: Colors.white,
+          backgroundColor: AppColors.destructive,
+          foregroundColor: AppColors.onPrimary,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           elevation: 4,
-          shadowColor: AppColors.red.withOpacity(.5),
+          shadowColor: AppColors.destructive.withOpacity(.5),
         ),
       ),
     );

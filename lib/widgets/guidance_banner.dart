@@ -52,7 +52,7 @@ class GuidanceBanner extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             'Zone de contrôle possible à ${_distanceLabel(distanceMeters)}',
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13),
+            style: const TextStyle(color: AppColors.foreground, fontWeight: FontWeight.w600, fontSize: 13),
           ),
         ],
       ),
@@ -72,9 +72,9 @@ class GuidanceBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.bgPanel.withValues(alpha: .92),
+        color: AppColors.card.withValues(alpha: .92),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2A2A3E)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -86,7 +86,7 @@ class GuidanceBanner extends StatelessWidget {
             const Flexible(
               child: Text(
                 'Suivi de la trace',
-                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 15),
+                style: TextStyle(color: AppColors.foreground, fontWeight: FontWeight.w600, fontSize: 15),
               ),
             ),
           ],
@@ -113,22 +113,22 @@ class GuidanceBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
       decoration: BoxDecoration(
-        color: AppColors.bgPanel.withValues(alpha: .92),
+        color: AppColors.card.withValues(alpha: .92),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2A2A3E)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
-          Text('$remainingKm km restants', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+          Text('$remainingKm km restants', style: const TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
           // Pas d'estimation sur une trace GPX : elle ne porte aucune durée,
           // afficher « 0 min » induirait le rider en erreur.
           if (eta > Duration.zero) ...[
-            const Text(' · ', style: TextStyle(color: Colors.white38, fontSize: 12)),
-            Text(_formatEta(eta), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            const Text(' · ', style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
+            Text(_formatEta(eta), style: const TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
           ],
           const Spacer(),
           IconButton(
-            icon: Icon(guidance.isMuted ? Icons.volume_off : Icons.volume_up, color: Colors.white70, size: 20),
+            icon: Icon(guidance.isMuted ? Icons.volume_off : Icons.volume_up, color: AppColors.mutedForeground, size: 20),
             onPressed: () => _toggleMute(context, guidance),
           ),
           IconButton(

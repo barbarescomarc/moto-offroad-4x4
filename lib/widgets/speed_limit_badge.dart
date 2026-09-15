@@ -26,7 +26,7 @@ class SpeedLimitBadge extends StatelessWidget {
           color: Colors.black,
           fontWeight: FontWeight.w800,
           fontSize: size * 0.36,
-          fontFamily: 'Rajdhani',
+          fontFamily: 'Inter',
         ),
       ),
     );

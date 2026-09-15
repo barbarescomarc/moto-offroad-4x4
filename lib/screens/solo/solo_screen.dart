@@ -37,11 +37,11 @@ class _SoloScreenState extends State<SoloScreen> {
     return Scaffold(
       backgroundColor: const Color(0xFF0A1A0A),
       appBar: AppBar(
-        backgroundColor: AppColors.green,
+        backgroundColor: AppColors.accent,
         title: const Text('🛡️  Mode Solo Sécurisé',
-          style: TextStyle(color: Colors.white, fontFamily: 'Rajdhani', fontSize: 20, fontWeight: FontWeight.w700)),
+          style: TextStyle(color: AppColors.onAccent, fontFamily: 'Inter', fontSize: 20, fontWeight: FontWeight.w700)),
         leading: IconButton(
-          icon: const Icon(Icons.close, color: Colors.white),
+          icon: const Icon(Icons.close, color: AppColors.onAccent),
           onPressed: () => Navigator.of(context).pop(),
         ),
       ),
@@ -96,16 +96,16 @@ class _SoloScreenState extends State<SoloScreen> {
       return Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: AppColors.bgCard,
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF2A2A3E)),
+          border: Border.all(color: AppColors.border),
         ),
         child: const Row(children: [
           Icon(Icons.shield_outlined, color: AppColors.textMuted, size: 24),
           SizedBox(width: 12),
           Expanded(child: Text(
             'Mode Solo désactivé — activez-le avant de partir seul',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 13),
+            style: TextStyle(color: AppColors.mutedForeground, fontSize: 13),
           )),
         ]),
       );
@@ -114,9 +114,9 @@ class _SoloScreenState extends State<SoloScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.green.withOpacity(.1),
+        color: AppColors.accent.withOpacity(.1),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.green.withOpacity(.5)),
+        border: Border.all(color: AppColors.accent.withOpacity(.5)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,7 +125,7 @@ class _SoloScreenState extends State<SoloScreen> {
             Icon(Icons.shield, color: AppColors.statusGreen, size: 22),
             SizedBox(width: 8),
             Text('MODE SOLO ACTIF', style: TextStyle(
-              fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700,
+              fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700,
               color: AppColors.statusGreen, letterSpacing: .5,
             )),
           ]),
@@ -133,18 +133,18 @@ class _SoloScreenState extends State<SoloScreen> {
           // Lien de suivi
           if (solo.trackingUrl != null) ...[
             const Text('Lien de suivi envoyé à vos contacts :', style: TextStyle(
-              fontSize: 11, color: AppColors.textSecondary)),
+              fontSize: 11, color: AppColors.mutedForeground)),
             const SizedBox(height: 4),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: AppColors.green.withOpacity(.08),
+                color: AppColors.accent.withOpacity(.08),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: AppColors.green.withOpacity(.3)),
+                border: Border.all(color: AppColors.accent.withOpacity(.3)),
               ),
               child: Text(solo.trackingUrl!,
                 style: const TextStyle(color: AppColors.statusGreen, fontSize: 12,
-                  fontFamily: 'Rajdhani')),
+                  fontFamily: 'Inter')),
             ),
             const SizedBox(height: 8),
             const Text('⚠️ Le lien est chiffré et expire à la fin de la session',
@@ -190,14 +190,14 @@ class _SoloScreenState extends State<SoloScreen> {
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
         color: contact.isNotified
-            ? AppColors.green.withOpacity(.08)
-            : AppColors.bgCard,
+            ? AppColors.accent.withOpacity(.08)
+            : AppColors.card,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
           color: contact.isNotified
-              ? AppColors.green.withOpacity(.4)
-              : isSelected ? AppColors.orange.withOpacity(.5)
-              : const Color(0xFF2A2A3E),
+              ? AppColors.accent.withOpacity(.4)
+              : isSelected ? AppColors.accent.withOpacity(.5)
+              : AppColors.border,
         ),
       ),
       child: ListTile(
@@ -208,21 +208,21 @@ class _SoloScreenState extends State<SoloScreen> {
           });
         },
         leading: CircleAvatar(
-          backgroundColor: AppColors.blue,
+          backgroundColor: AppColors.secondary,
           child: Text(contact.name[0].toUpperCase(),
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+            style: const TextStyle(color: AppColors.onPrimary, fontWeight: FontWeight.w700)),
         ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Flexible(
               child: Text(contact.name,
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                style: const TextStyle(color: AppColors.foreground, fontWeight: FontWeight.w600),
                 overflow: TextOverflow.ellipsis),
             ),
             if (contact.email.isEmpty) ...[
               const SizedBox(width: 6),
-              const Icon(Icons.warning_amber_rounded, color: AppColors.orange, size: 16),
+              const Icon(Icons.warning_amber_rounded, color: AppColors.accent, size: 16),
             ],
           ],
         ),
@@ -231,7 +231,7 @@ class _SoloScreenState extends State<SoloScreen> {
               ? '${contact.relation} · ${contact.phone} · E-mail manquant — modifiez ce contact'
               : '${contact.relation} · ${contact.phone}',
           style: TextStyle(
-            color: contact.email.isEmpty ? AppColors.orange : AppColors.textSecondary,
+            color: contact.email.isEmpty ? AppColors.accent : AppColors.mutedForeground,
             fontSize: 12,
           ),
         ),
@@ -242,12 +242,12 @@ class _SoloScreenState extends State<SoloScreen> {
               const Chip(
                 label: Text('Notifié', style: TextStyle(fontSize: 10, color: AppColors.statusGreen)),
                 backgroundColor: Color(0xFF0D2A0D),
-                side: BorderSide(color: AppColors.green),
+                side: BorderSide(color: AppColors.accent),
               )
             else if (!solo.soloActive)
               Checkbox(
                 value: isSelected,
-                activeColor: AppColors.orange,
+                activeColor: AppColors.accent,
                 onChanged: (_) {
                   setState(() {
                     if (isSelected) _selectedContactIds.remove(contact.id);
@@ -278,17 +278,17 @@ class _SoloScreenState extends State<SoloScreen> {
         width: double.infinity,
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color: AppColors.bgCard,
+          color: AppColors.card,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.orange.withOpacity(.3), style: BorderStyle.solid),
+          border: Border.all(color: AppColors.accent.withOpacity(.3), style: BorderStyle.solid),
         ),
         child: const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.person_add_outlined, color: AppColors.orange, size: 20),
+            Icon(Icons.person_add_outlined, color: AppColors.accent, size: 20),
             SizedBox(width: 8),
             Text('Ajouter un contact de confiance',
-              style: TextStyle(color: AppColors.orange, fontWeight: FontWeight.w600)),
+              style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.w600)),
           ],
         ),
       ),
@@ -299,9 +299,9 @@ class _SoloScreenState extends State<SoloScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2A2A3E)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -309,16 +309,16 @@ class _SoloScreenState extends State<SoloScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Alerte si immobile depuis', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              const Text('Alerte si immobile depuis', style: TextStyle(color: AppColors.mutedForeground, fontSize: 13)),
               Text('${solo.immobilityThresholdMin} min',
-                style: const TextStyle(color: AppColors.orange, fontWeight: FontWeight.w700,
-                  fontFamily: 'Rajdhani', fontSize: 18)),
+                style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700,
+                  fontFamily: 'Inter', fontSize: 18)),
             ],
           ),
           Slider(
             value: solo.immobilityThresholdMin.toDouble(),
             min: 10, max: 60, divisions: 10,
-            activeColor: AppColors.orange,
+            activeColor: AppColors.accent,
             onChanged: (v) => solo.setImmobilityThreshold(v.round()),
           ),
           const Text('Vos contacts de confiance recevront une alerte automatique si votre GPS n\'a pas bougé pendant ce temps.',
@@ -332,9 +332,9 @@ class _SoloScreenState extends State<SoloScreen> {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.bgCard,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFF2A2A3E)),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,16 +342,16 @@ class _SoloScreenState extends State<SoloScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Alerte si aucune position reçue depuis', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              const Text('Alerte si aucune position reçue depuis', style: TextStyle(color: AppColors.mutedForeground, fontSize: 13)),
               Text('${solo.deadmanThresholdMin} min',
-                style: const TextStyle(color: AppColors.orange, fontWeight: FontWeight.w700,
-                  fontFamily: 'Rajdhani', fontSize: 18)),
+                style: const TextStyle(color: AppColors.accent, fontWeight: FontWeight.w700,
+                  fontFamily: 'Inter', fontSize: 18)),
             ],
           ),
           Slider(
             value: solo.deadmanThresholdMin.toDouble(),
             min: 10, max: 30, divisions: 4,
-            activeColor: AppColors.orange,
+            activeColor: AppColors.accent,
             onChanged: (v) => solo.setDeadmanThreshold(v.round()),
           ),
           const Text('Couvre le téléphone détruit, déchargé ou hors réseau — le serveur alerte même si l\'application ne répond plus.',
@@ -415,10 +415,10 @@ class _SoloScreenState extends State<SoloScreen> {
                   },
             icon: const Icon(Icons.shield, size: 22),
             label: const Text('PARTIR EN MODE SOLO SÉCURISÉ',
-              style: TextStyle(fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700)),
+              style: TextStyle(fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700)),
             style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.green,
-              disabledBackgroundColor: AppColors.bgSurface,
+              backgroundColor: AppColors.accent,
+              disabledBackgroundColor: AppColors.muted,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             ),
           ),
@@ -436,12 +436,12 @@ class _SoloScreenState extends State<SoloScreen> {
           solo.deactivate();
           Navigator.of(context).pop();
         },
-        icon: const Icon(Icons.stop_circle_outlined, color: AppColors.red),
+        icon: const Icon(Icons.stop_circle_outlined, color: AppColors.destructive),
         label: const Text('DÉSACTIVER — Envoyer SMS d\'arrivée',
-          style: TextStyle(fontFamily: 'Rajdhani', fontSize: 15,
-            fontWeight: FontWeight.w700, color: AppColors.red)),
+          style: TextStyle(fontFamily: 'Inter', fontSize: 15,
+            fontWeight: FontWeight.w700, color: AppColors.destructive)),
         style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.red),
+          side: const BorderSide(color: AppColors.destructive),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
       ),
@@ -456,36 +456,36 @@ class _SoloScreenState extends State<SoloScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgPanel,
+        backgroundColor: AppColors.card,
         title: Text(existing == null ? 'Ajouter un contact' : 'Modifier le contact',
-          style: const TextStyle(color: Colors.white, fontFamily: 'Rajdhani')),
+          style: const TextStyle(color: AppColors.foreground, fontFamily: 'Inter')),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: _nameCtrl,
               decoration: const InputDecoration(labelText: 'Nom'),
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppColors.foreground),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _phoneCtrl,
               keyboardType: TextInputType.phone,
               decoration: const InputDecoration(labelText: 'Téléphone'),
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppColors.foreground),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _emailCtrl,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(labelText: 'E-mail'),
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppColors.foreground),
             ),
             const SizedBox(height: 8),
             TextField(
               controller: _relationCtrl,
               decoration: const InputDecoration(labelText: 'Relation (ex: Conjointe)'),
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppColors.foreground),
             ),
           ],
         ),
@@ -525,7 +525,7 @@ class _SoloScreenState extends State<SoloScreen> {
   }
 
   Widget _sectionTitle(String title) => Text(title, style: const TextStyle(
-    fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5));
+    fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5));
 
   String _timeLabel(DateTime dt) =>
       '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';

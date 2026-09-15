@@ -104,23 +104,23 @@ class _FallCountdownScreenState extends State<FallCountdownScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.warning_amber_rounded, color: AppColors.red, size: 64),
+                const Icon(Icons.warning_amber_rounded, color: AppColors.destructive, size: 64),
                 const SizedBox(height: 24),
                 const Text('CHUTE DÉTECTÉE',
-                  style: TextStyle(fontFamily: 'Rajdhani', fontSize: 24, fontWeight: FontWeight.w700,
-                    color: Colors.white, letterSpacing: 1.5)),
+                  style: TextStyle(fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w700,
+                    color: AppColors.onPrimary, letterSpacing: 1.5)),
                 const SizedBox(height: 8),
                 const Text('Appuyez pour annuler si vous allez bien',
-                  style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
+                  style: TextStyle(color: AppColors.mutedForeground, fontSize: 14)),
                 const SizedBox(height: 32),
-                // Pas de police Rajdhani ici : une police système neutre
-                // garde des chiffres aux formes simples, plus sûrs à
-                // reconnaître d'un coup d'œil qu'une police à caractère.
+                // Compte à rebours volontairement hors charte : écran
+                // d'alarme, fond sombre conservé, et des chiffres aux formes
+                // simples, plus sûrs à reconnaître d'un coup d'œil.
                 Text('$_remaining',
                   style: const TextStyle(
                     fontSize: 140,
                     fontWeight: FontWeight.w900,
-                    color: Colors.white,
+                    color: AppColors.onPrimary,
                     height: 1.0,
                     shadows: [Shadow(color: Colors.black54, blurRadius: 16, offset: Offset(0, 2))],
                   )),
@@ -141,14 +141,14 @@ class _FallCountdownScreenState extends State<FallCountdownScreen> {
             child: ElevatedButton(
               onPressed: _cancel,
               style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppColors.red,
+                backgroundColor: AppColors.card,
+                foregroundColor: AppColors.destructive,
                 elevation: 8,
-                shadowColor: AppColors.red.withOpacity(.6),
+                shadowColor: AppColors.destructive.withOpacity(.6),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
               ),
               child: const Text('ANNULER', style: TextStyle(
-                fontFamily: 'Rajdhani', fontSize: 26, fontWeight: FontWeight.w700, letterSpacing: 1)),
+                fontFamily: 'Inter', fontSize: 26, fontWeight: FontWeight.w700, letterSpacing: 1)),
             ),
           ),
         ),
@@ -177,17 +177,17 @@ class _FallCountdownScreenState extends State<FallCountdownScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(allFailed ? Icons.error_outline : Icons.check_circle,
-                color: allFailed ? AppColors.red : AppColors.statusGreen, size: 80),
+                color: allFailed ? AppColors.destructive : AppColors.statusGreen, size: 80),
               const SizedBox(height: 24),
               Text(allFailed ? 'Alerte non envoyée' : 'Alerte envoyée', style: const TextStyle(
-                fontFamily: 'Rajdhani', fontSize: 24, fontWeight: FontWeight.w700, color: Colors.white)),
+                fontFamily: 'Inter', fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.onPrimary)),
               const SizedBox(height: 12),
               Text(_confirmationDetail(), textAlign: TextAlign.center, style: const TextStyle(
-                color: AppColors.textSecondary, fontSize: 14, height: 1.4)),
+                color: AppColors.mutedForeground, fontSize: 14, height: 1.4)),
               const SizedBox(height: 8),
               Text(allFailed ? 'Appelez les secours si vous le pouvez.' : "Restez calme, de l'aide arrive.",
                 textAlign: TextAlign.center, style: const TextStyle(
-                color: Colors.white70, fontSize: 14, fontWeight: FontWeight.w600)),
+                color: AppColors.onPrimaryMuted, fontSize: 14, fontWeight: FontWeight.w600)),
             ],
           ),
         ),

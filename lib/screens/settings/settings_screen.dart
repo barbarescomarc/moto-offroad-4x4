@@ -68,7 +68,7 @@ class _SettingsScreenState extends State<SettingsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('⚙️  RÉGLAGES')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -123,9 +123,9 @@ class _SettingsScreenState extends State<SettingsScreen>
           key: const Key('entree-mon-compte'),
           leading: const Icon(Icons.account_circle_outlined, color: AppColors.textMuted),
           title: Text(compte.email ?? 'Mon compte',
-            style: const TextStyle(color: Colors.white)),
+            style: const TextStyle(color: AppColors.foreground)),
           subtitle: const Text('Se déconnecter, supprimer le compte, revoir le tutoriel',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
           trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
           contentPadding: EdgeInsets.zero,
           onTap: () => context.push(AppRoutes.account),
@@ -143,7 +143,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         const SizedBox(height: 8),
         TextField(
           controller: _nameCtrl,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: AppColors.foreground),
           decoration: const InputDecoration(
             labelText: 'Nom / pseudo',
             prefixIcon: Icon(Icons.person_outline),
@@ -155,7 +155,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         TextField(
           controller: _pilotEmailCtrl,
           keyboardType: TextInputType.emailAddress,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: AppColors.foreground),
           decoration: const InputDecoration(
             labelText: 'E-mail (obligatoire pour le mode Solo)',
             prefixIcon: Icon(Icons.email_outlined, color: AppColors.textMuted),
@@ -177,9 +177,9 @@ class _SettingsScreenState extends State<SettingsScreen>
             }
           },
           title: const Text('Recevoir les nouvelles de GO FREE',
-            style: TextStyle(color: Colors.white, fontSize: 13)),
+            style: TextStyle(color: AppColors.foreground, fontSize: 13)),
           controlAffinity: ListTileControlAffinity.leading,
-          activeColor: AppColors.orange,
+          activeColor: AppColors.accent,
           contentPadding: EdgeInsets.zero,
         ),
       ],
@@ -192,7 +192,7 @@ class _SettingsScreenState extends State<SettingsScreen>
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
         content: Text(
           '💊 Pensez à prendre une dose de Testicouille par jour !',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: Colors.white),
+          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.onPrimary),
         ),
         backgroundColor: Color(0xFF6A1B9A),
         duration: Duration(seconds: 5),
@@ -263,24 +263,24 @@ class _SettingsScreenState extends State<SettingsScreen>
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
         decoration: BoxDecoration(
-          color:        active ? AppColors.orange.withValues(alpha: .15) : AppColors.bgCard,
+          color:        active ? AppColors.accent.withValues(alpha: .15) : AppColors.card,
           borderRadius: BorderRadius.circular(10),
           border:       Border.all(
-            color: active ? AppColors.orange : const Color(0xFF2A2A3E),
+            color: active ? AppColors.accent : AppColors.border,
           ),
         ),
         child: Column(
           children: [
             Icon(kind.icon,
-                color: active ? AppColors.orange : AppColors.textSecondary, size: 24),
+                color: active ? AppColors.accent : AppColors.mutedForeground, size: 24),
             const SizedBox(height: 6),
             Text(
               kind.shortLabel,
               style: TextStyle(
-                color:      active ? AppColors.orange : AppColors.textSecondary,
+                color:      active ? AppColors.accent : AppColors.mutedForeground,
                 fontWeight: active ? FontWeight.w700 : FontWeight.normal,
                 fontSize:   12,
-                fontFamily: 'Rajdhani',
+                fontFamily: 'Inter',
               ),
               textAlign: TextAlign.center,
             ),
@@ -365,7 +365,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         SizedBox(
           width: 88,
           child: Text(libelle,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              style: const TextStyle(color: AppColors.mutedForeground, fontSize: 13)),
         ),
         Expanded(
           child: Slider(
@@ -374,7 +374,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             min: min,
             max: max,
             divisions: ((max - min) / pas).round(),
-            activeColor: AppColors.orange,
+            activeColor: AppColors.accent,
             onChanged: onChange,
           ),
         ),
@@ -384,7 +384,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             '${valeur.toStringAsFixed(unite == 't' ? 1 : 2)} $unite',
             textAlign: TextAlign.right,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.foreground,
               fontSize: 13,
               fontFeatures: [FontFeature.tabularFigures()],
             ),
@@ -419,21 +419,21 @@ class _SettingsScreenState extends State<SettingsScreen>
         margin: const EdgeInsets.symmetric(horizontal: 4),
         padding: const EdgeInsets.symmetric(vertical: 14),
         decoration: BoxDecoration(
-          color:        active ? color.withValues(alpha: .15) : AppColors.bgCard,
+          color:        active ? color.withValues(alpha: .15) : AppColors.card,
           borderRadius: BorderRadius.circular(10),
-          border:       Border.all(color: active ? color : const Color(0xFF2A2A3E)),
+          border:       Border.all(color: active ? color : AppColors.border),
         ),
         child: Column(
           children: [
-            Icon(_levelIcon(level), color: active ? color : AppColors.textSecondary, size: 24),
+            Icon(_levelIcon(level), color: active ? color : AppColors.mutedForeground, size: 24),
             const SizedBox(height: 6),
             Text(
               level.label,
               style: TextStyle(
-                color:      active ? color : AppColors.textSecondary,
+                color:      active ? color : AppColors.mutedForeground,
                 fontWeight: active ? FontWeight.w700 : FontWeight.normal,
                 fontSize:   12,
-                fontFamily: 'Rajdhani',
+                fontFamily: 'Inter',
               ),
               textAlign: TextAlign.center,
             ),
@@ -470,19 +470,19 @@ class _SettingsScreenState extends State<SettingsScreen>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color:        AppColors.orange.withValues(alpha: .1),
+        color:        AppColors.accent.withValues(alpha: .1),
         borderRadius: BorderRadius.circular(10),
-        border:       Border.all(color: AppColors.orange.withValues(alpha: .4)),
+        border:       Border.all(color: AppColors.accent.withValues(alpha: .4)),
       ),
       child: Row(
         children: [
-          Icon(moto.category.icon, color: AppColors.orange, size: 20),
+          Icon(moto.category.icon, color: AppColors.accent, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(moto.name, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+                Text(moto.name, style: const TextStyle(color: AppColors.foreground, fontWeight: FontWeight.w600)),
                 Text(
                   '${moto.consumptionL100.toStringAsFixed(1)} L/100 km · Réservoir ${moto.tankLiters.toStringAsFixed(0)} L',
                   style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
@@ -503,10 +503,10 @@ class _SettingsScreenState extends State<SettingsScreen>
           tabs: MotoCategory.values
               .map((c) => Tab(icon: Icon(c.icon, size: 18), text: c.label))
               .toList(),
-          labelColor:         AppColors.orange,
+          labelColor:         AppColors.accent,
           unselectedLabelColor: AppColors.textMuted,
-          indicatorColor:     AppColors.orange,
-          labelStyle: const TextStyle(fontSize: 11, fontFamily: 'Rajdhani'),
+          indicatorColor:     AppColors.accent,
+          labelStyle: const TextStyle(fontSize: 11, fontFamily: 'Inter'),
         ),
         const SizedBox(height: 8),
         SizedBox(
@@ -527,7 +527,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     return ListView.separated(
       padding: EdgeInsets.zero,
       itemCount: motos.length,
-      separatorBuilder: (_, __) => const Divider(color: Color(0xFF2A2A3E), height: 1),
+      separatorBuilder: (_, __) => const Divider(color: AppColors.border, height: 1),
       itemBuilder: (ctx, i) => _motoTile(motos[i], settings),
     );
   }
@@ -537,10 +537,10 @@ class _SettingsScreenState extends State<SettingsScreen>
     return ListTile(
       dense:       true,
       selected:    active,
-      selectedColor: AppColors.orange,
+      selectedColor: AppColors.accent,
       title: Text(moto.name,
         style: TextStyle(
-          color:      active ? AppColors.orange : Colors.white,
+          color:      active ? AppColors.accent : AppColors.foreground,
           fontSize:   13,
           fontWeight: active ? FontWeight.w700 : FontWeight.normal,
         ),
@@ -549,7 +549,7 @@ class _SettingsScreenState extends State<SettingsScreen>
         '${moto.consumptionL100.toStringAsFixed(1)} L/100 · ${moto.tankLiters.toStringAsFixed(0)} L',
         style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
       ),
-      trailing: active ? const Icon(Icons.check_circle, color: AppColors.orange, size: 18) : null,
+      trailing: active ? const Icon(Icons.check_circle, color: AppColors.accent, size: 18) : null,
       onTap: () => _applyMotoPreset(moto, settings),
     );
   }
@@ -563,7 +563,7 @@ class _SettingsScreenState extends State<SettingsScreen>
     fuel.setCurrentFuel(moto.tankLiters); // plein par défaut
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('${moto.name} sélectionné — réglages carbu mis à jour'),
-      backgroundColor: AppColors.bgCard,
+      backgroundColor: AppColors.card,
       duration: const Duration(seconds: 2),
     ));
   }
@@ -657,9 +657,9 @@ class _SettingsScreenState extends State<SettingsScreen>
           ListTile(
             leading: const Icon(Icons.phone_callback, color: AppColors.textMuted),
             title: const Text('Appels et position',
-              style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: AppColors.foreground)),
             subtitle: const Text('Auto-réponse SMS, réponses rapides',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
             trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
             onTap: () => context.push(AppRoutes.callSettings),
           ),
@@ -669,9 +669,9 @@ class _SettingsScreenState extends State<SettingsScreen>
         ListTile(
           leading: const Icon(Icons.shield_outlined, color: AppColors.textMuted),
           title: const Text('Mode Solo Sécurisé',
-            style: TextStyle(color: Colors.white)),
+            style: TextStyle(color: AppColors.foreground)),
           subtitle: const Text('Contacts de confiance, suivi de trajet',
-            style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+            style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
           trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
           onTap: () => context.push(AppRoutes.solo),
         ),
@@ -691,28 +691,28 @@ class _SettingsScreenState extends State<SettingsScreen>
         SwitchListTile(
           value: settings.fallDetectionEnabled,
           onChanged: (v) => settings.setFallDetectionEnabled(v),
-          title: const Text('Activer la détection de chute', style: TextStyle(color: Colors.white, fontSize: 14)),
-          activeColor: AppColors.orange,
+          title: const Text('Activer la détection de chute', style: TextStyle(color: AppColors.foreground, fontSize: 14)),
+          activeColor: AppColors.accent,
           contentPadding: EdgeInsets.zero,
         ),
         if (settings.fallDetectionEnabled) ...[
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Compte à rebours avant alerte', style: TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+              const Text('Compte à rebours avant alerte', style: TextStyle(color: AppColors.mutedForeground, fontSize: 13)),
               Text('${settings.fallCountdownSeconds} s', style: const TextStyle(
-                color: AppColors.orange, fontWeight: FontWeight.w700, fontFamily: 'Rajdhani', fontSize: 16)),
+                color: AppColors.accent, fontWeight: FontWeight.w700, fontFamily: 'Inter', fontSize: 16)),
             ],
           ),
           Slider(
             value: settings.fallCountdownSeconds.toDouble(),
             min: 15, max: 120, divisions: 21,
-            activeColor: AppColors.orange,
+            activeColor: AppColors.accent,
             onChanged: (v) => settings.setFallCountdownSeconds(v.round()),
           ),
           const SizedBox(height: 8),
           const Text('CANAUX D\'ALERTE', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5)),
+            fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5)),
           // iOS n'autorise aucune application tierce à envoyer un SMS par
           // programme : le canal y est fermé côté chaîne d'alerte, on ne
           // propose pas un réglage sans effet.
@@ -720,7 +720,7 @@ class _SettingsScreenState extends State<SettingsScreen>
             SwitchListTile(
               value: settings.alertChannelPhone,
               onChanged: (v) => settings.setAlertChannelPhone(v),
-              title: const Text('SMS depuis le téléphone', style: TextStyle(color: Colors.white, fontSize: 14)),
+              title: const Text('SMS depuis le téléphone', style: TextStyle(color: AppColors.foreground, fontSize: 14)),
               activeColor: AppColors.statusGreen,
               contentPadding: EdgeInsets.zero,
             ),
@@ -729,7 +729,7 @@ class _SettingsScreenState extends State<SettingsScreen>
           SwitchListTile(
             value: settings.alertChannelServer,
             onChanged: (v) => settings.setAlertChannelServer(v),
-            title: const Text('E-mail depuis le serveur', style: TextStyle(color: Colors.white, fontSize: 14)),
+            title: const Text('E-mail depuis le serveur', style: TextStyle(color: AppColors.foreground, fontSize: 14)),
             activeColor: AppColors.statusGreen,
             contentPadding: EdgeInsets.zero,
           ),
@@ -778,19 +778,19 @@ class _SettingsScreenState extends State<SettingsScreen>
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: AppColors.orange, size: 16),
+          const Icon(Icons.warning_amber_rounded, color: AppColors.accent, size: 16),
           const SizedBox(width: 6),
           const Expanded(
             child: Text(
               'Permission SMS non accordée — les alertes par SMS ne partiront pas.',
-              style: TextStyle(color: AppColors.orange, fontSize: 11),
+              style: TextStyle(color: AppColors.accent, fontSize: 11),
             ),
           ),
           TextButton(
             onPressed: _requestSmsPermission,
             style: TextButton.styleFrom(
               visualDensity: VisualDensity.compact,
-              foregroundColor: AppColors.orange,
+              foregroundColor: AppColors.accent,
             ),
             child: const Text('Autoriser', style: TextStyle(fontSize: 12)),
           ),
@@ -876,5 +876,5 @@ class _SettingsScreenState extends State<SettingsScreen>
   }
 
   Widget _sectionLabel(String text) => Text(text, style: const TextStyle(
-    fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5));
+    fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5));
 }

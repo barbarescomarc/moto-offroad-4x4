@@ -53,7 +53,7 @@ class AlerteGroupeBanner extends StatelessWidget {
         children: [
           Row(
             children: [
-              const Icon(Icons.emergency_share, color: Colors.white, size: 22),
+              const Icon(Icons.emergency_share, color: AppColors.onPrimary, size: 22),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -61,8 +61,8 @@ class AlerteGroupeBanner extends StatelessWidget {
                       ? 'Ton alerte est partie au groupe'
                       : '${alerte.name} — ${alerte.estSos ? 'SOS' : 'chute détectée'}',
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontFamily: 'Rajdhani',
+                    color: AppColors.onPrimary,
+                    fontFamily: 'Inter',
                     fontWeight: FontWeight.w700,
                     fontSize: 17,
                     letterSpacing: .5,
@@ -74,7 +74,7 @@ class AlerteGroupeBanner extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             _sousTitre(alerte, jeSuisLauteur),
-            style: const TextStyle(color: Colors.white, fontSize: 13, height: 1.35),
+            style: const TextStyle(color: AppColors.onPrimary, fontSize: 13, height: 1.35),
           ),
           const SizedBox(height: 10),
           _commandes(context, groupe, alerte, jeSuisLauteur),
@@ -131,7 +131,7 @@ class AlerteGroupeBanner extends StatelessWidget {
               key: const Key('alerte-groupe-masquer'),
               onPressed: groupe.masquerAlerte,
               style: TextButton.styleFrom(
-                foregroundColor: Colors.white,
+                foregroundColor: AppColors.onPrimary,
                 minimumSize: const Size(64, 44),
               ),
               child: const Text('Masquer'),
@@ -151,7 +151,7 @@ class AlerteGroupeBanner extends StatelessWidget {
   }
 
   static final ButtonStyle _styleBouton = ElevatedButton.styleFrom(
-    backgroundColor: Colors.white,
+    backgroundColor: AppColors.card,
     foregroundColor: AppColors.statusRed,
     // Le thème impose Size(double.infinity, 52) à tout ElevatedButton, ce qui
     // rend celui-ci intouchable dès qu'il partage sa ligne.

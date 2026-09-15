@@ -69,14 +69,14 @@ class _OfflineDownloadSheetState extends State<OfflineDownloadSheet> {
             Center(child: Container(
               width: 40, height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A3E),
+                color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             )),
             const SizedBox(height: 16),
             const Text('TÉLÉCHARGER CETTE ZONE', style: TextStyle(
-              fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700,
-              color: AppColors.orange, letterSpacing: 1,
+              fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700,
+              color: AppColors.accent, letterSpacing: 1,
             )),
             const SizedBox(height: 16),
             if (!_started) ..._buildConfirm() else ..._buildProgress(),
@@ -91,7 +91,7 @@ class _OfflineDownloadSheetState extends State<OfflineDownloadSheet> {
     return [
       Text(
         '~${widget.estimatedTileCount} tuiles — environ ${sizeMb.toStringAsFixed(0)} Mo (estimation approximative).',
-        style: const TextStyle(color: Colors.white70, fontSize: 13),
+        style: const TextStyle(color: AppColors.mutedForeground, fontSize: 13),
       ),
       const SizedBox(height: 4),
       const Text(
@@ -117,8 +117,8 @@ class _OfflineDownloadSheetState extends State<OfflineDownloadSheet> {
     return [
       LinearProgressIndicator(
         value: pct.clamp(0, 1),
-        backgroundColor: const Color(0xFF2A2A3E),
-        color: AppColors.orange,
+        backgroundColor: AppColors.border,
+        color: AppColors.accent,
         minHeight: 8,
         borderRadius: BorderRadius.circular(4),
       ),
@@ -129,7 +129,7 @@ class _OfflineDownloadSheetState extends State<OfflineDownloadSheet> {
             : _done
                 ? '${p.successfulTilesCount} tuiles téléchargées.'
                 : '${p.attemptedTilesCount} / ${p.maxTilesCount} tuiles — ${p.percentageProgress.toStringAsFixed(0)} %',
-        style: const TextStyle(color: Colors.white70, fontSize: 13),
+        style: const TextStyle(color: AppColors.mutedForeground, fontSize: 13),
       ),
       const SizedBox(height: 20),
       SizedBox(

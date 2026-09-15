@@ -17,9 +17,9 @@ class ModeSwitchWidget extends StatelessWidget {
   };
 
   static const Map<NavMode, Color> _colors = {
-    NavMode.offroad: AppColors.orange,
-    NavMode.route: AppColors.blue,
-    NavMode.fourByFour: AppColors.green,
+    NavMode.offroad: AppColors.accent,
+    NavMode.route: AppColors.secondary,
+    NavMode.fourByFour: AppColors.accent,
   };
 
   @override
@@ -37,7 +37,7 @@ class ModeSwitchWidget extends StatelessWidget {
         height: 44,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: AppColors.bgPanel.withValues(alpha: .92),
+          color: AppColors.card.withValues(alpha: .92),
           shape: BoxShape.circle,
           border: Border.all(color: color.withValues(alpha: .6)),
         ),
@@ -50,7 +50,7 @@ class ModeSwitchWidget extends StatelessWidget {
     final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
     showMenu<NavMode>(
       context: context,
-      color: AppColors.bgPanel,
+      color: AppColors.card,
       position: RelativeRect.fromRect(
         position & const Size(1, 1),
         Offset.zero & overlay.size,
@@ -64,7 +64,7 @@ class ModeSwitchWidget extends StatelessWidget {
             children: [
               Icon(_icons[m], color: color, size: 18),
               const SizedBox(width: 10),
-              Text(m.label, style: TextStyle(color: color, fontFamily: 'Rajdhani', fontWeight: FontWeight.w700)),
+              Text(m.label, style: TextStyle(color: color, fontFamily: 'Inter', fontWeight: FontWeight.w700)),
             ],
           ),
         );

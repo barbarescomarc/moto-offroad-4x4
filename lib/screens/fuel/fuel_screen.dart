@@ -15,7 +15,7 @@ class FuelScreen extends StatelessWidget {
     final settings = context.watch<SettingsProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('⛽  CARBURANT')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
@@ -77,17 +77,17 @@ class FuelScreen extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color:        moto != null
-              ? AppColors.orange.withValues(alpha: .08)
-              : AppColors.bgCard,
+              ? AppColors.accent.withValues(alpha: .08)
+              : AppColors.card,
           borderRadius: BorderRadius.circular(10),
           border:       Border.all(
             color: moto != null
-                ? AppColors.orange.withValues(alpha: .3)
-                : const Color(0xFF2A2A3E)),
+                ? AppColors.accent.withValues(alpha: .3)
+                : AppColors.border),
         ),
         child: Row(
           children: [
-            Icon(Icons.motorcycle, color: AppColors.orange, size: 20),
+            Icon(Icons.motorcycle, color: AppColors.accent, size: 20),
             const SizedBox(width: 10),
             Expanded(
               child: moto != null
@@ -95,7 +95,7 @@ class FuelScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(moto.name,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+                          style: const TextStyle(color: AppColors.foreground, fontWeight: FontWeight.w600, fontSize: 13)),
                         Text(
                           '${moto.consumptionL100.toStringAsFixed(1)} L/100 · Réservoir ${moto.tankLiters.toStringAsFixed(0)} L',
                           style: const TextStyle(color: AppColors.textMuted, fontSize: 11),
@@ -131,18 +131,18 @@ class FuelScreen extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 3),
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color:        active ? AppColors.orange.withValues(alpha: .2) : AppColors.bgCard,
+                color:        active ? AppColors.accent.withValues(alpha: .2) : AppColors.card,
                 borderRadius: BorderRadius.circular(8),
                 border:       Border.all(
-                  color: active ? AppColors.orange : const Color(0xFF2A2A3E)),
+                  color: active ? AppColors.accent : AppColors.border),
               ),
               child: Text(
                 p.$1,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color:      active ? AppColors.orange : AppColors.textSecondary,
+                  color:      active ? AppColors.accent : AppColors.mutedForeground,
                   fontWeight: active ? FontWeight.w700 : FontWeight.normal,
-                  fontFamily: 'Rajdhani',
+                  fontFamily: 'Inter',
                   fontSize:   13,
                 ),
               ),
@@ -171,10 +171,10 @@ class FuelScreen extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('Autonomie estimée', style: TextStyle(color: AppColors.textSecondary)),
+              const Text('Autonomie estimée', style: TextStyle(color: AppColors.mutedForeground)),
               Text('${fuel.rangeKm.toStringAsFixed(0)} km',
                 style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700,
-                  color: color, fontFamily: 'Rajdhani')),
+                  color: color, fontFamily: 'Inter')),
             ],
           ),
           const SizedBox(height: 12),
@@ -192,7 +192,7 @@ class FuelScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('${fuel.currentFuelL.toStringAsFixed(1)} L restants',
-                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                style: const TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
               Text('Réservoir : ${fuel.tankLiters.toStringAsFixed(0)} L',
                 style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
             ],
@@ -223,7 +223,7 @@ class FuelScreen extends StatelessWidget {
   }
 
   Widget _section(String title) => Text(title, style: const TextStyle(
-    fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5));
+    fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5));
 
   Widget _slider(BuildContext ctx, String label, double value, double min, double max,
       String unit, ValueChanged<double> onChanged) {
@@ -232,9 +232,9 @@ class FuelScreen extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
+            Text(label, style: const TextStyle(color: AppColors.mutedForeground, fontSize: 13)),
             Text('${value.toStringAsFixed(1)} $unit',
-              style: const TextStyle(color: Colors.white, fontFamily: 'Rajdhani',
+              style: const TextStyle(color: AppColors.foreground, fontFamily: 'Inter',
                 fontSize: 16, fontWeight: FontWeight.w700)),
           ],
         ),
@@ -242,7 +242,7 @@ class FuelScreen extends StatelessWidget {
           value:       value.clamp(min, max),
           min:         min,
           max:         max,
-          activeColor: AppColors.orange,
+          activeColor: AppColors.accent,
           onChanged:   onChanged,
         ),
         const SizedBox(height: 4),
@@ -261,15 +261,15 @@ class FuelScreen extends StatelessWidget {
               margin: const EdgeInsets.symmetric(horizontal: 4),
               padding: const EdgeInsets.symmetric(vertical: 10),
               decoration: BoxDecoration(
-                color:  active ? AppColors.orange.withValues(alpha: .2) : AppColors.bgCard,
+                color:  active ? AppColors.accent.withValues(alpha: .2) : AppColors.card,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: active ? AppColors.orange : const Color(0xFF2A2A3E)),
+                border: Border.all(color: active ? AppColors.accent : AppColors.border),
               ),
               child: Center(child: Text('$km km',
                 style: TextStyle(
-                  color:      active ? AppColors.orange : AppColors.textSecondary,
+                  color:      active ? AppColors.accent : AppColors.mutedForeground,
                   fontWeight: active ? FontWeight.w700 : FontWeight.normal,
-                  fontFamily: 'Rajdhani', fontSize: 14))),
+                  fontFamily: 'Inter', fontSize: 14))),
             ),
           ),
         );

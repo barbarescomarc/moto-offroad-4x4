@@ -84,7 +84,7 @@ class _WeatherScreenState extends State<WeatherScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('⛈️  MÉTÉO & PRATICABILITÉ'),
         actions: [
@@ -96,7 +96,7 @@ class _WeatherScreenState extends State<WeatherScreen>
           Consumer<MapProvider>(
             builder: (ctx, map, _) => IconButton(
               icon: Icon(Icons.radar,
-                color: map.radarEnabled ? AppColors.blue : AppColors.textMuted),
+                color: map.radarEnabled ? AppColors.secondary : AppColors.textMuted),
               tooltip: 'Radar sur la carte',
               onPressed: map.toggleRadar,
             ),
@@ -104,9 +104,9 @@ class _WeatherScreenState extends State<WeatherScreen>
         ],
         bottom: TabBar(
           controller: _tabs,
-          labelColor: AppColors.orange,
+          labelColor: AppColors.accent,
           unselectedLabelColor: AppColors.textMuted,
-          indicatorColor: AppColors.orange,
+          indicatorColor: AppColors.accent,
           tabs: const [
             Tab(text: 'Praticabilité'),
             Tab(text: '48h'),
@@ -115,7 +115,7 @@ class _WeatherScreenState extends State<WeatherScreen>
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: AppColors.orange))
+          ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
           : _error != null
               ? _buildError()
               : TabBarView(
@@ -152,7 +152,7 @@ class _WeatherScreenState extends State<WeatherScreen>
             ),
             child: Column(children: [
               Text(p.label, style: TextStyle(
-                fontFamily: 'Rajdhani', fontSize: 28, fontWeight: FontWeight.w700,
+                fontFamily: 'Inter', fontSize: 28, fontWeight: FontWeight.w700,
                 color: scoreColor)),
               const SizedBox(height: 8),
               Stack(children: [
@@ -170,7 +170,7 @@ class _WeatherScreenState extends State<WeatherScreen>
               ]),
               const SizedBox(height: 8),
               Text('Score : ${p.score.toStringAsFixed(0)}/100',
-                style: TextStyle(color: scoreColor, fontFamily: 'Rajdhani', fontSize: 16)),
+                style: TextStyle(color: scoreColor, fontFamily: 'Inter', fontSize: 16)),
             ]),
           ),
           const SizedBox(height: 16),
@@ -198,15 +198,15 @@ class _WeatherScreenState extends State<WeatherScreen>
           Container(
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.bgCard,
+              color: AppColors.card,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: const Color(0xFF2A2A3E)),
+              border: Border.all(color: AppColors.border),
             ),
             child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              const Text('Total cumulé', style: TextStyle(color: AppColors.textSecondary)),
+              const Text('Total cumulé', style: TextStyle(color: AppColors.mutedForeground)),
               Text('${_precip7d.toStringAsFixed(1)} mm',
-                style: const TextStyle(fontFamily: 'Rajdhani', fontSize: 22,
-                  fontWeight: FontWeight.w700, color: AppColors.blue)),
+                style: const TextStyle(fontFamily: 'Inter', fontSize: 22,
+                  fontWeight: FontWeight.w700, color: AppColors.secondary)),
             ]),
           ),
         ],
@@ -216,7 +216,7 @@ class _WeatherScreenState extends State<WeatherScreen>
 
   // ── Onglet 48H ────────────────────────────────────────────
   Widget _buildHourlyTab() {
-    if (_hourly.isEmpty) return const Center(child: Text('Pas de données', style: TextStyle(color: AppColors.textSecondary)));
+    if (_hourly.isEmpty) return const Center(child: Text('Pas de données', style: TextStyle(color: AppColors.mutedForeground)));
 
     return ListView.builder(
       padding: const EdgeInsets.all(12),
@@ -228,10 +228,10 @@ class _WeatherScreenState extends State<WeatherScreen>
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isNow ? AppColors.orange.withOpacity(.08) : AppColors.bgCard,
+            color: isNow ? AppColors.accent.withOpacity(.08) : AppColors.card,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isNow ? AppColors.orange.withOpacity(.4) : const Color(0xFF2A2A3E)),
+              color: isNow ? AppColors.accent.withOpacity(.4) : AppColors.border),
           ),
           child: Row(children: [
             SizedBox(
@@ -239,21 +239,21 @@ class _WeatherScreenState extends State<WeatherScreen>
               child: Text(
                 '${h.time.hour.toString().padLeft(2,'0')}h',
                 style: TextStyle(
-                  fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700,
-                  color: isNow ? AppColors.orange : AppColors.textSecondary),
+                  fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700,
+                  color: isNow ? AppColors.accent : AppColors.mutedForeground),
               ),
             ),
             Text(h.icon, style: const TextStyle(fontSize: 20)),
             const SizedBox(width: 10),
             Expanded(child: Text(h.description,
-              style: const TextStyle(color: Colors.white, fontSize: 13))),
+              style: const TextStyle(color: AppColors.foreground, fontSize: 13))),
             Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
               Text('${h.temperatureC.toStringAsFixed(0)}°C',
-                style: const TextStyle(fontFamily: 'Rajdhani', fontSize: 16,
-                  fontWeight: FontWeight.w700, color: Colors.white)),
+                style: const TextStyle(fontFamily: 'Inter', fontSize: 16,
+                  fontWeight: FontWeight.w700, color: AppColors.foreground)),
               if (h.precipitationMm > 0)
                 Text('💧 ${h.precipitationMm.toStringAsFixed(1)} mm',
-                  style: const TextStyle(fontSize: 11, color: AppColors.blue)),
+                  style: const TextStyle(fontSize: 11, color: AppColors.secondary)),
               if (h.windSpeedKmh > 20)
                 Text('💨 ${h.windSpeedKmh.toStringAsFixed(0)} km/h',
                   style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
@@ -266,7 +266,7 @@ class _WeatherScreenState extends State<WeatherScreen>
 
   // ── Onglet 7 JOURS ────────────────────────────────────────
   Widget _buildDailyTab() {
-    if (_daily.isEmpty) return const Center(child: Text('Pas de données', style: TextStyle(color: AppColors.textSecondary)));
+    if (_daily.isEmpty) return const Center(child: Text('Pas de données', style: TextStyle(color: AppColors.mutedForeground)));
 
     return ListView.builder(
       padding: const EdgeInsets.all(12),
@@ -280,31 +280,31 @@ class _WeatherScreenState extends State<WeatherScreen>
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: AppColors.bgCard,
+            color: AppColors.card,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: const Color(0xFF2A2A3E)),
+            border: Border.all(color: AppColors.border),
           ),
           child: Row(children: [
             SizedBox(
               width: 90,
               child: Text(dayLabel, style: TextStyle(
-                fontFamily: 'Rajdhani', fontSize: 15, fontWeight: FontWeight.w600,
-                color: i == 0 ? AppColors.orange : Colors.white)),
+                fontFamily: 'Inter', fontSize: 15, fontWeight: FontWeight.w600,
+                color: i == 0 ? AppColors.accent : AppColors.foreground)),
             ),
             Text(d.icon, style: const TextStyle(fontSize: 22)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Text('${d.maxTempC.toStringAsFixed(0)}°',
-                  style: const TextStyle(fontFamily: 'Rajdhani', fontSize: 18,
-                    fontWeight: FontWeight.w700, color: Colors.white)),
+                  style: const TextStyle(fontFamily: 'Inter', fontSize: 18,
+                    fontWeight: FontWeight.w700, color: AppColors.foreground)),
                 Text(' / ${d.minTempC.toStringAsFixed(0)}°',
-                  style: const TextStyle(fontFamily: 'Rajdhani', fontSize: 14,
-                    color: AppColors.textSecondary)),
+                  style: const TextStyle(fontFamily: 'Inter', fontSize: 14,
+                    color: AppColors.mutedForeground)),
               ]),
               if (d.totalPrecipMm > 0)
                 Text('💧 ${d.totalPrecipMm.toStringAsFixed(1)} mm',
-                  style: const TextStyle(fontSize: 11, color: AppColors.blue)),
+                  style: const TextStyle(fontSize: 11, color: AppColors.secondary)),
             ])),
             // Mini indicateur praticabilité
             _miniPracticBar(d.totalPrecipMm),
@@ -330,7 +330,7 @@ class _WeatherScreenState extends State<WeatherScreen>
     children: [
       Container(width: 10, height: 10, decoration: BoxDecoration(shape: BoxShape.circle, color: color)),
       const SizedBox(width: 4),
-      Text(label, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+      Text(label, style: const TextStyle(fontSize: 10, color: AppColors.mutedForeground)),
     ],
   );
 
@@ -338,13 +338,13 @@ class _WeatherScreenState extends State<WeatherScreen>
     margin: const EdgeInsets.only(bottom: 6),
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
     decoration: BoxDecoration(
-      color: AppColors.bgCard,
+      color: AppColors.card,
       borderRadius: BorderRadius.circular(8),
-      border: Border.all(color: const Color(0xFF2A2A3E)),
+      border: Border.all(color: AppColors.border),
     ),
     child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-      Text(label, style: const TextStyle(color: AppColors.textSecondary, fontSize: 13)),
-      Text(value, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+      Text(label, style: const TextStyle(color: AppColors.mutedForeground, fontSize: 13)),
+      Text(value, style: const TextStyle(color: AppColors.foreground, fontWeight: FontWeight.w600, fontSize: 13)),
     ]),
   );
 
@@ -387,7 +387,7 @@ class _WeatherScreenState extends State<WeatherScreen>
     return Container(
       width: 6, height: 36,
       decoration: BoxDecoration(
-        color: const Color(0xFF2A2A3E),
+        color: AppColors.border,
         borderRadius: BorderRadius.circular(3),
       ),
       child: Align(
@@ -402,14 +402,14 @@ class _WeatherScreenState extends State<WeatherScreen>
   }
 
   Widget _sectionTitle(String t) => Text(t, style: const TextStyle(
-    fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5));
+    fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5));
 
   Widget _buildError() => Center(child: Column(
     mainAxisAlignment: MainAxisAlignment.center,
     children: [
       const Icon(Icons.cloud_off, color: AppColors.textMuted, size: 48),
       const SizedBox(height: 12),
-      Text(_error ?? 'Erreur', style: const TextStyle(color: AppColors.textSecondary)),
+      Text(_error ?? 'Erreur', style: const TextStyle(color: AppColors.mutedForeground)),
       const SizedBox(height: 16),
       ElevatedButton(onPressed: _loadWeather, child: const Text('Réessayer')),
     ],

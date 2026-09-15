@@ -142,7 +142,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
             const Padding(
               padding: EdgeInsets.only(top: 6),
               child: SizedBox(height: 20, width: 20,
-                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.orange)),
+                child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent)),
             ),
           if (_results.isNotEmpty) _resultsList(),
         ],
@@ -155,7 +155,7 @@ class _MapSearchBarState extends State<MapSearchBar> {
       onTap: _toggle,
       child: GlassPuck(
         icon:   _visible ? Icons.close : Icons.search,
-        color:  AppColors.orange,
+        color:  AppColors.accent,
         active: _visible,
       ),
     );
@@ -165,14 +165,14 @@ class _MapSearchBarState extends State<MapSearchBar> {
     return Container(
       constraints: const BoxConstraints(maxWidth: 280),
       decoration: BoxDecoration(
-        color: AppColors.bgPanel,
+        color: AppColors.card,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.orange.withValues(alpha: .5)),
+        border: Border.all(color: AppColors.accent.withValues(alpha: .5)),
       ),
       child: TextField(
         controller:  _ctrl,
         focusNode:   _focus,
-        style: const TextStyle(color: Colors.white, fontSize: 13),
+        style: const TextStyle(color: AppColors.foreground, fontSize: 13),
         decoration: const InputDecoration(
           hintText:        'Adresse ou lat, lon ...',
           hintStyle:       TextStyle(fontSize: 12),
@@ -192,30 +192,30 @@ class _MapSearchBarState extends State<MapSearchBar> {
       constraints: const BoxConstraints(maxWidth: 280, maxHeight: 220),
       margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
-        color:        AppColors.bgPanel,
+        color:        AppColors.card,
         borderRadius: BorderRadius.circular(8),
-        border:       Border.all(color: const Color(0xFF2A2A3E)),
+        border:       Border.all(color: AppColors.border),
       ),
       child: ListView.separated(
         padding:       EdgeInsets.zero,
         shrinkWrap:    true,
         itemCount:     _results.length,
-        separatorBuilder: (_, __) => const Divider(color: Color(0xFF2A2A3E), height: 1),
+        separatorBuilder: (_, __) => const Divider(color: AppColors.border, height: 1),
         itemBuilder: (_, i) {
           final r = _results[i];
           return ListTile(
             dense: true,
-            leading: const Icon(Icons.place, color: AppColors.orange, size: 16),
+            leading: const Icon(Icons.place, color: AppColors.accent, size: 16),
             title: Text(
               r.displayName,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontSize: 12),
+              style: const TextStyle(color: AppColors.foreground, fontSize: 12),
             ),
             trailing: widget.onGuide == null
                 ? null
                 : IconButton(
-                    icon: const Icon(Icons.directions, color: AppColors.orange, size: 18),
+                    icon: const Icon(Icons.directions, color: AppColors.accent, size: 18),
                     onPressed: () {
                       widget.onGuide!(r.position);
                       _toggle();

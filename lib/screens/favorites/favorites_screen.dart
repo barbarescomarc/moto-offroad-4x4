@@ -14,13 +14,13 @@ class FavoritesScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final favorites = context.watch<FavoritesProvider>();
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('FAVORIS')),
       body: favorites.places.isEmpty
           ? const Center(
               child: Text(
                 'Aucun favori — ajoute un point depuis la carte',
-                style: TextStyle(color: Colors.white54),
+                style: TextStyle(color: AppColors.mutedForeground),
               ),
             )
           : ListView.builder(
@@ -28,8 +28,8 @@ class FavoritesScreen extends StatelessWidget {
               itemBuilder: (_, i) {
                 final p = favorites.places[i];
                 return ListTile(
-                  leading: const Icon(Icons.star, color: AppColors.orange),
-                  title: Text(p.name, style: const TextStyle(color: Colors.white)),
+                  leading: const Icon(Icons.star, color: AppColors.accent),
+                  title: Text(p.name, style: const TextStyle(color: AppColors.foreground)),
                   trailing: IconButton(
                     icon: const Icon(Icons.delete_outline, color: AppColors.statusRed),
                     onPressed: () => favorites.remove(p.id),

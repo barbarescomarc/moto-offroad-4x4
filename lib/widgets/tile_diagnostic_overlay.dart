@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_map_tile_caching/flutter_map_tile_caching.dart';
 
 import '../services/map_tile_cache.dart';
+import '../app/theme.dart';
 
 /// Bandeau de diagnostic temporaire (2026-09-11).
 ///
@@ -44,19 +45,20 @@ class TileDiagnosticOverlay extends StatelessWidget {
             margin: const EdgeInsets.all(6),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.72),
-              borderRadius: BorderRadius.circular(8),
+              color: AppColors.card.withValues(alpha: 0.92),
+              borderRadius: BorderRadius.circular(AppSizes.cardRadius),
+              border: Border.all(color: AppColors.border),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('couche : $couche · tuiles : ${tuiles.length}',
-                    style: const TextStyle(color: Colors.white, fontSize: 11)),
+                    style: const TextStyle(color: AppColors.foreground, fontSize: 11)),
                 Text('réseau $reseau · cache $cache · erreurs $erreurs · attente $enCours',
-                    style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                    style: const TextStyle(color: AppColors.mutedForeground, fontSize: 11)),
                 if (hote != null)
-                  Text(hote, style: const TextStyle(color: Colors.white70, fontSize: 11)),
+                  Text(hote, style: const TextStyle(color: AppColors.mutedForeground, fontSize: 11)),
                 if (derniereErreur != null)
                   Text(
                     derniereErreur.length > 60

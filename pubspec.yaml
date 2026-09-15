@@ -88,14 +88,22 @@ flutter:
     - assets/carte3d/
     - assets/icons/
     - assets/maps/
+    - assets/fonts/Inter-LICENSE.txt
     - docs/legal/conditions-publication-traces.md
     - docs/legal/charte-du-pilote.md
-  # Polices Rajdhani à ajouter quand les fichiers .ttf seront présents dans assets/fonts/
-  # fonts:
-  #   - family: Rajdhani
-  #     fonts:
-  #       - asset: assets/fonts/Rajdhani-Regular.ttf
-  #       - asset: assets/fonts/Rajdhani-Bold.ttf
-  #         weight: 700
-  #       - asset: assets/fonts/Rajdhani-SemiBold.ttf
-  #         weight: 600
+  # Inter, la police du site GO FREE (gofree.fr) — embarquée pour que
+  # l'app et le site se lisent dans le même caractère. Rajdhani, qu'on citait
+  # jusqu'ici dans 82 styles, n'a jamais été livrée : le dossier assets/fonts
+  # était vide et la déclaration commentée, donc l'app tournait en police
+  # système sans que personne le voie.
+  # Inter est sous licence SIL OFL 1.1, dont le texte voyage avec les fichiers.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/Inter-Regular.ttf
+        - asset: assets/fonts/Inter-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Inter-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Inter-Bold.ttf
+          weight: 700

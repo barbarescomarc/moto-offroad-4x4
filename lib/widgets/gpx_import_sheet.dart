@@ -79,14 +79,14 @@ class _GpxImportSheetState extends State<GpxImportSheet> {
           Center(child: Container(
             width: 40, height: 4,
             decoration: BoxDecoration(
-              color: const Color(0xFF2A2A3E),
+              color: AppColors.border,
               borderRadius: BorderRadius.circular(2),
             ),
           )),
           const SizedBox(height: 16),
           const Text('IMPORTER UNE TRACE GPX', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700,
-            color: AppColors.orange, letterSpacing: 1,
+            fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700,
+            color: AppColors.accent, letterSpacing: 1,
           )),
           const SizedBox(height: 16),
 
@@ -94,9 +94,9 @@ class _GpxImportSheetState extends State<GpxImportSheet> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.red.withOpacity(.1),
+                color: AppColors.destructive.withOpacity(.1),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.red.withOpacity(.3)),
+                border: Border.all(color: AppColors.destructive.withOpacity(.3)),
               ),
               child: Text(_error!, style: const TextStyle(color: AppColors.statusRed, fontSize: 12)),
             ),
@@ -111,8 +111,8 @@ class _GpxImportSheetState extends State<GpxImportSheet> {
               icon: const Icon(Icons.folder_open_outlined),
               label: const Text('Choisir un fichier .gpx'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.white,
-                side: const BorderSide(color: Color(0xFF2A2A3E)),
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.border),
                 minimumSize: const Size(double.infinity, 48),
               ),
             ),
@@ -120,10 +120,10 @@ class _GpxImportSheetState extends State<GpxImportSheet> {
           const SizedBox(height: 12),
 
           const Row(children: [
-            Expanded(child: Divider(color: Color(0xFF2A2A3E))),
+            Expanded(child: Divider(color: AppColors.border)),
             Padding(padding: EdgeInsets.symmetric(horizontal: 12),
               child: Text('ou depuis une URL', style: TextStyle(color: AppColors.textMuted, fontSize: 11))),
-            Expanded(child: Divider(color: Color(0xFF2A2A3E))),
+            Expanded(child: Divider(color: AppColors.border)),
           ]),
           const SizedBox(height: 12),
 
@@ -132,7 +132,7 @@ class _GpxImportSheetState extends State<GpxImportSheet> {
             Expanded(
               child: TextField(
                 controller: _urlCtrl,
-                style: const TextStyle(color: Colors.white, fontSize: 13),
+                style: const TextStyle(color: AppColors.foreground, fontSize: 13),
                 decoration: const InputDecoration(
                   hintText: 'https://wikiloc.com/… ou lien TET, Imarod',
                   hintStyle: TextStyle(fontSize: 12),
@@ -147,7 +147,7 @@ class _GpxImportSheetState extends State<GpxImportSheet> {
               style: ElevatedButton.styleFrom(minimumSize: const Size(60, 48)),
               child: _loading
                   ? const SizedBox(width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
                   : const Icon(Icons.download),
             ),
           ]),

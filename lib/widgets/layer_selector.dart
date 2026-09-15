@@ -18,25 +18,25 @@ class LayerSelectorSheet extends StatelessWidget {
         children: [
           Center(child: Container(
             width: 40, height: 4,
-            decoration: BoxDecoration(color: const Color(0xFF2A2A3E),
+            decoration: BoxDecoration(color: AppColors.border,
               borderRadius: BorderRadius.circular(2)),
           )),
           const SizedBox(height: 16),
           const Text('FOND DE CARTE', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700,
-            color: AppColors.orange, letterSpacing: 1)),
+            fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700,
+            color: AppColors.accent, letterSpacing: 1)),
           const SizedBox(height: 12),
           ...MapLayer.values.map((layer) => _layerTile(context, layer, mapProv)),
           const SizedBox(height: 16),
           const Text('OVERLAYS', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1)),
+            fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1)),
           const SizedBox(height: 8),
           _overlayTile(context, 'Ombrage du relief', Icons.landscape_outlined,
-            mapProv.reliefEnabled, mapProv.toggleRelief, AppColors.orange),
+            mapProv.reliefEnabled, mapProv.toggleRelief, AppColors.accent),
           _overlayTile(context, 'Radar pluie (RainViewer)', Icons.radar,
-            mapProv.radarEnabled, mapProv.toggleRadar, AppColors.blue),
+            mapProv.radarEnabled, mapProv.toggleRadar, AppColors.secondary),
           _overlayTile(context, 'Zones impraticables', Icons.warning_outlined,
-            mapProv.practicabilityEnabled, mapProv.togglePracticability, AppColors.red),
+            mapProv.practicabilityEnabled, mapProv.togglePracticability, AppColors.destructive),
         ],
       ),
     );
@@ -49,14 +49,14 @@ class LayerSelectorSheet extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       leading: Icon(
         _layerIcon(layer),
-        color: active ? AppColors.orange : AppColors.textSecondary,
+        color: active ? AppColors.accent : AppColors.mutedForeground,
       ),
       title: Text(layer.label, style: TextStyle(
-        color: active ? AppColors.orange : Colors.white,
+        color: active ? AppColors.accent : AppColors.foreground,
         fontWeight: active ? FontWeight.w700 : FontWeight.normal,
         fontSize: 14,
       )),
-      trailing: active ? const Icon(Icons.check, color: AppColors.orange, size: 18) : null,
+      trailing: active ? const Icon(Icons.check, color: AppColors.accent, size: 18) : null,
       onTap: () {
         prov.setLayer(layer);
         Navigator.pop(ctx);
@@ -69,9 +69,9 @@ class LayerSelectorSheet extends StatelessWidget {
     return ListTile(
       dense: true,
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
-      leading: Icon(icon, color: active ? color : AppColors.textSecondary),
+      leading: Icon(icon, color: active ? color : AppColors.mutedForeground),
       title: Text(label, style: TextStyle(
-        color: active ? Colors.white : AppColors.textSecondary, fontSize: 13)),
+        color: active ? AppColors.foreground : AppColors.mutedForeground, fontSize: 13)),
       trailing: Switch(
         value: active,
         onChanged: (_) => onToggle(),

@@ -32,14 +32,14 @@ class PoiFilterSheet extends StatelessWidget {
             Center(child: Container(
               width: 40, height: 4,
               decoration: BoxDecoration(
-                color: const Color(0xFF2A2A3E),
+                color: AppColors.border,
                 borderRadius: BorderRadius.circular(2),
               ),
             )),
             const SizedBox(height: 16),
             const Text('AFFICHER SUR LA CARTE', style: TextStyle(
-              fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700,
-              color: AppColors.orange, letterSpacing: 1,
+              fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700,
+              color: AppColors.accent, letterSpacing: 1,
             )),
             const SizedBox(height: 4),
             Text(
@@ -63,8 +63,8 @@ class PoiFilterSheet extends StatelessWidget {
                       key: const Key('filtre-tout-afficher'),
                       onPressed: poi.toutAfficher,
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: Color(0xFF2A2A3E)),
+                        foregroundColor: AppColors.primary,
+                        side: const BorderSide(color: AppColors.border),
                         minimumSize: const Size(0, 44),
                       ),
                       child: const Text('Tout afficher'),
@@ -97,12 +97,12 @@ class PoiFilterSheet extends StatelessWidget {
       selected: affichee,
       onSelected: (_) => poi.basculerCategorie(categorie),
       labelStyle: TextStyle(
-        color: affichee ? Colors.white : Colors.white54,
+        color: affichee ? AppColors.foreground : AppColors.mutedForeground,
         fontSize: 13,
       ),
       selectedColor: Color(categorie.colorValue),
-      backgroundColor: AppColors.bgPanel,
-      checkmarkColor: Colors.white,
+      backgroundColor: AppColors.card,
+      checkmarkColor: AppColors.accent,
       showCheckmark: true,
     );
   }

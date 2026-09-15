@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../../providers/account_provider.dart';
 import '../../services/legal_documents.dart';
+import '../../app/theme.dart';
 
 /// Mur bloquant entre le compte vérifié et le reste de l'application (voir
 /// `accountRedirect` dans `account_gate.dart`) : la charte informe des
@@ -128,7 +129,7 @@ class _CharteScreenState extends State<CharteScreen> {
                   ? const SizedBox(
                       height: 18,
                       width: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary),
                     )
                   : const Text("J'accepte"),
             ),

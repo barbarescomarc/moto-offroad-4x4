@@ -7,6 +7,7 @@ import '../../app/router.dart';
 import '../../models/ride.dart';
 import '../../providers/rides_provider.dart';
 import '../../services/ride_export_service.dart';
+import '../../app/theme.dart';
 
 class RideDetailScreen extends StatelessWidget {
   const RideDetailScreen({super.key, required this.rideId});
@@ -43,7 +44,7 @@ class RideDetailScreen extends StatelessWidget {
           if (ride.sharedTraceId == null)
             TextButton(
               onPressed: () => context.push('${AppRoutes.rides}/${ride.id}/publier'),
-              child: const Text('Publier', style: TextStyle(color: Colors.white)),
+              child: const Text('Publier', style: TextStyle(color: AppColors.onPrimary)),
             ),
           IconButton(
             icon: const Icon(Icons.delete_outline),

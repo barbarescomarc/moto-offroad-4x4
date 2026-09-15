@@ -6,6 +6,7 @@ import '../../models/ride.dart';
 import '../../providers/rides_provider.dart';
 import '../../services/ride_database.dart';
 import 'shared_traces_panel.dart';
+import '../../app/theme.dart';
 
 class RidesScreen extends StatefulWidget {
   const RidesScreen({super.key});
@@ -152,7 +153,7 @@ class _MyRidesPanelState extends State<MyRidesPanel> {
         child: Text(
           '${provider.rides.length} sorties · '
           '${mo.toStringAsFixed(1).replaceAll('.', ',')} Mo occupés',
-          style: const TextStyle(fontSize: 12, color: Colors.white54),
+          style: const TextStyle(fontSize: 12, color: AppColors.mutedForeground),
         ),
       );
     },

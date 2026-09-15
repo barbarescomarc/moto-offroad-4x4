@@ -128,11 +128,11 @@ class UpdateBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.bgPanel,
+      color: AppColors.card,
       child: ListTile(
-        leading: const Icon(Icons.system_update, color: AppColors.orange),
+        leading: const Icon(Icons.system_update, color: AppColors.accent),
         title: Text('Version ${maj.version} disponible',
-            style: const TextStyle(color: Colors.white, fontSize: 14)),
+            style: const TextStyle(color: AppColors.foreground, fontSize: 14)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -141,7 +141,7 @@ class UpdateBanner extends StatelessWidget {
               child: const Text('Voir'),
             ),
             IconButton(
-              icon: const Icon(Icons.close, size: 18, color: Colors.white),
+              icon: const Icon(Icons.close, size: 18, color: AppColors.foreground),
               onPressed: onDismiss,
               tooltip: 'Masquer',
             ),

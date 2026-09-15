@@ -295,8 +295,8 @@ class _AccountLoadingScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       key: Key('ecran-chargement-compte'),
-      backgroundColor: AppColors.bgDark,
-      body: Center(child: CircularProgressIndicator(color: AppColors.orange)),
+      backgroundColor: AppColors.background,
+      body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
     );
   }
 }
@@ -494,7 +494,7 @@ class _GlassNavBar extends StatelessWidget {
   }
 
   Widget _navItem(({IconData icon, IconData active, String label}) item, {required bool selected}) {
-    final color = selected ? AppColors.orange : Colors.white70;
+    final color = selected ? AppColors.accent : AppColors.mutedForeground;
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Column(
@@ -538,7 +538,7 @@ class _NavBarRevealHandle extends StatelessWidget {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(.35),
+                    color: AppColors.mutedForeground.withValues(alpha: .35),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

@@ -40,7 +40,7 @@ class _CallSettingsScreenState extends State<CallSettingsScreen> {
     final replies  = context.watch<QuickReplyProvider>();
 
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Appels et position')),
       body: ListView(
         children: [
@@ -48,19 +48,19 @@ class _CallSettingsScreenState extends State<CallSettingsScreen> {
           _sectionLabel('AUTO-RÉPONSE'),
           SwitchListTile(
             title: const Text('Répondre automatiquement aux appels',
-              style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: AppColors.foreground)),
             subtitle: const Text(
               'Uniquement pendant un enregistrement ou en mode Solo',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
             value: settings.autoReplyEnabled,
             onChanged: _granted ? settings.setAutoReplyEnabled : null,
           ),
           ListTile(
             enabled: _granted,
             title: const Text('Message envoyé',
-              style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: AppColors.foreground)),
             subtitle: Text(settings.autoReplyMessage,
-              style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              style: const TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
             trailing: const Icon(Icons.edit, color: AppColors.textMuted),
             onTap: _granted
                 ? () => _editText(
@@ -72,22 +72,22 @@ class _CallSettingsScreenState extends State<CallSettingsScreen> {
           ),
           SwitchListTile(
             title: const Text('Joindre ma position',
-              style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: AppColors.foreground)),
             subtitle: const Text('Ajoute les coordonnées et le lien Google Maps',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
             value: settings.autoReplyAttachPosition,
             onChanged: _granted ? settings.setAutoReplyAttachPosition : null,
           ),
           SwitchListTile(
             title: const Text('Répondre à tous les appelants',
-              style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: AppColors.foreground)),
             subtitle: const Text(
               'Sinon, seuls vos contacts de confiance reçoivent une réponse',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
             value: settings.autoReplyAllCallers,
             onChanged: _granted ? settings.setAutoReplyAllCallers : null,
           ),
-          const Divider(color: Color(0xFF2A2A3E)),
+          const Divider(color: AppColors.border),
           _sectionLabel('RÉPONSES RAPIDES (3 maximum)'),
           ...replies.replies.map((r) => _replyTile(r, replies)),
           Padding(
@@ -97,14 +97,14 @@ class _CallSettingsScreenState extends State<CallSettingsScreen> {
               child: const Text('Rétablir les réponses par défaut'),
             ),
           ),
-          const Divider(color: Color(0xFF2A2A3E)),
+          const Divider(color: AppColors.border),
           ListTile(
             leading: const Icon(Icons.my_location),
             title: const Text('Envoyer ma position',
-              style: TextStyle(color: Colors.white)),
+              style: TextStyle(color: AppColors.foreground)),
             subtitle: const Text(
               'Transmet vos coordonnées GPS par SMS à un contact de confiance',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+              style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
             trailing: const Icon(Icons.chevron_right),
             onTap: () => context.push(AppRoutes.sendPosition),
           ),
@@ -117,20 +117,20 @@ class _CallSettingsScreenState extends State<CallSettingsScreen> {
     margin: const EdgeInsets.all(16),
     padding: const EdgeInsets.all(14),
     decoration: BoxDecoration(
-      color: AppColors.red.withOpacity(.15),
+      color: AppColors.destructive.withOpacity(.15),
       borderRadius: BorderRadius.circular(12),
-      border: Border.all(color: AppColors.red),
+      border: Border.all(color: AppColors.destructive),
     ),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('Permissions manquantes',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          style: TextStyle(color: AppColors.foreground, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         const Text(
           "Sans l'accès au téléphone, au journal d'appels et aux SMS, "
           "l'auto-réponse ne peut pas fonctionner.",
-          style: TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+          style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
         const SizedBox(height: 10),
         ElevatedButton(
           onPressed: _askPermissions,
@@ -141,10 +141,10 @@ class _CallSettingsScreenState extends State<CallSettingsScreen> {
   );
 
   Widget _replyTile(QuickReply reply, QuickReplyProvider provider) => ListTile(
-    title: Text(reply.text, style: const TextStyle(color: Colors.white)),
+    title: Text(reply.text, style: const TextStyle(color: AppColors.foreground)),
     subtitle: Text(
       reply.attachPosition ? 'Position jointe' : 'Sans position',
-      style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+      style: const TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
     trailing: Switch(
       value: reply.attachPosition,
       onChanged: (v) => provider.updateReply(reply.id, attachPosition: v),

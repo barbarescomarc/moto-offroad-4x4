@@ -19,14 +19,14 @@ class InfoScreen extends StatelessWidget {
       const SizedBox(height: 16),
       _infoCard(
         icon: Icons.two_wheeler,
-        color: AppColors.orange,
+        color: AppColors.accent,
         title: 'OFFROAD — RÉGLEMENTATION FRANCE',
         items: _offroadRules,
       ),
       const SizedBox(height: 16),
       _infoCard(
         icon: Icons.night_shelter_outlined,
-        color: AppColors.blue,
+        color: AppColors.secondary,
         title: 'BIVOUAC SAUVAGE — CE QUE DIT LA LOI',
         items: _bivouacRules,
       ),
@@ -65,7 +65,7 @@ class InfoScreen extends StatelessWidget {
     }
 
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('ℹ️  INFO TERRAIN')),
       body: ListView(padding: const EdgeInsets.all(16), children: cartes),
     );
@@ -76,20 +76,20 @@ class InfoScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color:        const Color(0xFF1A1A2E),
+        color:        AppColors.card,
         borderRadius: BorderRadius.circular(12),
-        border:       Border.all(color: const Color(0xFF2A2A3E)),
+        border:       Border.all(color: AppColors.border),
       ),
       child: Row(
         children: [
-          const Icon(Icons.location_on, color: AppColors.orange, size: 20),
+          const Icon(Icons.location_on, color: AppColors.accent, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text('Position actuelle', style: TextStyle(color: AppColors.textMuted, fontSize: 11)),
-                Text(coords, style: const TextStyle(color: Colors.white, fontFamily: 'Rajdhani', fontSize: 14)),
+                Text(coords, style: const TextStyle(color: AppColors.foreground, fontFamily: 'Inter', fontSize: 14)),
               ],
             ),
           ),
@@ -107,7 +107,7 @@ class InfoScreen extends StatelessWidget {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color:        AppColors.bgCard,
+        color:        AppColors.card,
         borderRadius: BorderRadius.circular(12),
         border:       Border.all(color: color.withValues(alpha: .25)),
       ),
@@ -122,13 +122,13 @@ class InfoScreen extends StatelessWidget {
                 Icon(icon, color: color, size: 18),
                 const SizedBox(width: 8),
                 Expanded(child: Text(title, style: TextStyle(
-                  color: color, fontFamily: 'Rajdhani',
+                  color: color, fontFamily: 'Inter',
                   fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: .8,
                 ))),
               ],
             ),
           ),
-          const Divider(color: Color(0xFF2A2A3E), height: 1),
+          const Divider(color: AppColors.border, height: 1),
           // Items
           ...items.map((item) => _itemRow(item)),
           const SizedBox(height: 8),
@@ -143,11 +143,11 @@ class InfoScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(item.icon, size: 15, color: item.color ?? AppColors.textSecondary),
+          Icon(item.icon, size: 15, color: item.color ?? AppColors.mutedForeground),
           const SizedBox(width: 10),
           Expanded(
             child: Text(item.text, style: const TextStyle(
-              color: AppColors.textSecondary, fontSize: 12, height: 1.45)),
+              color: AppColors.mutedForeground, fontSize: 12, height: 1.45)),
           ),
         ],
       ),
@@ -159,9 +159,9 @@ class InfoScreen extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color:        AppColors.red.withValues(alpha: .08),
+        color:        AppColors.destructive.withValues(alpha: .08),
         borderRadius: BorderRadius.circular(12),
-        border:       Border.all(color: AppColors.red.withValues(alpha: .3)),
+        border:       Border.all(color: AppColors.destructive.withValues(alpha: .3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -172,7 +172,7 @@ class InfoScreen extends StatelessWidget {
               SizedBox(width: 8),
               Expanded(
                 child: Text('NUMÉROS D\'URGENCE', style: TextStyle(
-                  color: AppColors.statusRed, fontFamily: 'Rajdhani',
+                  color: AppColors.statusRed, fontFamily: 'Inter',
                   fontSize: 13, fontWeight: FontWeight.w700, letterSpacing: .8,
                 )),
               ),
@@ -184,7 +184,7 @@ class InfoScreen extends StatelessWidget {
             child: Row(children: [
               SizedBox(width: 30,
                 child: Text(e.$1, style: const TextStyle(
-                  color: AppColors.statusRed, fontFamily: 'Rajdhani',
+                  color: AppColors.statusRed, fontFamily: 'Inter',
                   fontSize: 16, fontWeight: FontWeight.w700))),
               const SizedBox(width: 10),
               // Expanded, pas un Text nu : repliée dans les Réglages, la
@@ -192,7 +192,7 @@ class InfoScreen extends StatelessWidget {
               // débordait par la droite au lieu de passer à la ligne.
               Expanded(
                 child: Text(e.$2, style: const TextStyle(
-                    color: AppColors.textSecondary, fontSize: 12)),
+                    color: AppColors.mutedForeground, fontSize: 12)),
               ),
             ]),
           )),

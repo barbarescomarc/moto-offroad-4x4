@@ -49,6 +49,7 @@ import '../../utils/map_zoom.dart';
 import '../../widgets/map_search_bar.dart';
 import '../../widgets/radial_action_menu.dart';
 import '../../widgets/recording_panel.dart';
+import '../../widgets/rider_position_layer.dart';
 import '../../widgets/alerte_groupe_banner.dart';
 import '../../widgets/guidance_banner.dart';
 import '../../widgets/speed_limit_badge.dart';
@@ -258,14 +259,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return Positioned.fill(
       child: IgnorePointer(
         child: Container(
-          color: Colors.black.withValues(alpha: .55),
+          color: AppColors.primary.withValues(alpha: .82),
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Text(
             _tauntMessage!,
             textAlign: TextAlign.center,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.onPrimary,
               fontSize: 34,
               fontWeight: FontWeight.w800,
               height: 1.2,
@@ -311,7 +312,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
     // Pas de Scaffold imbriqué : le Scaffold vient de MainShell
     return ColoredBox(
-      color: AppColors.bgDark,
+      color: AppColors.background,
       child: Stack(
         children: [
           // ── Carte plein écran ou non ─────────────────────
@@ -484,7 +485,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Widget _buildLandscape() {
     // Pas de Scaffold imbriqué : le Scaffold vient de MainShell
     return ColoredBox(
-      color: AppColors.bgDark,
+      color: AppColors.background,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -554,7 +555,6 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final groupProv = context.watch<GroupProvider>();
     final settings  = context.watch<SettingsProvider>();
     final guidance  = context.watch<GuidanceProvider>();
-    final snap      = _locationService.lastSnapshot;
 
     final navActive = guidance.isActive;
 
@@ -652,6 +652,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (traceProv.hasTrace) ...[
           // Portion restante — ruban vif et épais en guidage actif, plus
           // discret en simple suivi de trace hors navigation.
+          // Le liseré blanc n'est pas une coquetterie : depuis que la trace
+          // est marine et non plus orange, c'est lui qui la détache des
+          // zones sombres de la photo aérienne comme des verts de l'IGN.
           PolylineLayer(polylines: [
             Polyline(
               points: traceProv.activeTrace!.points
@@ -660,6 +663,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   .toList(),
               strokeWidth: navActive ? 6 : 3.5,
               color: navActive ? AppColors.navRoute : AppColors.traceColor,
+              borderStrokeWidth: 2,
+              borderColor: AppColors.traceCasing,
             ),
           ]),
           // Portion parcourue (vert)
@@ -671,6 +676,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   .toList(),
               strokeWidth: navActive ? 6 : 3.5,
               color: AppColors.traceDone,
+              borderStrokeWidth: 2,
+              borderColor: AppColors.traceCasing,
             ),
           ]),
           // Segments impraticables (rouge semi-transparent)
@@ -694,7 +701,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             Marker(
               point: traceProv.activeTrace!.points.last.position,
               width: 20, height: 20,
-              child: _traceEndpoint(AppColors.orange),
+              child: _traceEndpoint(AppColors.accent),
             ),
           ]),
         ],
@@ -716,7 +723,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             Marker(
               point: guidance.route!.polyline.last,
               width: 20, height: 20,
-              child: _traceEndpoint(AppColors.blue),
+              child: _traceEndpoint(AppColors.secondary),
             ),
           ]),
         ],
@@ -797,7 +804,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         if (_isEditingTrace) ...[
           if (_editedPolyline != null)
             PolylineLayer(polylines: [
-              Polyline(points: _editedPolyline!, strokeWidth: 5, color: AppColors.blue),
+              Polyline(points: _editedPolyline!, strokeWidth: 5, color: AppColors.secondary),
             ]),
           MarkerLayer(
             markers: [
@@ -817,7 +824,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         // ── Trace à main levée en cours de dessin ───────────
         if (_isDrawingTrace && _drawPoints.length >= 2)
           PolylineLayer(polylines: [
-            Polyline(points: _drawPoints, strokeWidth: 3, color: AppColors.orange),
+            Polyline(points: _drawPoints, strokeWidth: 3, color: AppColors.accent),
           ]),
         if (_isDrawingTrace)
           MarkerLayer(
@@ -832,14 +839,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           ),
 
         // ── Position du rider ───────────────────────────────
-        if (snap != null)
-          MarkerLayer(markers: [
-            Marker(
-              point: snap.position,
-              width: 30, height: 30,
-              child: _riderMarker(snap.headingDeg),
-            ),
-          ]),
+        // La couche s'abonne elle-même au GPS : lue depuis ce build, la
+        // position ne se rafraîchissait qu'au gré des providers écoutés
+        // ici, et le marqueur restait figé pendant l'enregistrement d'une
+        // trace hors guidage (constaté le 2026-09-15).
+        RiderPositionLayer(positions: _locationService.positionListenable),
 
         // ── Échelle de distance ─────────────────────────────
         // Dernier enfant de la carte : elle se lit par-dessus les tracés.
@@ -883,8 +887,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            AppColors.bgDark.withOpacity(.95),
-            AppColors.bgDark.withOpacity(.0),
+            AppColors.background.withValues(alpha: .95),
+            AppColors.background.withValues(alpha: .0),
           ],
         ),
       ),
@@ -898,11 +902,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                 ? Text(
                     traceProv.activeTrace!.name,
                     style: const TextStyle(
-                      fontFamily: 'Rajdhani',
+                      fontFamily: 'Inter',
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
-                      letterSpacing: .8,
+                      color: AppColors.foreground,
+                      letterSpacing: -0.2,
                     ),
                     overflow: TextOverflow.ellipsis,
                   )
@@ -935,17 +939,22 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Widget _buildStatsBar() {
     return Consumer4<TraceProvider, FuelProvider, MapProvider, GuidanceProvider>(
       builder: (ctx, trace, fuel, map, guidance, _) {
-        final snap = _locationService.lastSnapshot;
-        return StatsBar(
-          speedKmh:      snap?.speedKmh ?? 0,
-          speedLimitKmh: guidance.isActive ? guidance.speedLimitKmh : null,
-          remainingKm: trace.hasTrace && snap != null
-              ? trace.remainingKm(
-                  snap.position.latitude, snap.position.longitude)
-              : null,
-          fuelRangeKm: fuel.rangeKm,
-          fuelOk:      !fuel.isLow,
-          altitude:    snap?.altitudeMeters,
+        // Vitesse et altitude viennent du GPS, pas de ces providers : sans
+        // s'abonner à la position, elles restaient aussi figées que le
+        // marqueur du pilote.
+        return ValueListenableBuilder<GpsSnapshot?>(
+          valueListenable: _locationService.positionListenable,
+          builder: (context, snap, _) => StatsBar(
+            speedKmh:      snap?.speedKmh ?? 0,
+            speedLimitKmh: guidance.isActive ? guidance.speedLimitKmh : null,
+            remainingKm: trace.hasTrace && snap != null
+                ? trace.remainingKm(
+                    snap.position.latitude, snap.position.longitude)
+                : null,
+            fuelRangeKm: fuel.rangeKm,
+            fuelOk:      !fuel.isLow,
+            altitude:    snap?.altitudeMeters,
+          ),
         );
       },
     );
@@ -968,7 +977,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         RadialActionMenu(
           key: _tutoActionsKey,
           centerIcon:  mapProv.followPosition ? Icons.my_location : Icons.location_searching,
-          centerColor: AppColors.orange,
+          centerColor: AppColors.accent,
           centerActive: mapProv.followPosition,
           onCenterTap: () {
             mapProv.toggleFollowPosition();
@@ -979,29 +988,29 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           },
           segments: [
             RadialMenuSegment(
-              icon: Icons.search, color: AppColors.orange, angleDeg: 190,
+              icon: Icons.search, color: AppColors.accent, angleDeg: 190,
               onSelect: _openSearchSheet,
             ),
             RadialMenuSegment(
-              icon: Icons.cloud, color: AppColors.blue, angleDeg: 227,
+              icon: Icons.cloud, color: AppColors.secondary, angleDeg: 227,
               onSelect: () => context.go(AppRoutes.weather),
             ),
             RadialMenuSegment(
-              icon: Icons.shield, color: AppColors.green, angleDeg: 265,
+              icon: Icons.shield, color: AppColors.accent, angleDeg: 265,
               onSelect: () => context.push(AppRoutes.solo),
             ),
             // Seule entrée vers la liste des favoris : sans elle, un point
             // enregistré depuis l'appui long sur la carte n'était plus
             // atteignable pour lancer un guidage dessus.
             RadialMenuSegment(
-              icon: Icons.star, color: AppColors.orange, angleDeg: 302,
+              icon: Icons.star, color: AppColors.accent, angleDeg: 302,
               onSelect: _openFavorites,
             ),
             // Seule entrée vers le mode groupe : l'écran (créer/rejoindre,
             // ou gérer un groupe actif) existait déjà côté code mais
             // n'était accessible depuis nulle part dans l'appli.
             RadialMenuSegment(
-              icon: Icons.groups, color: AppColors.blue, angleDeg: 339,
+              icon: Icons.groups, color: AppColors.secondary, angleDeg: 339,
               onSelect: () => context.push(AppRoutes.group),
             ),
           ],
@@ -1010,7 +1019,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           const SizedBox(height: 6),
           GestureDetector(
             onTap: () => _showGpxGuidanceChooser(traceProv.activeTrace!),
-            child: const GlassPuck(icon: Icons.alt_route, color: AppColors.orange),
+            child: const GlassPuck(icon: Icons.alt_route, color: AppColors.accent),
           ),
         ],
         const SizedBox(height: 6),
@@ -1019,7 +1028,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Icons.radar,
           mapProv.toggleRadar,
           active: mapProv.radarEnabled,
-          activeColor: AppColors.blue,
+          activeColor: AppColors.secondary,
         ),
         const SizedBox(height: 6),
         // Points d'intérêt (DATAtourisme)
@@ -1027,7 +1036,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Icons.travel_explore,
           _openPoiSearchSheet,
           active: context.watch<PoiSearchProvider>().results.isNotEmpty,
-          activeColor: AppColors.orange,
+          activeColor: AppColors.accent,
         ),
         const SizedBox(height: 6),
         // Trace à main levée
@@ -1035,7 +1044,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           Icons.gesture,
           _startDrawingTrace,
           active: _isDrawingTrace,
-          activeColor: AppColors.orange,
+          activeColor: AppColors.accent,
         ),
         const SizedBox(height: 6),
         // Télécharger la zone visible pour hors-ligne
@@ -1094,7 +1103,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1190,12 +1199,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     return showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgPanel,
-        title: const Text('Nommer la trace', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.card,
+        title: const Text('Nommer la trace', style: TextStyle(color: AppColors.foreground)),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: AppColors.foreground),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),
@@ -1218,17 +1227,17 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.bgPanel.withValues(alpha: .95),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF2A2A3E)),
+          color: AppColors.card.withValues(alpha: .95),
+          borderRadius: BorderRadius.circular(AppSizes.cardRadius),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
             Text('${_drawPoints.length}/$_maxDrawPoints points', style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
+              color: AppColors.foreground, fontWeight: FontWeight.w600, fontSize: 13)),
             const Spacer(),
             IconButton(
-              icon: const Icon(Icons.undo, color: Colors.white70, size: 20),
+              icon: const Icon(Icons.undo, color: AppColors.mutedForeground, size: 20),
               onPressed: _drawPoints.isEmpty ? null : _undoLastDrawPoint,
               tooltip: 'Annuler le dernier point',
             ),
@@ -1241,7 +1250,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               onPressed: (_drawPoints.length < 2 || _isComputingDrawnRoute) ? null : _finishDrawingTrace,
               icon: _isComputingDrawnRoute
                   ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
                   : const Icon(Icons.check, size: 18),
               label: const Text('Terminer'),
             ),
@@ -1289,7 +1298,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _showEditPointMenu(int index) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1299,7 +1308,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           children: [
             ListTile(
               leading: const Icon(Icons.delete_outline, color: AppColors.statusRed),
-              title: const Text('Supprimer ce point', style: TextStyle(color: Colors.white)),
+              title: const Text('Supprimer ce point', style: TextStyle(color: AppColors.foreground)),
               enabled: _editWaypoints.length > 2,
               onTap: () {
                 Navigator.pop(sheetContext);
@@ -1308,9 +1317,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.first_page, color: AppColors.orange),
-              title: const Text('Couper avant ce point', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Supprime tout ce qui précède', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              leading: const Icon(Icons.first_page, color: AppColors.accent),
+              title: const Text('Couper avant ce point', style: TextStyle(color: AppColors.foreground)),
+              subtitle: const Text('Supprime tout ce qui précède', style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
               enabled: index > 0,
               onTap: () {
                 Navigator.pop(sheetContext);
@@ -1319,9 +1328,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.last_page, color: AppColors.orange),
-              title: const Text('Couper après ce point', style: TextStyle(color: Colors.white)),
-              subtitle: const Text('Supprime tout ce qui suit', style: TextStyle(color: Colors.white54, fontSize: 12)),
+              leading: const Icon(Icons.last_page, color: AppColors.accent),
+              title: const Text('Couper après ce point', style: TextStyle(color: AppColors.foreground)),
+              subtitle: const Text('Supprime tout ce qui suit', style: TextStyle(color: AppColors.mutedForeground, fontSize: 12)),
               enabled: index < _editWaypoints.length - 1,
               onTap: () {
                 Navigator.pop(sheetContext);
@@ -1409,16 +1418,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.bgPanel.withValues(alpha: .95),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF2A2A3E)),
+          color: AppColors.card.withValues(alpha: .95),
+          borderRadius: BorderRadius.circular(AppSizes.cardRadius),
+          border: Border.all(color: AppColors.border),
         ),
         child: Row(
           children: [
             Flexible(
               child: Text(
                 '${_editWaypoints.length} points — tape un point pour le modifier, ailleurs pour en ajouter un',
-                style: const TextStyle(color: Colors.white, fontSize: 12),
+                style: const TextStyle(color: AppColors.foreground, fontSize: 12),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 2,
               ),
@@ -1433,7 +1442,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               onPressed: (_editedPolyline == null || _isRecomputingEdit) ? null : _saveEditedTrace,
               icon: _isRecomputingEdit
                   ? const SizedBox(width: 16, height: 16,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
                   : const Icon(Icons.check, size: 18),
               label: const Text('Enregistrer'),
             ),
@@ -1446,7 +1455,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _openPoiSearchSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -1458,7 +1467,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _ouvrirFiltresPoi() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1473,7 +1482,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         decoration: BoxDecoration(
           color: const Color(0xFF0277BD),
           shape: BoxShape.circle,
-          border: Border.all(color: Colors.white, width: 2),
+          border: Border.all(color: AppColors.markerCasing, width: 2),
         ),
         alignment: Alignment.center,
         child: const Text('🚐', style: TextStyle(fontSize: 16)),
@@ -1524,7 +1533,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1541,7 +1550,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _showPoiDetails(PoiModel poi) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1553,33 +1562,33 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('${poi.category.emoji} ${poi.name}', style: const TextStyle(
-                fontFamily: 'Rajdhani', fontSize: 18, fontWeight: FontWeight.w700,
-                color: Colors.white,
+                fontFamily: 'Inter', fontSize: 18, fontWeight: FontWeight.w700,
+                color: AppColors.foreground,
               )),
               const SizedBox(height: 4),
               Text(poi.category.label, style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
               if (poi.address != null) ...[
                 const SizedBox(height: 12),
                 Row(children: [
-                  const Icon(Icons.place_outlined, color: AppColors.textSecondary, size: 18),
+                  const Icon(Icons.place_outlined, color: AppColors.mutedForeground, size: 18),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(poi.address!, style: const TextStyle(color: Colors.white70, fontSize: 13))),
+                  Expanded(child: Text(poi.address!, style: const TextStyle(color: AppColors.mutedForeground, fontSize: 13))),
                 ]),
               ],
               if (poi.phone != null) ...[
                 const SizedBox(height: 8),
                 Row(children: [
-                  const Icon(Icons.phone_outlined, color: AppColors.textSecondary, size: 18),
+                  const Icon(Icons.phone_outlined, color: AppColors.mutedForeground, size: 18),
                   const SizedBox(width: 8),
-                  Text(poi.phone!, style: const TextStyle(color: Colors.white70, fontSize: 13)),
+                  Text(poi.phone!, style: const TextStyle(color: AppColors.mutedForeground, fontSize: 13)),
                 ]),
               ],
               if (poi.website != null) ...[
                 const SizedBox(height: 8),
                 Row(children: [
-                  const Icon(Icons.language, color: AppColors.textSecondary, size: 18),
+                  const Icon(Icons.language, color: AppColors.mutedForeground, size: 18),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(poi.website!, style: const TextStyle(color: AppColors.blue, fontSize: 13),
+                  Expanded(child: Text(poi.website!, style: const TextStyle(color: AppColors.secondary, fontSize: 13),
                     overflow: TextOverflow.ellipsis)),
                 ]),
               ],
@@ -1594,8 +1603,8 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                   icon: const Icon(Icons.directions),
                   label: const Text('Guider ici'),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Color(0xFF2A2A3E)),
+                    foregroundColor: AppColors.primary,
+                    side: const BorderSide(color: AppColors.border),
                     minimumSize: const Size(double.infinity, 44),
                   ),
                 ),
@@ -1625,8 +1634,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(.65),
-                  borderRadius: BorderRadius.circular(10),
+                  color: AppColors.card.withValues(alpha: .92),
+                  borderRadius: BorderRadius.circular(AppSizes.cardRadius),
+                  border: Border.all(color: AppColors.border),
                 ),
                 child: Column(
                   children: [
@@ -1634,10 +1644,10 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
                       '${snap?.speedKmh.toStringAsFixed(0) ?? '--'}',
                       style: const TextStyle(
                         fontSize: 36, fontWeight: FontWeight.w700,
-                        color: Colors.white, fontFamily: 'Rajdhani',
+                        color: AppColors.foreground, fontFamily: 'Inter',
                       ),
                     ),
-                    const Text('km/h', style: TextStyle(fontSize: 11, color: Colors.white54)),
+                    const Text('km/h', style: TextStyle(fontSize: 11, color: AppColors.mutedForeground)),
                   ],
                 ),
               ),
@@ -1653,12 +1663,13 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(.65),
-                borderRadius: BorderRadius.circular(10),
+                color: AppColors.card.withValues(alpha: .92),
+                borderRadius: BorderRadius.circular(AppSizes.cardRadius),
+                border: Border.all(color: AppColors.border),
               ),
               child: Text(
                 _headingLabel(snap.headingDeg),
-                style: const TextStyle(fontSize: 16, color: Colors.white, fontFamily: 'Rajdhani'),
+                style: const TextStyle(fontSize: 16, color: AppColors.foreground, fontFamily: 'Inter'),
               ),
             ),
         ],
@@ -1675,16 +1686,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.black.withOpacity(.65),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white24),
+            color: AppColors.card.withValues(alpha: .92),
+            borderRadius: BorderRadius.circular(AppSizes.cardRadius),
+            border: Border.all(color: AppColors.border),
           ),
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.fullscreen_exit, color: Colors.white, size: 18),
+              Icon(Icons.fullscreen_exit, color: AppColors.foreground, size: 18),
               SizedBox(width: 4),
-              Text('Quitter', style: TextStyle(color: Colors.white, fontSize: 12)),
+              Text('Quitter', style: TextStyle(color: AppColors.foreground, fontSize: 12)),
             ],
           ),
         ),
@@ -1694,13 +1705,12 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
 
   // ── PANNEAU PAYSAGE ───────────────────────────────────────
   Widget _buildLandscapePanel() {
-    final snap      = _locationService.lastSnapshot;
     final traceProv = context.watch<TraceProvider>();
     final fuelProv  = context.watch<FuelProvider>();
     final groupProv = context.watch<GroupProvider>();
 
     return Container(
-      color: AppColors.bgPanel,
+      color: AppColors.card,
       padding: const EdgeInsets.all(12),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1710,24 +1720,34 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           const RecordingReminder(),
           // Titre
           const Text('NAVIGATION', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 13,
+            fontFamily: 'Inter', fontSize: 13,
             color: AppColors.textMuted, letterSpacing: 1,
           )),
           const SizedBox(height: 10),
           // Stats en grille
-          _landscapeSpeedStat(snap),
-          _landscapeStat('ALTITUDE', '${snap?.altitudeMeters.toStringAsFixed(0) ?? '--'} m', Colors.white),
-          if (traceProv.hasTrace && snap != null)
-            _landscapeStat('RESTE',
-              '${traceProv.remainingKm(snap.position.latitude, snap.position.longitude).toStringAsFixed(1)} km',
-              AppColors.statusGreen,
+          // Les trois lignes nourries par le GPS s'abonnent à la position :
+          // lues au fil du build, elles gelaient comme le marqueur du pilote.
+          ValueListenableBuilder<GpsSnapshot?>(
+            valueListenable: _locationService.positionListenable,
+            builder: (context, snap, _) => Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _landscapeSpeedStat(snap),
+                _landscapeStat('ALTITUDE', '${snap?.altitudeMeters.toStringAsFixed(0) ?? '--'} m', AppColors.foreground),
+                if (traceProv.hasTrace && snap != null)
+                  _landscapeStat('RESTE',
+                    '${traceProv.remainingKm(snap.position.latitude, snap.position.longitude).toStringAsFixed(1)} km',
+                    AppColors.statusGreen,
+                  ),
+              ],
             ),
+          ),
           _landscapeStat('CARBU.', '${fuelProv.rangeKm.toStringAsFixed(0)} km', fuelProv.isLow ? AppColors.statusRed : AppColors.statusGreen),
           const Divider(height: 20),
           // Membres du groupe
           if (groupProv.groupActive) ...[
             const Text('GROUPE', style: TextStyle(
-              fontFamily: 'Rajdhani', fontSize: 12,
+              fontFamily: 'Inter', fontSize: 12,
               color: AppColors.textMuted, letterSpacing: 1,
             )),
             const SizedBox(height: 6),
@@ -1777,7 +1797,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               icon: const Icon(Icons.emergency, size: 18),
               label: const Text('SOS'),
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.red,
+                backgroundColor: AppColors.destructive,
                 minimumSize: const Size(double.infinity, 44),
               ),
             ),
@@ -1800,7 +1820,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text('${snap?.speedKmh.toStringAsFixed(0) ?? '--'} km/h', style: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.orange, fontFamily: 'Rajdhani')),
+                fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.accent, fontFamily: 'Inter')),
               if (speedLimit != null) ...[
                 const SizedBox(width: 6),
                 SpeedLimitBadge(limitKmh: speedLimit, size: 26),
@@ -1819,7 +1839,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label, style: const TextStyle(fontSize: 11, color: AppColors.textMuted, letterSpacing: .5)),
-          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color, fontFamily: 'Rajdhani')),
+          Text(value, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: color, fontFamily: 'Inter')),
         ],
       ),
     );
@@ -1831,9 +1851,9 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       child: Row(
         children: [
           CircleAvatar(radius: 10, backgroundColor: const Color(0xFF1565C0),
-            child: Text(m.name.isNotEmpty ? m.name[0] : '?', style: const TextStyle(fontSize: 9, color: Colors.white))),
+            child: Text(m.name.isNotEmpty ? m.name[0] : '?', style: const TextStyle(fontSize: 9, color: AppColors.onPrimary))),
           const SizedBox(width: 6),
-          Text(m.name, style: const TextStyle(fontSize: 11, color: Colors.white)),
+          Text(m.name, style: const TextStyle(fontSize: 11, color: AppColors.foreground)),
           const Spacer(),
           Text(
             m.isSharing ? '${m.speedKmh?.toStringAsFixed(0) ?? '-'} km/h' : 'masqué',
@@ -1962,16 +1982,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: AppColors.green.withOpacity(.9),
+            color: AppColors.accent.withOpacity(.9),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(color: AppColors.statusGreen),
           ),
           child: const Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.shield, color: Colors.white, size: 14),
+              Icon(Icons.shield, color: AppColors.onAccent, size: 14),
               SizedBox(width: 4),
-              Text('Solo ON', style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600)),
+              Text('Solo ON', style: TextStyle(color: AppColors.onAccent, fontSize: 11, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -1982,7 +2002,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // ── MARQUEURS ────────────────────────────────────────────
   Widget _traceEndpoint(Color color) => Container(
     decoration: BoxDecoration(shape: BoxShape.circle, color: color,
-      border: Border.all(color: Colors.white, width: 2),
+      border: Border.all(color: AppColors.markerCasing, width: 2),
       boxShadow: [BoxShadow(color: color.withOpacity(.4), blurRadius: 6)],
     ),
   );
@@ -1991,7 +2011,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: Color(poi.category.colorValue),
-      border: Border.all(color: Colors.white, width: 2),
+      border: Border.all(color: AppColors.markerCasing, width: 2),
       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 4)],
     ),
     alignment: Alignment.center,
@@ -2001,38 +2021,25 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   Widget _editPointMarker(int number) => Container(
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      color: AppColors.blue,
-      border: Border.all(color: Colors.white, width: 2),
+      color: AppColors.secondary,
+      border: Border.all(color: AppColors.markerCasing, width: 2),
       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 4)],
     ),
     alignment: Alignment.center,
     child: Text('$number', style: const TextStyle(
-      color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+      color: AppColors.onPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
   );
 
   Widget _drawPointMarker(int number) => Container(
     decoration: BoxDecoration(
       shape: BoxShape.circle,
-      color: AppColors.orange,
-      border: Border.all(color: Colors.white, width: 2),
+      color: AppColors.accent,
+      border: Border.all(color: AppColors.markerCasing, width: 2),
       boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: .3), blurRadius: 4)],
     ),
     alignment: Alignment.center,
     child: Text('$number', style: const TextStyle(
-      color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-  );
-
-  Widget _riderMarker(double heading) => Transform.rotate(
-    angle: heading * (3.14159 / 180),
-    child: Container(
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: AppColors.blue,
-        border: Border.all(color: Colors.white, width: 2.5),
-        boxShadow: [BoxShadow(color: AppColors.blue.withOpacity(.5), blurRadius: 8)],
-      ),
-      child: const Icon(Icons.navigation, color: Colors.white, size: 16),
-    ),
+      color: AppColors.onPrimary, fontSize: 11, fontWeight: FontWeight.w700)),
   );
 
   double _peerOpacity(DateTime? lastUpdate) {
@@ -2054,25 +2061,25 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: color.withValues(alpha: opacity),
-        border: Border.all(color: Colors.white.withValues(alpha: crispness), width: 2),
+        border: Border.all(color: AppColors.markerCasing.withValues(alpha: crispness), width: 2),
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: .25 * crispness), blurRadius: 4, offset: const Offset(0, 1)),
         ],
       ),
       child: Center(child: Text(
         name.isNotEmpty ? name[0].toUpperCase() : '?',
-        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white.withValues(alpha: crispness)),
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.onPrimary.withValues(alpha: crispness)),
       )),
     );
   }
 
   Widget _rallyMarker() => Container(
     decoration: BoxDecoration(
-      shape: BoxShape.circle, color: AppColors.red,
-      border: Border.all(color: Colors.white, width: 2),
+      shape: BoxShape.circle, color: AppColors.destructive,
+      border: Border.all(color: AppColors.markerCasing, width: 2),
     ),
     child: const Center(child: Text('R',
-      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.white))),
+      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.onPrimary))),
   );
 
   // ── UTILITAIRES ──────────────────────────────────────────
@@ -2082,18 +2089,18 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 8),
         decoration: BoxDecoration(
-          color:        active ? AppColors.orange.withValues(alpha: .15) : AppColors.bgCard,
+          color:        active ? AppColors.accent.withValues(alpha: .15) : AppColors.card,
           borderRadius: BorderRadius.circular(8),
-          border:       Border.all(color: active ? AppColors.orange : const Color(0xFF2A2A3E)),
+          border:       Border.all(color: active ? AppColors.accent : AppColors.border),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 16, color: active ? AppColors.orange : AppColors.textSecondary),
+            Icon(icon, size: 16, color: active ? AppColors.accent : AppColors.mutedForeground),
             const SizedBox(height: 2),
             Text(label, style: TextStyle(
-              fontSize: 10, fontFamily: 'Rajdhani',
-              color: active ? AppColors.orange : AppColors.textSecondary,
+              fontSize: 10, fontFamily: 'Inter',
+              color: active ? AppColors.accent : AppColors.mutedForeground,
             )),
           ],
         ),
@@ -2105,11 +2112,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   // ces boutons d'en-tête étaient trop petits pour être fiables en conduite.
   Widget _iconBtn(IconData icon, VoidCallback onTap) => GestureDetector(
     onTap: onTap,
-    child: GlassPuck(icon: icon, color: AppColors.orange, size: 44, iconSize: 22),
+    child: GlassPuck(icon: icon, color: AppColors.accent, size: 44, iconSize: 22),
   );
 
   Widget _mapCtrlBtn(IconData icon, VoidCallback onTap,
-      {bool active = false, Color activeColor = AppColors.orange}) {
+      {bool active = false, Color activeColor = AppColors.accent}) {
     return GestureDetector(
       onTap: onTap,
       child: GlassPuck(icon: icon, color: activeColor, active: active),
@@ -2130,7 +2137,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _showImportSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -2141,7 +2148,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _showGpxGuidanceChooser(TraceModel trace) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -2151,14 +2158,14 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           children: [
             const Padding(
               padding: EdgeInsets.all(16),
-              child: Text('Guidage sur la trace', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
+              child: Text('Guidage sur la trace', style: TextStyle(color: AppColors.foreground, fontWeight: FontWeight.w600)),
             ),
             ListTile(
-              leading: const Icon(Icons.notifications_active, color: AppColors.orange),
-              title: const Text('Alerte de déviation', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.notifications_active, color: AppColors.accent),
+              title: const Text('Alerte de déviation', style: TextStyle(color: AppColors.foreground)),
               subtitle: const Text(
                 'Suis la trace, prévient si tu t\'en éloignes.',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: AppColors.mutedForeground, fontSize: 12),
               ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
@@ -2166,11 +2173,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.turn_right, color: AppColors.orange),
-              title: const Text('Guidage virage par virage', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.turn_right, color: AppColors.accent),
+              title: const Text('Guidage virage par virage', style: TextStyle(color: AppColors.foreground)),
               subtitle: const Text(
                 'Instructions dérivées de la trace.',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: AppColors.mutedForeground, fontSize: 12),
               ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
@@ -2178,11 +2185,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.menu_book_outlined, color: AppColors.orange),
-              title: const Text('Roadbook', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.menu_book_outlined, color: AppColors.accent),
+              title: const Text('Roadbook', style: TextStyle(color: AppColors.foreground)),
               subtitle: const Text(
                 'Cap, distances et pictogrammes façon carnet de rallye.',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: AppColors.mutedForeground, fontSize: 12),
               ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
@@ -2190,11 +2197,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.edit_road, color: AppColors.orange),
-              title: const Text('Éditer la trace', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.edit_road, color: AppColors.accent),
+              title: const Text('Éditer la trace', style: TextStyle(color: AppColors.foreground)),
               subtitle: const Text(
                 'Couper, ajouter ou supprimer des points, contourner un passage.',
-                style: TextStyle(color: Colors.white54, fontSize: 12),
+                style: TextStyle(color: AppColors.mutedForeground, fontSize: 12),
               ),
               onTap: () {
                 Navigator.of(sheetContext).pop();
@@ -2218,7 +2225,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _openSearchSheet() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
@@ -2241,7 +2248,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _showLongPressSheet(LatLng point) {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -2250,16 +2257,16 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
           mainAxisSize: MainAxisSize.min,
           children: [
             ListTile(
-              leading: const Icon(Icons.directions, color: AppColors.orange),
-              title: const Text('Guider ici', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.directions, color: AppColors.accent),
+              title: const Text('Guider ici', style: TextStyle(color: AppColors.foreground)),
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 _startGuidanceTo(point);
               },
             ),
             ListTile(
-              leading: const Icon(Icons.star_border, color: AppColors.orange),
-              title: const Text('Ajouter aux favoris', style: TextStyle(color: Colors.white)),
+              leading: const Icon(Icons.star_border, color: AppColors.accent),
+              title: const Text('Ajouter aux favoris', style: TextStyle(color: AppColors.foreground)),
               onTap: () {
                 Navigator.of(sheetContext).pop();
                 _promptAddFavorite(point);
@@ -2322,11 +2329,11 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
     final name = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        backgroundColor: AppColors.bgPanel,
-        title: const Text('Nom du favori', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.card,
+        title: const Text('Nom du favori', style: TextStyle(color: AppColors.foreground)),
         content: TextField(
           controller: nameCtrl,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: AppColors.foreground),
           decoration: const InputDecoration(hintText: 'Ex: Garage'),
           autofocus: true,
         ),
@@ -2350,7 +2357,7 @@ class _MapScreenState extends State<MapScreen> with WidgetsBindingObserver {
   void _showLayerSelector() {
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppColors.bgPanel,
+      backgroundColor: AppColors.card,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),

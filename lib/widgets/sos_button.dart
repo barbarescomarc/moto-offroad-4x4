@@ -80,7 +80,7 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
                 height: AppSizes.sosButtonSize + 12,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.red.withOpacity(.15 * _pulseAnim.value),
+                  color: AppColors.destructive.withOpacity(.15 * _pulseAnim.value),
                 ),
               ),
               // Bouton principal
@@ -89,23 +89,23 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
                 height: AppSizes.sosButtonSize,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: AppColors.red,
+                  color: AppColors.destructive,
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.red.withOpacity(.5),
+                      color: AppColors.destructive.withOpacity(.5),
                       blurRadius: glowRadius,
                       spreadRadius: 1,
                     ),
                   ],
-                  border: Border.all(color: Colors.white.withOpacity(.3), width: 1.5),
+                  border: Border.all(color: AppColors.onPrimary.withValues(alpha: .3), width: 1.5),
                 ),
                 child: const Center(
                   child: Text('SOS',
                     style: TextStyle(
-                      fontFamily: 'Rajdhani',
+                      fontFamily: 'Inter',
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      color: AppColors.onPrimary,
                       letterSpacing: 1,
                     ),
                   ),
@@ -119,8 +119,8 @@ class _SosButtonState extends State<SosButton> with SingleTickerProviderStateMix
                   child: CircularProgressIndicator(
                     value: _holdProgress,
                     strokeWidth: 3,
-                    backgroundColor: Colors.white.withOpacity(.2),
-                    color: Colors.white,
+                    backgroundColor: AppColors.onPrimary.withValues(alpha: .2),
+                    color: AppColors.onPrimary,
                   ),
                 ),
             ],

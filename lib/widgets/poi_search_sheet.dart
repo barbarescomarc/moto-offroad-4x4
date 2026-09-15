@@ -65,14 +65,14 @@ class _PoiSearchSheetState extends State<PoiSearchSheet> {
           Center(child: Container(
             width: 40, height: 4,
             decoration: BoxDecoration(
-              color: const Color(0xFF2A2A3E),
+              color: AppColors.border,
               borderRadius: BorderRadius.circular(2),
             ),
           )),
           const SizedBox(height: 16),
           const Text('RECHERCHER DES POINTS D\'INTÉRÊT', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 16, fontWeight: FontWeight.w700,
-            color: AppColors.orange, letterSpacing: 1,
+            fontFamily: 'Inter', fontSize: 16, fontWeight: FontWeight.w700,
+            color: AppColors.accent, letterSpacing: 1,
           )),
           const SizedBox(height: 4),
           const Text('Rayon de recherche : 20 km — source DATAtourisme',
@@ -80,7 +80,7 @@ class _PoiSearchSheetState extends State<PoiSearchSheet> {
           const SizedBox(height: 16),
 
           const Text('OÙ CHERCHER', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1)),
+            fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1)),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8, children: [
             _modeChip('Autour de moi', PoiSearchMode.aroundMe, enabled: true),
@@ -90,7 +90,7 @@ class _PoiSearchSheetState extends State<PoiSearchSheet> {
           const SizedBox(height: 16),
 
           const Text('QUOI CHERCHER', style: TextStyle(
-            fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1)),
+            fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1)),
           const SizedBox(height: 8),
           Wrap(spacing: 8, runSpacing: 8,
             children: _categoriesCherchables(
@@ -105,7 +105,7 @@ class _PoiSearchSheetState extends State<PoiSearchSheet> {
               onPressed: (_selected.isEmpty || searching) ? null : _search,
               icon: searching
                   ? const SizedBox(width: 18, height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.onPrimary))
                   : const Icon(Icons.search),
               label: Text(searching ? 'Recherche…' : 'Rechercher'),
               style: FilledButton.styleFrom(minimumSize: const Size(double.infinity, 48)),
@@ -123,12 +123,12 @@ class _PoiSearchSheetState extends State<PoiSearchSheet> {
       selected: active,
       onSelected: enabled ? (_) => setState(() => _mode = mode) : null,
       labelStyle: TextStyle(
-        color: !enabled ? AppColors.textMuted : (active ? Colors.white : Colors.white70),
+        color: !enabled ? AppColors.textMuted : (active ? AppColors.foreground : AppColors.mutedForeground),
         fontSize: 13,
       ),
-      selectedColor: AppColors.orange,
-      backgroundColor: AppColors.bgPanel,
-      disabledColor: AppColors.bgPanel.withValues(alpha: .5),
+      selectedColor: AppColors.accent,
+      backgroundColor: AppColors.card,
+      disabledColor: AppColors.card.withValues(alpha: .5),
     );
   }
 
@@ -144,10 +144,10 @@ class _PoiSearchSheetState extends State<PoiSearchSheet> {
           _selected.remove(category);
         }
       }),
-      labelStyle: TextStyle(color: active ? Colors.white : Colors.white70, fontSize: 13),
+      labelStyle: TextStyle(color: active ? AppColors.foreground : AppColors.mutedForeground, fontSize: 13),
       selectedColor: Color(category.colorValue),
-      backgroundColor: AppColors.bgPanel,
-      checkmarkColor: Colors.white,
+      backgroundColor: AppColors.card,
+      checkmarkColor: AppColors.accent,
     );
   }
 

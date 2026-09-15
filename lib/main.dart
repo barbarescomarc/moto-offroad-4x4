@@ -73,13 +73,15 @@ void main() async {
     DeviceOrientation.landscapeRight,
   ]);
 
-  // UI système : overlay sombre (barre de statut transparente)
+  // UI système : barre de statut transparente sur fond clair, donc icônes
+  // sombres — l'inverse ferait disparaître l'heure et la batterie.
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF1A1A2E),
-      systemNavigationBarIconBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
+      statusBarBrightness: Brightness.light,
+      systemNavigationBarColor: AppColors.background,
+      systemNavigationBarIconBrightness: Brightness.dark,
     ),
   );
 
@@ -209,7 +211,7 @@ class MotoOffroadApp extends StatelessWidget {
             child: MaterialApp.router(
               title: 'GO FREE',
               debugShowCheckedModeBanner: false,
-              theme: AppTheme.dark,
+              theme: AppTheme.light,
               routerConfig: appRouter,
             ),
           ),

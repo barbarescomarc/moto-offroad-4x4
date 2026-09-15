@@ -3,6 +3,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../utils/echelle_distance.dart';
+import '../app/theme.dart';
 
 /// Échelle de distance posée sur la carte : une règle graduée, et sous elle
 /// ce qu'un centimètre d'écran représente sur le terrain.
@@ -88,8 +89,9 @@ class _Pastille extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.62),
-        borderRadius: BorderRadius.circular(8),
+        color: AppColors.card.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(AppSizes.cardRadius),
+        border: Border.all(color: AppColors.border),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -98,7 +100,7 @@ class _Pastille extends StatelessWidget {
           Text(
             legendeRegle,
             style: const TextStyle(
-              color: Colors.white,
+              color: AppColors.foreground,
               fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
@@ -111,7 +113,7 @@ class _Pastille extends StatelessWidget {
           const SizedBox(height: 3),
           Text(
             legendeCentimetre,
-            style: const TextStyle(color: Colors.white70, fontSize: 11),
+            style: const TextStyle(color: AppColors.mutedForeground, fontSize: 11),
           ),
         ],
       ),
@@ -125,7 +127,7 @@ class _ReglePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final trait = Paint()
-      ..color = Colors.white
+      ..color = AppColors.foreground
       ..strokeWidth = 2
       ..strokeCap = StrokeCap.square;
 

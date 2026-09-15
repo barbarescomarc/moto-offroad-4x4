@@ -22,12 +22,12 @@ class LegalLinksSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('TEXTES LÉGAUX', style: TextStyle(
-          fontFamily: 'Rajdhani', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5)),
+          fontFamily: 'Inter', fontSize: 12, color: AppColors.textMuted, letterSpacing: 1.5)),
         const SizedBox(height: 8),
         ListTile(
           key: const Key('entree-charte-du-pilote'),
           leading: const Icon(Icons.shield_outlined, color: AppColors.textMuted),
-          title: const Text('Charte du pilote', style: TextStyle(color: Colors.white)),
+          title: const Text('Charte du pilote', style: TextStyle(color: AppColors.foreground)),
           trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
           contentPadding: EdgeInsets.zero,
           onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
@@ -37,7 +37,7 @@ class LegalLinksSection extends StatelessWidget {
         ListTile(
           key: const Key('entree-conditions-publication'),
           leading: const Icon(Icons.description_outlined, color: AppColors.textMuted),
-          title: const Text('Conditions de publication', style: TextStyle(color: Colors.white)),
+          title: const Text('Conditions de publication', style: TextStyle(color: AppColors.foreground)),
           trailing: const Icon(Icons.chevron_right, color: AppColors.textMuted),
           contentPadding: EdgeInsets.zero,
           onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(

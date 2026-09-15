@@ -33,15 +33,15 @@ class _RoadbookScreenState extends State<RoadbookScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.bgDark,
+      backgroundColor: AppColors.background,
       appBar: AppBar(title: Text(_trace?.name.toUpperCase() ?? 'ROADBOOK')),
       body: _entries.isEmpty
           ? const Center(
-              child: Text('Aucune trace chargée', style: TextStyle(color: Colors.white54)),
+              child: Text('Aucune trace chargée', style: TextStyle(color: AppColors.mutedForeground)),
             )
           : ListView.separated(
               itemCount: _entries.length,
-              separatorBuilder: (_, __) => const Divider(color: Color(0xFF2A2A3E), height: 1),
+              separatorBuilder: (_, __) => const Divider(color: AppColors.border, height: 1),
               itemBuilder: (_, i) => _entryRow(_entries[i]),
             ),
     );
@@ -52,23 +52,23 @@ class _RoadbookScreenState extends State<RoadbookScreen> {
       leading: Container(
         width: 44, height: 44,
         decoration: BoxDecoration(
-          color: AppColors.orange.withValues(alpha: .15),
+          color: AppColors.accent.withValues(alpha: .15),
           shape: BoxShape.circle,
-          border: Border.all(color: AppColors.orange.withValues(alpha: .5)),
+          border: Border.all(color: AppColors.accent.withValues(alpha: .5)),
         ),
         alignment: Alignment.center,
-        child: Icon(maneuverIcon(entry.maneuver), color: AppColors.orange),
+        child: Icon(maneuverIcon(entry.maneuver), color: AppColors.accent),
       ),
       title: Row(
         children: [
           Text(
             '${entry.capDeg.round().toString().padLeft(3, '0')}°',
-            style: const TextStyle(color: Colors.white, fontFamily: 'Rajdhani',
+            style: const TextStyle(color: AppColors.foreground, fontFamily: 'Inter',
               fontWeight: FontWeight.w700, fontSize: 16),
           ),
           const SizedBox(width: 12),
           Text(_distanceLabel(entry.partialDistanceMeters),
-            style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            style: const TextStyle(color: AppColors.mutedForeground, fontSize: 13)),
           const Spacer(),
           Text(_distanceLabel(entry.cumulativeDistanceMeters),
             style: const TextStyle(color: AppColors.textMuted, fontSize: 12)),
@@ -81,7 +81,7 @@ class _RoadbookScreenState extends State<RoadbookScreen> {
           child: Text(
             (entry.note?.isNotEmpty ?? false) ? entry.note! : 'Ajouter une note…',
             style: TextStyle(
-              color: (entry.note?.isNotEmpty ?? false) ? Colors.white54 : AppColors.textMuted,
+              color: (entry.note?.isNotEmpty ?? false) ? AppColors.mutedForeground : AppColors.textMuted,
               fontStyle: FontStyle.italic, fontSize: 12,
             ),
           ),
@@ -95,11 +95,11 @@ class _RoadbookScreenState extends State<RoadbookScreen> {
     final note = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: AppColors.bgPanel,
-        title: const Text('Note', style: TextStyle(color: Colors.white)),
+        backgroundColor: AppColors.card,
+        title: const Text('Note', style: TextStyle(color: AppColors.foreground)),
         content: TextField(
           controller: ctrl, autofocus: true, maxLines: 3,
-          style: const TextStyle(color: Colors.white),
+          style: const TextStyle(color: AppColors.foreground),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annuler')),

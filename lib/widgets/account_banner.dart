@@ -28,23 +28,30 @@ class AccountBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppColors.bgPanel,
-      child: ListTile(
-        leading: Icon(icon, color: AppColors.orange),
-        title: Text(message, style: const TextStyle(color: Colors.white, fontSize: 14)),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextButton(
-              onPressed: onAction,
-              child: Text(actionLabel),
-            ),
-            IconButton(
-              icon: const Icon(Icons.close, size: 18, color: Colors.white),
-              onPressed: onDismiss,
-              tooltip: 'Masquer',
-            ),
-          ],
+      color: AppColors.card,
+      // Blanc sur fond quasi blanc : sans ce filet, le bandeau ne se
+      // distinguerait plus du contenu qu'il surmonte.
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          border: Border(bottom: BorderSide(color: AppColors.border)),
+        ),
+        child: ListTile(
+          leading: Icon(icon, color: AppColors.accent),
+          title: Text(message, style: const TextStyle(color: AppColors.foreground, fontSize: 14)),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextButton(
+                onPressed: onAction,
+                child: Text(actionLabel),
+              ),
+              IconButton(
+                icon: const Icon(Icons.close, size: 18, color: AppColors.foreground),
+                onPressed: onDismiss,
+                tooltip: 'Masquer',
+              ),
+            ],
+          ),
         ),
       ),
     );

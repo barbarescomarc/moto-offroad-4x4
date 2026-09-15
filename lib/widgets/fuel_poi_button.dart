@@ -82,7 +82,7 @@ class _FuelPoiButtonState extends State<FuelPoiButton> {
           onTap: poi.loading ? null : _basculer,
           child: GlassPuck(
             icon: poi.loading ? Icons.hourglass_top : Icons.local_gas_station,
-            color: AppColors.orange,
+            color: AppColors.accent,
             active: poi.visible && poi.results.isNotEmpty,
           ),
         ),
@@ -94,7 +94,7 @@ class _FuelPoiButtonState extends State<FuelPoiButton> {
               Icons.cloud_off,
               key: const Key('stations-indisponible'),
               size: 16,
-              color: AppColors.orange,
+              color: AppColors.accent,
             ),
           ),
       ],

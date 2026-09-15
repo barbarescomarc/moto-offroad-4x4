@@ -14,6 +14,11 @@ import '../app/theme.dart';
 // appareil d'entrée de gamme. Le dégradé seul donne l'essentiel du rendu
 // pour une fraction du coût.
 //
+// Le verre est clair depuis la reprise de la charte du site (2026-09-15) :
+// surface blanche, bordure fine, icône ardoise. Un verre sombre à icône
+// blanche se lisait bien sur la photo aérienne mais jurait avec le reste de
+// l'app, et se perdait sur l'IGN, qui est un fond clair.
+//
 // Le bouton SOS n'utilise pas ce style : rouge plein, sans transparence,
 // c'est voulu — une alerte d'urgence doit rester la plus visible possible,
 // jamais atténuée par un effet de matière.
@@ -45,23 +50,29 @@ class GlassPuck extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(active ? .18 : .12),
-            (active ? color : AppColors.bgPanel).withOpacity(active ? .5 : .42),
+            AppColors.card.withValues(alpha: .96),
+            // Actif : la teinte d'accent, posée sur le blanc plutôt que
+            // laissée translucide — sinon la carte transparaît au travers
+            // et la pastille perd son état.
+            active
+                ? Color.alphaBlend(color.withValues(alpha: .18), AppColors.card)
+                : AppColors.card.withValues(alpha: .88),
           ],
         ),
         border: Border.all(
-          color: active ? color.withOpacity(.9) : Colors.white.withOpacity(.32),
+          color: active ? color : AppColors.border,
           width: active ? 1.6 : 1.1,
         ),
         boxShadow: [
           BoxShadow(
-            color: (active ? color : Colors.black).withOpacity(active ? .35 : .25),
-            blurRadius: active ? 10 : 6,
-            spreadRadius: active ? 1 : 0,
+            color: (active ? color : AppColors.foreground)
+                .withValues(alpha: active ? .28 : .12),
+            blurRadius: active ? 14 : 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Icon(icon, color: active ? color : Colors.white, size: iconSize),
+      child: Icon(icon, color: active ? color : AppColors.foreground, size: iconSize),
     );
   }
 }
@@ -95,13 +106,17 @@ class GlassPanel extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Colors.white.withOpacity(.06),
-            AppColors.bgPanel.withOpacity(.55),
+            AppColors.card.withValues(alpha: .94),
+            AppColors.card.withValues(alpha: .86),
           ],
         ),
-        border: Border.all(color: Colors.white.withOpacity(.14), width: 1),
+        border: Border.all(color: AppColors.border, width: 1),
         boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(.25), blurRadius: 12, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: AppColors.foreground.withValues(alpha: .12),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: child,
