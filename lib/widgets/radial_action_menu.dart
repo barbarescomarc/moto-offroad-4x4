@@ -141,6 +141,9 @@ class _RadialActionMenuState extends State<RadialActionMenu> {
                     active:   _activeIndex == i,
                     size:     widget.segmentSize,
                     iconSize: widget.segmentSize * 0.46,
+                    // Le vrai matériau, réservé à ce qui ne dure que le
+                    // temps du geste : voir GlassPuck.verre.
+                    verre:    true,
                   ),
                 ),
             ],

@@ -54,6 +54,20 @@ void main() {
     await tester.pumpAndSettle();
   });
 
+  testWidgets('les pastilles dépliées échantillonnent le fond', (tester) async {
+    // Le matériau ne se contente pas de recouvrir : il floute ce qu'il y a
+    // dessous. C'est ce qui distingue le verre d'un aplat translucide.
+    await tester.pumpWidget(menu());
+    expect(find.byType(BackdropFilter), findsNothing,
+        reason: 'au repos, rien ne flotte : rien à flouter');
+
+    final gesture = await _deplier(tester);
+    expect(find.byType(BackdropFilter), findsOneWidget);
+
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
+
   testWidgets('la pastille reste centrée sur son angle quand elle grossit',
       (tester) async {
     // 270° = plein gauche : le segment doit se poser à un rayon exactement

@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 import '../app/theme.dart';
 
@@ -8,11 +10,16 @@ import '../app/theme.dart';
 // inspiré du Liquid Glass d'Apple : dégradé translucide, bordure fine et
 // lumineuse, teinte d'accent à l'état actif plutôt qu'un remplissage plat.
 //
-// Un vrai flou du fond (BackdropFilter) donnerait un rendu plus proche du
-// matériau original, mais appliqué à 6-8 petits boutons flottants
-// au-dessus d'une carte qui se redessine sans cesse, ça pèserait sur un
-// appareil d'entrée de gamme. Le dégradé seul donne l'essentiel du rendu
-// pour une fraction du coût.
+// Un vrai flou du fond (BackdropFilter) coûte cher : appliqué en permanence
+// à sept boutons flottant au-dessus d'une carte qui se redessine sans cesse,
+// il pèserait sur un appareil d'entrée de gamme. Les pastilles permanentes
+// s'en passent donc, et leur dégradé en donne l'essentiel.
+//
+// Les segments d'un menu déplié, eux, le méritent (`verre: true`) : ils
+// n'existent que le temps d'un appui, pendant lequel la carte ne bouge pas,
+// et c'est précisément ce que la doctrine d'Apple appelle la couche de
+// navigation — un matériau qui flotte au-dessus du contenu et échantillonne
+// ce qu'il recouvre. Le flou se paie donc une demi-seconde, pas en continu.
 //
 // Le verre est clair depuis la reprise de la charte du site (2026-09-15) :
 // surface blanche, bordure fine, icône ardoise. Un verre sombre à icône
@@ -29,6 +36,10 @@ class GlassPuck extends StatelessWidget {
   final double size;
   final double iconSize;
 
+  /// Le vrai matériau : le fond est flouté et teinté sous la pastille, au
+  /// lieu d'être simplement recouvert. Réservé aux contrôles éphémères.
+  final bool verre;
+
   const GlassPuck({
     super.key,
     required this.icon,
@@ -36,10 +47,50 @@ class GlassPuck extends StatelessWidget {
     this.active = false,
     this.size = 52,
     this.iconSize = 24,
+    this.verre = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Contraste élevé demandé : le matériau s'efface au profit d'une surface
+    // pleine. Un verre translucide est le premier à devenir illisible.
+    if (verre && !MediaQuery.of(context).highContrast) return _verreDepoli();
+    return _pastillePleine();
+  }
+
+  /// Le matériau : on floute ce qu'il y a dessous, on le teinte à peine, et
+  /// on borde d'un liseré clair — l'arête qui accroche la lumière.
+  Widget _verreDepoli() => ClipOval(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 14, sigmaY: 14),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: size,
+            height: size,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  AppColors.card.withValues(alpha: active ? .66 : .52),
+                  color.withValues(alpha: active ? .34 : .16),
+                ],
+              ),
+              border: Border.all(
+                color: active
+                    ? color.withValues(alpha: .85)
+                    : AppColors.card.withValues(alpha: .75),
+                width: active ? 1.8 : 1.2,
+              ),
+            ),
+            child: Icon(icon,
+                color: active ? color : AppColors.foreground, size: iconSize),
+          ),
+        ),
+      );
+
+  Widget _pastillePleine() {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       width: size,
